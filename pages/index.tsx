@@ -177,7 +177,6 @@ const Home: React.FC = () => {
       <Box py={6} bg="white">
         <Container maxW="container.xl">
           <VStack spacing={6}>
-            <Text fontWeight="medium" fontSize="md" color="gray.600">SEARCH ARTICLES</Text>
             
             <form onSubmit={handleSearch} style={{ width: '100%' }}>
               <InputGroup size="lg">
