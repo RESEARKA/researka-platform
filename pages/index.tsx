@@ -19,12 +19,12 @@ import {
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { FiSearch, FiCalendar, FiEye } from 'react-icons/fi';
+import { FiSearch, FiCalendar, FiEye, FiChevronDown } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
 // Dynamically import components for better performance
 const FeaturedArticle = dynamic(
-  () => import('../components/articles/FeaturedArticle'),
+  () => import('../frontend/src/components/articles/FeaturedArticle'),
   { 
     ssr: true, 
     loading: () => <Skeleton height="300px" width="100%" borderRadius="md" />
@@ -165,8 +165,190 @@ const Home: React.FC = () => {
               <Button variant="ghost" size={{ base: "sm", md: "md" }}>SEARCH</Button>
               <Button variant="ghost" size={{ base: "sm", md: "md" }}>SUBMIT</Button>
               <Button variant="ghost" size={{ base: "sm", md: "md" }}>REVIEW</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>INFO</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>GOVERNANCE</Button>
+              
+              {/* INFO Dropdown */}
+              <Box position="relative" role="group">
+                <Button 
+                  variant="ghost" 
+                  size={{ base: "sm", md: "md" }}
+                  rightIcon={<FiChevronDown />}
+                >
+                  INFO
+                </Button>
+                <Box 
+                  position="absolute"
+                  left="0"
+                  top="100%"
+                  mt="1"
+                  w="48"
+                  bg="white"
+                  shadow="lg"
+                  rounded="md"
+                  overflow="hidden"
+                  zIndex="10"
+                  transform="translateY(-10px)"
+                  opacity="0"
+                  visibility="hidden"
+                  transition="all 0.2s"
+                  _groupHover={{
+                    opacity: 1,
+                    visibility: 'visible',
+                    transform: 'translateY(0)',
+                  }}
+                >
+                  <Link href="/roles" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      ROLES
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/about" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      ABOUT
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/about/team" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      TEAM
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/about/whitepaper" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      WHITEPAPER
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/about/contact" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      CONTACT
+                    </ChakraLink>
+                  </Link>
+                </Box>
+              </Box>
+              
+              {/* GOVERNANCE Dropdown */}
+              <Box position="relative" role="group">
+                <Button 
+                  variant="ghost" 
+                  size={{ base: "sm", md: "md" }}
+                  rightIcon={<FiChevronDown />}
+                >
+                  GOVERNANCE
+                </Button>
+                <Box 
+                  position="absolute"
+                  right="0"
+                  top="100%"
+                  mt="1"
+                  w="56"
+                  bg="white"
+                  shadow="lg"
+                  rounded="md"
+                  overflow="hidden"
+                  zIndex="10"
+                  transform="translateY(-10px)"
+                  opacity="0"
+                  visibility="hidden"
+                  transition="all 0.2s"
+                  _groupHover={{
+                    opacity: 1,
+                    visibility: 'visible',
+                    transform: 'translateY(0)',
+                  }}
+                >
+                  <Link href="/legal" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      LEGAL
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/privacy-policy" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      PRIVACY POLICY
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/cookie-policy" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      COOKIE POLICY
+                    </ChakraLink>
+                  </Link>
+                  <Link href="/privacy-center" passHref>
+                    <ChakraLink 
+                      display="block" 
+                      px="4" 
+                      py="2" 
+                      fontSize="xs" 
+                      fontWeight="medium" 
+                      color="gray.700" 
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      PRIVACY CENTER
+                    </ChakraLink>
+                  </Link>
+                </Box>
+              </Box>
+              
               <Button colorScheme="blue" size={{ base: "sm", md: "md" }}>LOGIN</Button>
             </HStack>
           </Flex>
@@ -177,6 +359,7 @@ const Home: React.FC = () => {
       <Box py={6} bg="white">
         <Container maxW="container.xl">
           <VStack spacing={6}>
+            <Text fontWeight="medium" fontSize="md" color="gray.600">SEARCH ARTICLES</Text>
             
             <form onSubmit={handleSearch} style={{ width: '100%' }}>
               <InputGroup size="lg">
@@ -254,7 +437,45 @@ const Home: React.FC = () => {
           <VStack spacing={6} align="stretch">
             {/* Featured Article - Using Suspense for better loading experience */}
             <Suspense fallback={<Skeleton height="300px" width="100%" borderRadius="md" />}>
-              <FeaturedArticle article={FEATURED_ARTICLE} />
+              <Box 
+                bg="white" 
+                p={6} 
+                borderRadius="md" 
+                boxShadow="sm"
+                borderWidth="1px"
+                borderColor="gray.200"
+              >
+                <HStack spacing={2} mb={2}>
+                  {FEATURED_ARTICLE.categories.map((category, index) => (
+                    <Tag key={index} size="sm" colorScheme={index === 0 ? "blue" : "green"} borderRadius="full">
+                      {category}
+                    </Tag>
+                  ))}
+                </HStack>
+                
+                <Heading as="h2" size="lg" mb={2} color="gray.700">
+                  {FEATURED_ARTICLE.title}
+                </Heading>
+                
+                <Text fontSize="sm" color="gray.600" mb={3}>
+                  {FEATURED_ARTICLE.authors}
+                </Text>
+                
+                <Text color="gray.600" mb={4}>
+                  {FEATURED_ARTICLE.abstract}
+                </Text>
+                
+                <Flex justify="space-between" align="center" color="gray.500" fontSize="sm">
+                  <Flex align="center">
+                    <FiCalendar style={{ marginRight: '5px' }} />
+                    <Text>{FEATURED_ARTICLE.date}</Text>
+                  </Flex>
+                  <Flex align="center">
+                    <FiEye style={{ marginRight: '5px' }} />
+                    <Text>{FEATURED_ARTICLE.views}</Text>
+                  </Flex>
+                </Flex>
+              </Box>
             </Suspense>
             
             {/* More articles would go here */}
