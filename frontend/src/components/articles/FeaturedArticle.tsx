@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Heading, Text, Flex, Badge, Image, useColorModeValue } from '@chakra-ui/react';
+import { Box, Heading, Text, Flex, Badge, useColorModeValue } from '@chakra-ui/react';
 import Link from 'next/link';
 
 interface FeaturedArticleProps {
@@ -9,7 +9,6 @@ interface FeaturedArticleProps {
   categories: string[];
   date: string;
   views: number;
-  imageUrl?: string;
   articleId: string;
 }
 
@@ -20,7 +19,6 @@ const FeaturedArticle: React.FC<FeaturedArticleProps> = ({
   categories,
   date,
   views,
-  imageUrl = '/images/article-placeholder.jpg',
   articleId,
 }) => {
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -43,14 +41,6 @@ const FeaturedArticle: React.FC<FeaturedArticleProps> = ({
         display="flex"
         flexDirection="column"
       >
-        <Image
-          src={imageUrl}
-          alt={title}
-          objectFit="cover"
-          height="200px"
-          width="100%"
-        />
-        
         <Flex direction="column" p={6} flex="1">
           <Flex mb={2} wrap="wrap" gap={2}>
             {categories.map((category) => (

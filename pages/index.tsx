@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useCallback, Suspense, lazy } from 'react';
 import {
   Box,
@@ -16,11 +18,17 @@ import {
   InputLeftElement,
   Skeleton,
   useDisclosure,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  IconButton,
+  useColorModeValue
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { FiSearch, FiCalendar, FiEye } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
+import { FiSearch, FiCalendar, FiEye, FiChevronDown } from 'react-icons/fi';
 
 // Dynamically import components for better performance
 const FeaturedArticle = dynamic(
@@ -150,24 +158,59 @@ const Home: React.FC = () => {
             direction={{ base: "column", md: "row" }}
             gap={{ base: 4, md: 0 }}
           >
-            <Link href="/" passHref>
-              <ChakraLink _hover={{ textDecoration: 'none' }}>
-                <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
-              </ChakraLink>
-            </Link>
+            <ChakraLink href="/" _hover={{ textDecoration: 'none' }}>
+              <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
+            </ChakraLink>
             
             <HStack 
               spacing={{ base: 2, md: 4 }}
               flexWrap={{ base: "wrap", md: "nowrap" }}
               justifyContent={{ base: "center", md: "flex-end" }}
+              fontSize="2xs"
             >
-              <Button variant="ghost" colorScheme="blue" isActive={true} size={{ base: "sm", md: "md" }}>HOME</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>SEARCH</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>SUBMIT</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>REVIEW</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>INFO</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>GOVERNANCE</Button>
-              <Button colorScheme="blue" size={{ base: "sm", md: "md" }}>LOGIN</Button>
+              <Button as="a" href="/" variant="ghost" colorScheme="blue" isActive={true} size={{ base: "sm", md: "md" }}>HOME</Button>
+              <Button as="a" href="/search" variant="ghost" size={{ base: "sm", md: "md" }}>SEARCH</Button>
+              <Button as="a" href="/submit" variant="ghost" size={{ base: "sm", md: "md" }}>SUBMIT</Button>
+              <Button as="a" href="/review" variant="ghost" size={{ base: "sm", md: "md" }}>REVIEW</Button>
+              
+              {/* INFO Dropdown */}
+              <Menu>
+                <MenuButton 
+                  as={Button} 
+                  rightIcon={<FiChevronDown />}
+                  variant="ghost"
+                  size={{ base: "sm", md: "md" }}
+                >
+                  INFO
+                </MenuButton>
+                <MenuList minWidth="180px" fontSize="sm"> {/* Making submenu text 10% bigger */}
+                  <MenuItem as="a" href="/info/roles">ROLES</MenuItem>
+                  <MenuItem as="a" href="/info/about">ABOUT</MenuItem>
+                  <MenuItem as="a" href="/info/team">TEAM</MenuItem>
+                  <MenuItem as="a" href="/info/whitepaper">WHITEPAPER</MenuItem>
+                  <MenuItem as="a" href="/info/contact">CONTACT</MenuItem>
+                </MenuList>
+              </Menu>
+              
+              {/* GOVERNANCE Dropdown */}
+              <Menu>
+                <MenuButton 
+                  as={Button} 
+                  rightIcon={<FiChevronDown />}
+                  variant="ghost"
+                  size={{ base: "sm", md: "md" }}
+                >
+                  GOVERNANCE
+                </MenuButton>
+                <MenuList minWidth="180px" fontSize="sm"> {/* Making submenu text 10% bigger */}
+                  <MenuItem as="a" href="/governance/legal">LEGAL</MenuItem>
+                  <MenuItem as="a" href="/governance/privacy-policy">PRIVACY POLICY</MenuItem>
+                  <MenuItem as="a" href="/governance/cookie-policy">COOKIE POLICY</MenuItem>
+                  <MenuItem as="a" href="/governance/privacy-center">PRIVACY CENTER</MenuItem>
+                </MenuList>
+              </Menu>
+              
+              <Button as="a" href="/login" colorScheme="blue" size={{ base: "sm", md: "md" }}>LOGIN</Button>
             </HStack>
           </Flex>
         </Container>
@@ -177,7 +220,15 @@ const Home: React.FC = () => {
       <Box py={6} bg="white">
         <Container maxW="container.xl">
           <VStack spacing={6}>
-            <Heading as="h2" size="lg" color="gray.600" textAlign="center">DECENTRALIZING ACADEMIC RESEARCH</Heading>
+            <Heading 
+              as="h2" 
+              size="md" 
+              color="gray.600" 
+              textAlign="center"
+              fontSize="1.44rem"
+            >
+              DECENTRALIZING ACADEMIC RESEARCH
+            </Heading>
             
             <form onSubmit={handleSearch} style={{ width: '100%' }}>
               <InputGroup size="lg">
@@ -255,45 +306,15 @@ const Home: React.FC = () => {
           <VStack spacing={6} align="stretch">
             {/* Featured Article - Using Suspense for better loading experience */}
             <Suspense fallback={<Skeleton height="300px" width="100%" borderRadius="md" />}>
-              <Box 
-                bg="white" 
-                p={6} 
-                borderRadius="md" 
-                boxShadow="sm"
-                borderWidth="1px"
-                borderColor="gray.200"
-              >
-                <HStack spacing={2} mb={2}>
-                  {FEATURED_ARTICLE.categories.map((category, index) => (
-                    <Tag key={index} size="sm" colorScheme={index === 0 ? "blue" : "green"} borderRadius="full">
-                      {category}
-                    </Tag>
-                  ))}
-                </HStack>
-                
-                <Heading as="h2" size="lg" mb={2} color="gray.700">
-                  {FEATURED_ARTICLE.title}
-                </Heading>
-                
-                <Text fontSize="sm" color="gray.600" mb={3}>
-                  {FEATURED_ARTICLE.authors}
-                </Text>
-                
-                <Text color="gray.600" mb={4}>
-                  {FEATURED_ARTICLE.abstract}
-                </Text>
-                
-                <Flex justify="space-between" align="center" color="gray.500" fontSize="sm">
-                  <Flex align="center">
-                    <FiCalendar style={{ marginRight: '5px' }} />
-                    <Text>{FEATURED_ARTICLE.date}</Text>
-                  </Flex>
-                  <Flex align="center">
-                    <FiEye style={{ marginRight: '5px' }} />
-                    <Text>{FEATURED_ARTICLE.views}</Text>
-                  </Flex>
-                </Flex>
-              </Box>
+              <FeaturedArticle 
+                title={FEATURED_ARTICLE.title}
+                abstract={FEATURED_ARTICLE.abstract}
+                authors={FEATURED_ARTICLE.authors.split(', ')}
+                categories={FEATURED_ARTICLE.categories}
+                date={FEATURED_ARTICLE.date}
+                views={FEATURED_ARTICLE.views}
+                articleId={FEATURED_ARTICLE.id.toString()}
+              />
             </Suspense>
             
             {/* More articles would go here */}
