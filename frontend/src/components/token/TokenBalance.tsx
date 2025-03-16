@@ -31,8 +31,8 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [usdValue, setUsdValue] = useState<string>('0');
   const toast = useToast();
-  const tokenContract = useTokenContract(false, tokenAddress);
-  const tokenContractWithSigner = useTokenContract(true, tokenAddress);
+  const tokenContract = useTokenContract(false);
+  const tokenContractWithSigner = useTokenContract(true);
   
   // Memoized fetch function to improve performance
   const fetchTokenBalance = useCallback(async () => {
