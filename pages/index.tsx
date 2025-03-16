@@ -161,10 +161,10 @@ const Home: React.FC = () => {
               flexWrap={{ base: "wrap", md: "nowrap" }}
               justifyContent={{ base: "center", md: "flex-end" }}
             >
-              <Button variant="ghost" colorScheme="blue" isActive={true} size={{ base: "sm", md: "md" }}>HOME</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>SEARCH</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>SUBMIT</Button>
-              <Button variant="ghost" size={{ base: "sm", md: "md" }}>REVIEW</Button>
+              <Button variant="ghost" colorScheme="blue" isActive={true} size={{ base: "sm", md: "md" }} fontSize={{ base: "xs", md: "sm" }}>HOME</Button>
+              <Button variant="ghost" size={{ base: "sm", md: "md" }} fontSize={{ base: "xs", md: "sm" }}>SEARCH</Button>
+              <Button variant="ghost" size={{ base: "sm", md: "md" }} fontSize={{ base: "xs", md: "sm" }}>SUBMIT</Button>
+              <Button variant="ghost" size={{ base: "sm", md: "md" }} fontSize={{ base: "xs", md: "sm" }}>REVIEW</Button>
               
               {/* INFO Dropdown */}
               <Box position="relative" role="group">
@@ -172,6 +172,7 @@ const Home: React.FC = () => {
                   variant="ghost" 
                   size={{ base: "sm", md: "md" }}
                   rightIcon={<FiChevronDown />}
+                  fontSize={{ base: "xs", md: "sm" }}
                 >
                   INFO
                 </Button>
@@ -270,6 +271,7 @@ const Home: React.FC = () => {
                   variant="ghost" 
                   size={{ base: "sm", md: "md" }}
                   rightIcon={<FiChevronDown />}
+                  fontSize={{ base: "xs", md: "sm" }}
                 >
                   GOVERNANCE
                 </Button>
@@ -349,7 +351,7 @@ const Home: React.FC = () => {
                 </Box>
               </Box>
               
-              <Button colorScheme="blue" size={{ base: "sm", md: "md" }}>LOGIN</Button>
+              <Button colorScheme="blue" size={{ base: "sm", md: "md" }} fontSize={{ base: "xs", md: "sm" }}>LOGIN</Button>
             </HStack>
           </Flex>
         </Container>
