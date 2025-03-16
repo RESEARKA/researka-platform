@@ -24,12 +24,16 @@
     "@emotion/styled": "^11.14.0",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
+    "@tanstack/react-query": "^5.68.0",
     "ethers": "^5.7.2",
     "framer-motion": "^10.18.0",
     "next": "13.4.19",
+    "next-pwa": "^5.6.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-icons": "^4.12.0"
+    "react-icons": "^4.12.0",
+    "react-virtualized-auto-sizer": "^1.0.25",
+    "react-window": "^1.8.11"
   },
   "devDependencies": {
     "@chainlink/contracts": "^0.6.1",
@@ -49,6 +53,7 @@
     "@types/node": "^20.17.24",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/react-window": "^1.8.8",
     "chai": "^4.3.7",
     "dotenv": "^16.3.1",
     "eslint": "8.48.0",

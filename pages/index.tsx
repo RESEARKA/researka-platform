@@ -24,21 +24,34 @@ import {
   MenuList,
   MenuItem,
   IconButton,
-  useColorModeValue
+  useColorModeValue,
+  LinkBox,
+  LinkOverlay
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import Link from 'next/link';
+import NextLink from 'next/link';
 import dynamic from 'next/dynamic';
-import { FiSearch, FiCalendar, FiEye, FiChevronDown } from 'react-icons/fi';
+import { FiSearch, FiChevronDown } from 'react-icons/fi';
 import { useModal } from '../contexts/ModalContext';
-import LoginModal from '../components/LoginModal';
-import NavBar from '../components/NavBar';
+import { ALL_ARTICLES, getRandomArticles } from '../data/articles';
+import { FEATURED_ARTICLE as FEATURED_ARTICLE_DATA } from '../data/articles';
+
+// Dynamically import components that aren't needed for initial render
+const LoginModal = dynamic(() => import('../components/LoginModal'), {
+  ssr: false,
+  loading: () => null
+});
+
+const NavBar = dynamic(() => import('../components/NavBar'), {
+  ssr: true
+});
 
 // Dynamically import components for better performance
 const FeaturedArticle = dynamic(
-  () => import('../frontend/src/components/articles/FeaturedArticle'),
+  () => import('../frontend/src/components/articles/FeaturedArticle').then(mod => mod),
   { 
-    ssr: false, 
+    ssr: true, 
     loading: () => <Skeleton height="300px" width="100%" borderRadius="md" />
   }
 );
@@ -91,6 +104,51 @@ const CATEGORIES = {
   ]
 };
 
+// Lazy load the main categories and subcategories
+const MainCategories = lazy(() => Promise.resolve({
+  default: ({ onSelect }: { onSelect: (id: string) => void }) => (
+    <Flex wrap="wrap" gap={2} justify="center">
+      {CATEGORIES.MAIN.map(category => (
+        <Tag 
+          key={category.id}
+          size="md"
+          borderRadius="full"
+          variant="solid"
+          colorScheme={category.color}
+          cursor="pointer"
+          onClick={() => onSelect(category.id)}
+          _hover={{ opacity: 0.8 }}
+          mb={2}
+        >
+          <TagLabel>{category.name}</TagLabel>
+        </Tag>
+      ))}
+    </Flex>
+  )
+}));
+
+const SubCategories = lazy(() => Promise.resolve({
+  default: ({ onSelect }: { onSelect: (id: string) => void }) => (
+    <Flex wrap="wrap" gap={2} justify="center">
+      {CATEGORIES.SUBCATEGORIES.map(category => (
+        <Tag 
+          key={category.id}
+          size="sm"
+          borderRadius="full"
+          variant="outline"
+          colorScheme={category.color}
+          cursor="pointer"
+          onClick={() => onSelect(category.id)}
+          _hover={{ opacity: 0.8 }}
+          mb={2}
+        >
+          <TagLabel>{category.name}</TagLabel>
+        </Tag>
+      ))}
+    </Flex>
+  )
+}));
+
 // Sample featured article
 const FEATURED_ARTICLE = {
   id: 1,
@@ -106,10 +164,11 @@ const FEATURED_ARTICLE = {
 const searchCache = new Map();
 
 const Home: React.FC = () => {
+  const { isOpen, onOpen, onClose, setRedirectPath, redirectPath } = useModal();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isSearching, setIsSearching] = useState(false);
-  const { isOpen, onOpen, onClose, setRedirectPath, redirectPath } = useModal();
+  const [recentArticles] = useState(getRandomArticles(3));
   
   const handleLoginClick = (redirectPath?: string) => {
     if (redirectPath) {
@@ -161,14 +220,26 @@ const Home: React.FC = () => {
         <link rel="preconnect" href="https://rpc.zksync.io" />
         <link rel="dns-prefetch" href="https://rpc.zksync.io" />
         <link rel="prefetch" href="/api/articles/featured" />
+        <link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/images/researka-logo.svg" as="image" />
+        
+        {/* Add meta for mobile optimization */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        <meta name="theme-color" content="#3182CE" />
       </Head>
 
       {/* Header/Navigation */}
-      <NavBar 
-        activePage="home"
-        isLoggedIn={false}
-        onLoginClick={handleLoginClick}
-      />
+      <Box as="header" bg={useColorModeValue('white', 'gray.800')} position="sticky" top={0} zIndex={10} boxShadow="sm">
+        <Container maxW="container.xl">
+          <Suspense fallback={<Box py={4}>Loading navigation...</Box>}>
+            <NavBar 
+              activePage="home"
+              isLoggedIn={false}
+              onLoginClick={handleLoginClick}
+            />
+          </Suspense>
+        </Container>
+      </Box>
 
       {/* Search Section */}
       <Box py={6} bg="white">
@@ -200,115 +271,176 @@ const Home: React.FC = () => {
                 />
               </InputGroup>
             </form>
-            
-            {/* Main Categories - Horizontally scrollable on mobile */}
-            <Box w="100%" overflowX="auto" py={2} css={{
-              '&::-webkit-scrollbar': { height: '8px' },
-              '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
-              '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' },
-              '&::-webkit-scrollbar-thumb:hover': { background: '#555' }
-            }}>
-              <Flex 
-                flexWrap="nowrap" 
-                gap={2} 
-                minWidth="max-content"
-              >
-                {CATEGORIES.MAIN.map((category) => (
-                  <Tag 
-                    key={category.id}
-                    size="md" 
-                    borderRadius="full" 
-                    variant={selectedCategory === category.id ? "solid" : "subtle"}
-                    colorScheme={category.color}
-                    cursor="pointer"
-                    onClick={() => handleCategorySelect(category.id)}
-                    px={3}
-                    py={2}
-                    whiteSpace="nowrap"
-                  >
-                    <TagLabel>{category.name}</TagLabel>
-                  </Tag>
-                ))}
-              </Flex>
-            </Box>
-            
-            {/* Subcategories - Responsive grid layout */}
-            <Box w="100%" py={2}>
-              <Flex 
-                flexWrap="wrap" 
-                gap={2} 
-                justifyContent={{ base: "center", md: "flex-start" }}
-              >
-                {CATEGORIES.SUBCATEGORIES.map((category) => (
-                  <Tag 
-                    key={category.id}
-                    size="md" 
-                    borderRadius="full" 
-                    variant="subtle"
-                    colorScheme={category.color}
-                    cursor="pointer"
-                    onClick={() => handleCategorySelect(category.id)}
-                  >
-                    <TagLabel>{category.name}</TagLabel>
-                  </Tag>
-                ))}
-              </Flex>
-            </Box>
           </VStack>
         </Container>
       </Box>
 
-      {/* Featured Articles */}
-      <Box py={6} bg="gray.50">
+      {/* Categories Section */}
+      <Box py={4} bg="gray.50">
         <Container maxW="container.xl">
-          <VStack spacing={6} align="stretch">
-            {/* Featured Article - Using Suspense for better loading experience */}
-            <Suspense fallback={<Skeleton height="300px" width="100%" borderRadius="md" />}>
-              <FeaturedArticle 
-                title={FEATURED_ARTICLE.title}
-                abstract={FEATURED_ARTICLE.abstract}
-                authors={FEATURED_ARTICLE.authors.split(', ')}
-                categories={FEATURED_ARTICLE.categories}
-                date={FEATURED_ARTICLE.date}
-                views={FEATURED_ARTICLE.views}
-                articleId={FEATURED_ARTICLE.id.toString()}
-              />
+          <VStack spacing={4}>
+            <Suspense fallback={<Skeleton height="40px" width="100%" />}>
+              <MainCategories onSelect={handleCategorySelect} />
             </Suspense>
             
-            {/* More articles would go here */}
+            <Suspense fallback={<Skeleton height="100px" width="100%" />}>
+              <SubCategories onSelect={handleCategorySelect} />
+            </Suspense>
           </VStack>
         </Container>
       </Box>
-      
-      {/* Footer */}
-      <Box py={6} bg="white" borderTop="1px" borderColor="gray.200">
+
+      {/* Featured Article Section */}
+      <Box py={8} bg="white">
         <Container maxW="container.xl">
-          <Flex justify="center" align="center" direction="column">
-            <Text fontSize="sm" color="gray.500">
-              &copy; {new Date().getFullYear()} Researka Platform. All rights reserved.
-            </Text>
-            <Text fontSize="xs" color="gray.400" mt={1}>
-              A decentralized academic publishing solution built on zkSync
-            </Text>
-            <ChakraLink 
-              href="/token-dashboard" 
-              color="blue.500" 
-              fontSize="xs" 
-              mt={2}
-              _hover={{ textDecoration: 'underline' }}
+          <VStack spacing={6} align="stretch">
+            <Heading as="h2" size="lg" mb={4}>
+              Featured Research
+            </Heading>
+            
+            <Suspense fallback={<Skeleton height="300px" width="100%" borderRadius="md" />}>
+              <FeaturedArticle 
+                title={FEATURED_ARTICLE_DATA.title}
+                abstract={FEATURED_ARTICLE_DATA.abstract}
+                authors={FEATURED_ARTICLE_DATA.authors.split(', ')}
+                categories={FEATURED_ARTICLE_DATA.categories}
+                date={FEATURED_ARTICLE_DATA.date}
+                views={FEATURED_ARTICLE_DATA.views}
+                articleId={FEATURED_ARTICLE_DATA.id.toString()}
+              />
+            </Suspense>
+            
+            <Heading as="h2" size="lg" mb={4} mt={10}>
+              Recent Research
+            </Heading>
+            
+            <Grid 
+              templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }}
+              gap={6}
+              mt={8}
             >
-              Token Dashboard
-            </ChakraLink>
-          </Flex>
+              {recentArticles.map((article, i) => (
+                <GridItem key={i}>
+                  <LinkBox
+                    as="article" 
+                    p={5} 
+                    borderWidth="1px" 
+                    borderRadius="lg" 
+                    overflow="hidden"
+                    _hover={{ 
+                      transform: 'translateY(-4px)', 
+                      boxShadow: 'md',
+                      borderColor: 'blue.200' 
+                    }}
+                    transition="all 0.2s"
+                    height="100%"
+                    display="flex"
+                    flexDirection="column"
+                  >
+                    <NextLink href={`/article/${article.id}`} passHref legacyBehavior>
+                      <LinkOverlay>
+                        <Heading as="h3" size="md" mb={2}>
+                          {article.title}
+                        </Heading>
+                      </LinkOverlay>
+                    </NextLink>
+                    <Text fontSize="sm" color="gray.500" mb={2}>
+                      {article.authors}
+                    </Text>
+                    <Text fontSize="sm" mb={4} flex="1">
+                      {article.abstract}
+                    </Text>
+                    <Flex justify="space-between" align="center">
+                      <Flex align="center">
+                        <Text fontSize="xs">{article.date}</Text>
+                      </Flex>
+                      <Flex align="center">
+                        <Text fontSize="xs">{article.views} views</Text>
+                      </Flex>
+                    </Flex>
+                  </LinkBox>
+                </GridItem>
+              ))}
+            </Grid>
+            
+            <Flex justify="center" mt={6}>
+              <Button 
+                as={Link}
+                href="/articles"
+                colorScheme="blue" 
+                variant="outline"
+                size="md"
+                _hover={{
+                  bg: 'blue.50'
+                }}
+              >
+                View All Research
+              </Button>
+            </Flex>
+          </VStack>
         </Container>
       </Box>
-      
-      {/* Login Modal */}
-      <LoginModal 
-        isOpen={isOpen} 
-        onClose={onClose} 
-        redirectPath={redirectPath}
-      />
+
+      {/* Footer */}
+      <Box py={10} bg="gray.50" borderTop="1px" borderColor="gray.200">
+        <Container maxW="container.xl">
+          <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap={8}>
+            <GridItem>
+              <Heading as="h3" size="sm" mb={4}>
+                RESEARKA
+              </Heading>
+              <Text fontSize="sm" color="gray.600">
+                A decentralized academic publishing platform powered by blockchain technology.
+              </Text>
+            </GridItem>
+            
+            <GridItem>
+              <Heading as="h3" size="sm" mb={4}>
+                QUICK LINKS
+              </Heading>
+              <VStack align="start" spacing={2}>
+                <ChakraLink as={Link} href="/about" fontSize="sm">About</ChakraLink>
+                <ChakraLink as={Link} href="/articles" fontSize="sm">Articles</ChakraLink>
+                <ChakraLink as={Link} href="/submit" fontSize="sm">Submit Research</ChakraLink>
+                <ChakraLink as={Link} href="/review" fontSize="sm">Become a Reviewer</ChakraLink>
+              </VStack>
+            </GridItem>
+            
+            <GridItem>
+              <Heading as="h3" size="sm" mb={4}>
+                RESOURCES
+              </Heading>
+              <VStack align="start" spacing={2}>
+                <ChakraLink as={Link} href="/faq" fontSize="sm">FAQ</ChakraLink>
+                <ChakraLink as={Link} href="/guidelines" fontSize="sm">Author Guidelines</ChakraLink>
+                <ChakraLink as={Link} href="/token" fontSize="sm">RSKA Token</ChakraLink>
+                <ChakraLink as={Link} href="/docs" fontSize="sm">Documentation</ChakraLink>
+              </VStack>
+            </GridItem>
+            
+            <GridItem>
+              <Heading as="h3" size="sm" mb={4}>
+                CONNECT
+              </Heading>
+              <VStack align="start" spacing={2}>
+                <ChakraLink href="https://twitter.com/researka" isExternal fontSize="sm">Twitter</ChakraLink>
+                <ChakraLink href="https://github.com/researka" isExternal fontSize="sm">GitHub</ChakraLink>
+                <ChakraLink href="https://discord.gg/researka" isExternal fontSize="sm">Discord</ChakraLink>
+                <ChakraLink href="mailto:info@researka.io" fontSize="sm">Contact Us</ChakraLink>
+              </VStack>
+            </GridItem>
+          </Grid>
+          
+          <Text fontSize="xs" color="gray.500" mt={10} textAlign="center">
+            &copy; {new Date().getFullYear()} RESEARKA. All rights reserved.
+          </Text>
+        </Container>
+      </Box>
+
+      {/* Login Modal - Dynamically loaded */}
+      <Suspense fallback={<Box>Loading login modal...</Box>}>
+        {isOpen && <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />}
+      </Suspense>
     </>
   );
 };

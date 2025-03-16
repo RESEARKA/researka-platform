@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -66,6 +66,20 @@ const SubmitPage: React.FC = () => {
   const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  
+  // Check if user is logged in
+  React.useEffect(() => {
+    // Client-side only
+    if (typeof window !== 'undefined') {
+      const isLoggedIn = localStorage.getItem('isLoggedIn');
+      
+      if (isLoggedIn !== 'true') {
+        // Redirect to homepage if not logged in
+        window.location.href = '/';
+        return;
+      }
+    }
+  }, []);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

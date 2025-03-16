@@ -1,11 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, lazy, Suspense } from 'react';
 import {
   Box,
   Container,
-  Grid,
-  GridItem,
   Flex,
-  Heading,
   Text,
   Tabs,
   TabList,
@@ -17,17 +14,13 @@ import {
   CardHeader,
   CardBody,
   CardFooter,
-  Button,
   Avatar,
   Badge,
   Stat,
   StatLabel,
   StatNumber,
-  StatHelpText,
   VStack,
-  HStack,
   Divider,
-  Link as ChakraLink,
   useColorModeValue,
   ButtonGroup,
   IconButton,
@@ -38,28 +31,36 @@ import {
   AlertDescription,
   Center,
   useToast,
+  Button,
 } from '@chakra-ui/react';
-import { FiEdit, FiFileText, FiStar, FiSettings, FiBookmark, FiChevronDown, FiChevronLeft, FiChevronRight, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
+import { FiEdit, FiFileText, FiStar, FiSettings, FiBookmark, FiChevronLeft, FiChevronRight, FiRefreshCw } from 'react-icons/fi';
 import Head from 'next/head';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import NavBar from '../components/NavBar';
+import ResponsiveText from '../components/ResponsiveText';
+import { useArticles, Article, ArticlesResponse } from '../hooks/useArticles';
+import { useReviews, Review, ReviewsResponse } from '../hooks/useReviews';
+import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
+
+// Import panel components directly instead of using lazy loading
+import ArticlesPanel from '../components/profile/ArticlesPanel';
+import ReviewsPanel from '../components/profile/ReviewsPanel';
+import SavedItemsPanel from '../components/profile/SavedItemsPanel';
+
+// Dynamically import components that aren't needed for initial render
+const MobileNav = dynamic(() => import('../components/MobileNav'), {
+  ssr: true,
+  loading: () => (
+    <Box height="60px" width="100%" bg="white" borderBottom="1px" borderColor="gray.200">
+      <Center height="100%">
+        <Spinner size="sm" color="blue.500" />
+      </Center>
+    </Box>
+  )
+});
 
 // Define types for our data
-interface Article {
-  id: number;
-  title: string;
-  abstract: string;
-  status: string;
-  date: string;
-}
-
-interface Review {
-  id: number;
-  title: string;
-  content: string;
-  date: string;
-}
-
 interface SavedItem {
   id: number;
   title: string;
@@ -82,72 +83,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
-// Mock data for articles, reviews, and saved items
-const mockArticles: Article[] = [
-  {
-    id: 1,
-    title: "Blockchain Applications in Academic Publishing",
-    abstract: "A comprehensive analysis of how blockchain technology can transform the academic publishing industry by improving transparency, reducing costs, and enabling new incentive models.",
-    status: "Published",
-    date: "March 10, 2025"
-  },
-  {
-    id: 2,
-    title: "Decentralized Identity in Academic Credentials",
-    abstract: "Exploring how blockchain-based identity solutions can revolutionize academic credentials, making them more secure, portable, and verifiable.",
-    status: "Published",
-    date: "March 10, 2025"
-  },
-  {
-    id: 3,
-    title: "Smart Contracts for Peer Review Incentivization",
-    abstract: "A framework for using smart contracts to create transparent and fair incentives for academic peer reviewers.",
-    status: "Published",
-    date: "March 10, 2025"
-  },
-  {
-    id: 4,
-    title: "Token Economics in Research Funding",
-    abstract: "Analysis of how token-based economic models can create new paradigms for research funding and collaboration.",
-    status: "Published",
-    date: "March 8, 2025"
-  },
-  {
-    id: 5,
-    title: "Zero-Knowledge Proofs in Anonymous Peer Review",
-    abstract: "How zero-knowledge cryptography can enable truly anonymous yet verifiable peer review processes.",
-    status: "Published",
-    date: "March 5, 2025"
-  }
-];
-
-const mockReviews: Review[] = [
-  {
-    id: 1,
-    title: "Review: Decentralized Identity in Academic Credentials",
-    content: "This paper presents a novel approach to using blockchain for academic credentials. The methodology is sound, but more empirical evidence would strengthen the conclusions.",
-    date: "March 8, 2025"
-  },
-  {
-    id: 2,
-    title: "Review: Smart Contracts for Peer Review Incentivization",
-    content: "The proposed framework is innovative but lacks consideration of potential gaming of the system. More work is needed on anti-collusion mechanisms.",
-    date: "March 5, 2025"
-  },
-  {
-    id: 3,
-    title: "Review: Token Economics in Research Funding",
-    content: "Excellent analysis of token-based funding models. The comparative study of different approaches is particularly valuable.",
-    date: "February 28, 2025"
-  },
-  {
-    id: 4,
-    title: "Review: Zero-Knowledge Proofs in Anonymous Peer Review",
-    content: "The technical implementation is well-described, but more discussion of practical deployment challenges would improve the paper.",
-    date: "February 25, 2025"
-  }
-];
-
+// Mock data for saved items (would be replaced with a React Query hook in a real app)
 const mockSaved: SavedItem[] = [
   {
     id: 1,
@@ -169,172 +105,208 @@ const mockSaved: SavedItem[] = [
   }
 ];
 
+// Empty state component
+const EmptyState: React.FC<{ type: string }> = ({ type }) => (
+  <Card p={6} textAlign="center">
+    <VStack spacing={4}>
+      <FiBookmark size={40} color="gray" />
+      <ResponsiveText variant="h3">No {type} Found</ResponsiveText>
+      <ResponsiveText variant="body-sm" color="gray.500">You don't have any {type.toLowerCase()} yet.</ResponsiveText>
+      {type === "Articles" && (
+        <Button
+          as={Link}
+          href="/submit"
+          colorScheme="blue" 
+          leftIcon={<FiFileText />}
+        >
+          Submit an Article
+        </Button>
+      )}
+    </VStack>
+  </Card>
+);
+
+// Error state component
+const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+  <Alert
+    status="error"
+    variant="subtle"
+    flexDirection="column"
+    alignItems="center"
+    justifyContent="center"
+    textAlign="center"
+    height="200px"
+    borderRadius="lg"
+  >
+    <AlertIcon boxSize="40px" mr={0} />
+    <AlertTitle mt={4} mb={1} fontSize="lg">
+      Something went wrong
+    </AlertTitle>
+    <AlertDescription maxWidth="sm">
+      {message}
+    </AlertDescription>
+    <Button
+      mt={4} 
+      leftIcon={<FiRefreshCw />} 
+      colorScheme="red" 
+      onClick={onRetry}
+    >
+      Try Again
+    </Button>
+  </Alert>
+);
+
+// Pagination component
+const PaginationControl: React.FC<PaginationProps> = ({ currentPage, totalPages, onPageChange }) => {
+  const pages = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pages.push(i);
+  }
+  
+  return (
+    <Flex justify="center" mt={4} alignItems="center">
+      <ButtonGroup isAttached variant="outline" size="sm">
+        <IconButton 
+          aria-label="Previous page" 
+          icon={<FiChevronLeft />} 
+          isDisabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          sx={{
+            // Increase touch target size on mobile
+            '@media (max-width: 768px)': {
+              minHeight: '40px',
+              minWidth: '40px',
+            }
+          }}
+        />
+        {pages.map(page => (
+          <Button
+            key={page}
+            colorScheme={currentPage === page ? "blue" : "gray"}
+            variant={currentPage === page ? "solid" : "outline"}
+            onClick={() => onPageChange(page)}
+          >
+            {page}
+          </Button>
+        ))}
+        <IconButton 
+          aria-label="Next page" 
+          icon={<FiChevronRight />} 
+          isDisabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          sx={{
+            // Increase touch target size on mobile
+            '@media (max-width: 768px)': {
+              minHeight: '40px',
+              minWidth: '40px',
+            }
+          }}
+        />
+      </ButtonGroup>
+    </Flex>
+  );
+};
+
 const ProfilePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const toast = useToast();
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const cardBg = useColorModeValue('white', 'gray.700');
+  
+  // Check if user is logged in
+  React.useEffect(() => {
+    // Client-side only
+    if (typeof window !== 'undefined') {
+      const isLoggedIn = localStorage.getItem('isLoggedIn');
+      
+      if (isLoggedIn !== 'true') {
+        // Redirect to homepage if not logged in
+        window.location.href = '/';
+        return;
+      }
+      
+      // Get user profile from localStorage
+      const userProfileStr = localStorage.getItem('userProfile');
+      if (userProfileStr) {
+        try {
+          const userProfile = JSON.parse(userProfileStr);
+          setUser(userProfile);
+        } catch (e) {
+          console.error('Error parsing user profile:', e);
+          setError('Could not load user profile');
+        }
+      }
+    }
+  }, []);
+  
   // State for pagination
   const [articlesPage, setArticlesPage] = useState(1);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [savedPage, setSavedPage] = useState(1);
   
-  // State for loading and error handling
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const toast = useToast();
-  
   const itemsPerPage = 3;
   
-  // Simulate data fetching
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // If we had a real API, we would fetch data here
-        // const response = await fetch('/api/profile');
-        // const data = await response.json();
-        
-        setIsLoading(false);
-      } catch (err) {
-        setIsLoading(false);
-        setError('Failed to load profile data. Please try again later.');
-        toast({
-          title: 'Error loading data',
-          description: 'There was a problem loading your profile data.',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    };
-    
-    fetchData();
-  }, [toast]);
+  // Use React Query hooks for data fetching
+  const { 
+    data: articlesData, 
+    isLoading: articlesLoading, 
+    error: articlesError,
+    refetch: refetchArticles
+  } = useArticles(articlesPage);
   
-  // Calculate pagination
-  const articlesPages = Math.ceil(mockArticles.length / itemsPerPage);
-  const reviewsPages = Math.ceil(mockReviews.length / itemsPerPage);
+  const { 
+    data: reviewsData, 
+    isLoading: reviewsLoading, 
+    error: reviewsError,
+    refetch: refetchReviews
+  } = useReviews(reviewsPage);
+  
+  // For saved items, we're still using mock data
+  // In a real app, this would be another React Query hook
+  const isLoadingData = articlesLoading || reviewsLoading;
+  const hasErrorData = articlesError || reviewsError;
+  
+  // Refs for intersection observer
+  const articlesRef = useRef<HTMLDivElement>(null);
+  const reviewsRef = useRef<HTMLDivElement>(null);
+  const savedRef = useRef<HTMLDivElement>(null);
+  
+  // Use intersection observer to lazy load content
+  const articlesVisible = useIntersectionObserver(articlesRef, { threshold: 0.1 });
+  const reviewsVisible = useIntersectionObserver(reviewsRef, { threshold: 0.1 });
+  const savedVisible = useIntersectionObserver(savedRef, { threshold: 0.1 });
+  
+  // Calculate pagination for saved items
   const savedPages = Math.ceil(mockSaved.length / itemsPerPage);
   
-  // Get current items
+  // Get current saved items
   const getCurrentItems = <T,>(items: T[], page: number): T[] => {
     const startIndex = (page - 1) * itemsPerPage;
     return items.slice(startIndex, startIndex + itemsPerPage);
   };
   
-  const currentArticles = getCurrentItems(mockArticles, articlesPage);
-  const currentReviews = getCurrentItems(mockReviews, reviewsPage);
   const currentSaved = getCurrentItems(mockSaved, savedPage);
   
   // Handle retry
   const handleRetry = () => {
-    setIsLoading(true);
-    setError(null);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: 'Data refreshed',
-        description: 'Your profile data has been successfully loaded.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    }, 1000);
-  };
-  
-  // Empty state component
-  const EmptyState: React.FC<{ type: string }> = ({ type }) => (
-    <Card p={6} textAlign="center">
-      <VStack spacing={4}>
-        <FiBookmark size={40} color="gray" />
-        <Heading size="md">No {type} Found</Heading>
-        <Text color="gray.500">You don't have any {type.toLowerCase()} yet.</Text>
-        {type === "Articles" && (
-          <Button 
-            colorScheme="blue" 
-            leftIcon={<FiFileText />}
-            as={Link}
-            href="/submit"
-          >
-            Submit an Article
-          </Button>
-        )}
-      </VStack>
-    </Card>
-  );
-  
-  // Error state component
-  const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
-    <Alert
-      status="error"
-      variant="subtle"
-      flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
-      textAlign="center"
-      height="200px"
-      borderRadius="lg"
-    >
-      <AlertIcon boxSize="40px" mr={0} />
-      <AlertTitle mt={4} mb={1} fontSize="lg">
-        Something went wrong
-      </AlertTitle>
-      <AlertDescription maxWidth="sm">
-        {message}
-      </AlertDescription>
-      <Button 
-        mt={4} 
-        leftIcon={<FiRefreshCw />} 
-        colorScheme="red" 
-        onClick={onRetry}
-      >
-        Try Again
-      </Button>
-    </Alert>
-  );
-  
-  // Pagination component
-  const PaginationControl: React.FC<PaginationProps> = ({ currentPage, totalPages, onPageChange }) => {
-    const pages = [];
-    for (let i = 1; i <= totalPages; i++) {
-      pages.push(i);
-    }
-    
-    return (
-      <Flex justify="center" mt={4} alignItems="center">
-        <ButtonGroup isAttached variant="outline" size="sm">
-          <IconButton 
-            aria-label="Previous page" 
-            icon={<FiChevronLeft />} 
-            isDisabled={currentPage === 1}
-            onClick={() => onPageChange(currentPage - 1)}
-          />
-          {pages.map(page => (
-            <Button 
-              key={page}
-              colorScheme={currentPage === page ? "blue" : "gray"}
-              variant={currentPage === page ? "solid" : "outline"}
-              onClick={() => onPageChange(page)}
-            >
-              {page}
-            </Button>
-          ))}
-          <IconButton 
-            aria-label="Next page" 
-            icon={<FiChevronRight />} 
-            isDisabled={currentPage === totalPages}
-            onClick={() => onPageChange(currentPage + 1)}
-          />
-        </ButtonGroup>
-      </Flex>
-    );
+    refetchArticles();
+    refetchReviews();
+    toast({
+      title: 'Retrying...',
+      description: 'Attempting to reload your profile data.',
+      status: 'info',
+      duration: 3000,
+      isClosable: true,
+    });
   };
   
   // In a real app, you would fetch this data from your API
-  const user: User = {
+  const defaultUser: User = {
     name: "Alex Johnson",
     role: "Researcher",
     institution: "University of Science & Technology",
@@ -343,12 +315,8 @@ const ProfilePage: React.FC = () => {
     reputation: 87
   };
   
-  // Colors for light/dark mode
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  
   // If there's an error, show error state
-  if (error) {
+  if (hasErrorData) {
     return (
       <>
         <Head>
@@ -361,9 +329,17 @@ const ProfilePage: React.FC = () => {
           isLoggedIn={true}
         />
         
+        <MobileNav 
+          activePage="profile"
+          isLoggedIn={true}
+        />
+        
         <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
           <Container maxW="container.lg">
-            <ErrorState message={error} onRetry={handleRetry} />
+            <ErrorState 
+              message="Failed to load profile data. Please try again later." 
+              onRetry={handleRetry} 
+            />
           </Container>
         </Box>
       </>
@@ -375,6 +351,8 @@ const ProfilePage: React.FC = () => {
       <Head>
         <title>Profile | RESEARKA</title>
         <meta name="description" content="Your Researka profile" />
+        {/* Add preload for critical resources */}
+        <link rel="preload" href="/images/researka-logo.svg" as="image" />
       </Head>
       
       {/* Header/Navigation */}
@@ -383,9 +361,14 @@ const ProfilePage: React.FC = () => {
         isLoggedIn={true}
       />
       
+      <MobileNav 
+        activePage="profile"
+        isLoggedIn={true}
+      />
+      
       <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
         <Container maxW="container.lg">
-          {isLoading ? (
+          {isLoadingData ? (
             <Center h="50vh">
               <VStack spacing={4}>
                 <Spinner size="xl" color="blue.500" thickness="4px" />
@@ -407,31 +390,31 @@ const ProfilePage: React.FC = () => {
                 <VStack spacing={6} align="center">
                   <Avatar 
                     size="2xl" 
-                    name={user.name} 
+                    name={user?.name || defaultUser.name} 
                     bg="purple.500"
                     color="white"
                     src=""
                   >
-                    AJ
+                    {user?.name?.charAt(0) || defaultUser.name.charAt(0)}
                   </Avatar>
                   
                   <VStack spacing={1}>
-                    <Heading as="h2" size="md">{user.name}</Heading>
-                    <Text color="gray.600">{user.role}</Text>
-                    <Badge colorScheme="green" mt={1}>{user.institution}</Badge>
+                    <ResponsiveText variant="h2">{user?.name || defaultUser.name}</ResponsiveText>
+                    <ResponsiveText variant="body-sm" color="gray.600">{user?.role || defaultUser.role}</ResponsiveText>
+                    <Badge colorScheme="green" mt={1}>{user?.institution || defaultUser.institution}</Badge>
                   </VStack>
                   
                   <SimpleGrid columns={3} width="100%" textAlign="center" gap={4}>
                     <Stat>
-                      <StatNumber>{user.articles}</StatNumber>
+                      <StatNumber>{user?.articles || defaultUser.articles}</StatNumber>
                       <StatLabel fontSize="xs">Articles</StatLabel>
                     </Stat>
                     <Stat>
-                      <StatNumber>{user.reviews}</StatNumber>
+                      <StatNumber>{user?.reviews || defaultUser.reviews}</StatNumber>
                       <StatLabel fontSize="xs">Reviews</StatLabel>
                     </Stat>
                     <Stat>
-                      <StatNumber>{user.reputation}</StatNumber>
+                      <StatNumber>{user?.reputation || defaultUser.reputation}</StatNumber>
                       <StatLabel fontSize="xs">Rep</StatLabel>
                     </Stat>
                   </SimpleGrid>
@@ -445,10 +428,22 @@ const ProfilePage: React.FC = () => {
                     <Button leftIcon={<FiSettings />} size="sm" variant="outline">
                       Account Settings
                     </Button>
-                    <Button leftIcon={<FiStar />} size="sm" variant="outline" as={Link} href="/review">
+                    <Button
+                      as={Link}
+                      href="/review"
+                      leftIcon={<FiStar />} 
+                      size="sm" 
+                      variant="outline" 
+                    >
                       Review
                     </Button>
-                    <Button leftIcon={<FiFileText />} size="sm" variant="outline" as={Link} href="/submit">
+                    <Button
+                      as={Link}
+                      href="/submit"
+                      leftIcon={<FiFileText />} 
+                      size="sm" 
+                      variant="outline" 
+                    >
                       Submit
                     </Button>
                   </VStack>
@@ -464,7 +459,11 @@ const ProfilePage: React.FC = () => {
                 borderWidth="1px"
                 borderColor={borderColor}
               >
-                <Tabs isFitted variant="enclosed">
+                <Tabs 
+                  isFitted 
+                  variant="enclosed" 
+                  onChange={(index) => setActiveTab(index)}
+                >
                   <TabList>
                     <Tab><Flex alignItems="center"><FiFileText /><Text ml={2}>My Articles</Text></Flex></Tab>
                     <Tab><Flex alignItems="center"><FiStar /><Text ml={2}>My Reviews</Text></Flex></Tab>
@@ -474,104 +473,66 @@ const ProfilePage: React.FC = () => {
                   <TabPanels>
                     {/* My Articles Tab */}
                     <TabPanel>
-                      <VStack spacing={4} align="stretch">
-                        {currentArticles.length > 0 ? (
-                          currentArticles.map((article: Article) => (
-                            <Card key={article.id}>
-                              <CardHeader>
-                                <Heading size="md">{article.title}</Heading>
-                              </CardHeader>
-                              <CardBody>
-                                <Text>{article.abstract}</Text>
-                              </CardBody>
-                              <CardFooter>
-                                <Flex justify="space-between" width="100%">
-                                  <Badge colorScheme="green">{article.status}</Badge>
-                                  <Text fontSize="sm" color="gray.500">{article.date}</Text>
-                                </Flex>
-                              </CardFooter>
-                            </Card>
-                          ))
-                        ) : (
-                          <EmptyState type="Articles" />
+                      <div ref={articlesRef}>
+                        {articlesVisible && activeTab === 0 && (
+                          <Suspense fallback={
+                            <Center py={8}>
+                              <Spinner size="md" color="blue.500" />
+                            </Center>
+                          }>
+                            <ArticlesPanel 
+                              articlesData={articlesData}
+                              currentPage={articlesPage}
+                              onPageChange={setArticlesPage}
+                              EmptyState={EmptyState}
+                              PaginationControl={PaginationControl}
+                            />
+                          </Suspense>
                         )}
-                        
-                        {articlesPages > 1 && (
-                          <PaginationControl 
-                            currentPage={articlesPage} 
-                            totalPages={articlesPages} 
-                            onPageChange={setArticlesPage} 
-                          />
-                        )}
-                      </VStack>
+                      </div>
                     </TabPanel>
                     
                     {/* My Reviews Tab */}
                     <TabPanel>
-                      <VStack spacing={4} align="stretch">
-                        {currentReviews.length > 0 ? (
-                          currentReviews.map((review: Review) => (
-                            <Card key={review.id}>
-                              <CardHeader>
-                                <Heading size="md">{review.title}</Heading>
-                              </CardHeader>
-                              <CardBody>
-                                <Text>{review.content}</Text>
-                              </CardBody>
-                              <CardFooter>
-                                <Flex justify="space-between" width="100%">
-                                  <Badge colorScheme="blue">Completed</Badge>
-                                  <Text fontSize="sm" color="gray.500">{review.date}</Text>
-                                </Flex>
-                              </CardFooter>
-                            </Card>
-                          ))
-                        ) : (
-                          <EmptyState type="Reviews" />
+                      <div ref={reviewsRef}>
+                        {reviewsVisible && activeTab === 1 && (
+                          <Suspense fallback={
+                            <Center py={8}>
+                              <Spinner size="md" color="blue.500" />
+                            </Center>
+                          }>
+                            <ReviewsPanel 
+                              reviewsData={reviewsData}
+                              currentPage={reviewsPage}
+                              onPageChange={setReviewsPage}
+                              EmptyState={EmptyState}
+                              PaginationControl={PaginationControl}
+                            />
+                          </Suspense>
                         )}
-                        
-                        {reviewsPages > 1 && (
-                          <PaginationControl 
-                            currentPage={reviewsPage} 
-                            totalPages={reviewsPages} 
-                            onPageChange={setReviewsPage} 
-                          />
-                        )}
-                      </VStack>
+                      </div>
                     </TabPanel>
                     
                     {/* Saved Articles Tab */}
                     <TabPanel>
-                      <VStack spacing={4} align="stretch">
-                        {currentSaved.length > 0 ? (
-                          currentSaved.map((item: SavedItem) => (
-                            <Card key={item.id}>
-                              <CardHeader>
-                                <Heading size="md">{item.title}</Heading>
-                              </CardHeader>
-                              <CardBody>
-                                <Text>{item.abstract}</Text>
-                              </CardBody>
-                              <CardFooter>
-                                <Flex justify="space-between" width="100%">
-                                  <Badge>Saved</Badge>
-                                  <Text fontSize="sm" color="gray.500">Saved on {item.date}</Text>
-                                </Flex>
-                              </CardFooter>
-                            </Card>
-                          ))
-                        ) : (
-                          <EmptyState type="Saved Items" />
+                      <div ref={savedRef}>
+                        {savedVisible && activeTab === 2 && (
+                          <Suspense fallback={
+                            <Center py={8}>
+                              <Spinner size="md" color="blue.500" />
+                            </Center>
+                          }>
+                            <SavedItemsPanel 
+                              savedItems={currentSaved}
+                              currentPage={savedPage}
+                              totalPages={savedPages}
+                              onPageChange={setSavedPage}
+                              EmptyState={EmptyState}
+                              PaginationControl={PaginationControl}
+                            />
+                          </Suspense>
                         )}
-                        
-                        {savedPages > 1 && (
-                          <PaginationControl 
-                            currentPage={savedPage} 
-                            totalPages={savedPages} 
-                            onPageChange={setSavedPage} 
-                          />
-                        )}
-                      </VStack>
+                      </div>
                     </TabPanel>
                   </TabPanels>
                 </Tabs>
@@ -585,12 +546,12 @@ const ProfilePage: React.FC = () => {
       <Box py={6} bg="white" borderTop="1px" borderColor="gray.200">
         <Container maxW="container.xl">
           <Flex justify="center" align="center" direction="column">
-            <Text fontSize="sm" color="gray.500">
+            <ResponsiveText variant="caption" color="gray.500">
               &copy; {new Date().getFullYear()} Researka Platform. All rights reserved.
-            </Text>
-            <Text fontSize="xs" color="gray.400" mt={1}>
+            </ResponsiveText>
+            <ResponsiveText variant="caption" color="gray.400" mt={1}>
               A decentralized academic publishing solution built on zkSync
-            </Text>
+            </ResponsiveText>
           </Flex>
         </Container>
       </Box>

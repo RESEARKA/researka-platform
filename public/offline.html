@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline | RESEARKA</title>
+  <style>
+    :root {
+      --primary-color: #3182CE;
+      --text-color: #2D3748;
+      --background-color: #F7FAFC;
+      --card-background: #FFFFFF;
+      --border-color: #E2E8F0;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --primary-color: #4299E1;
+        --text-color: #E2E8F0;
+        --background-color: #1A202C;
+        --card-background: #2D3748;
+        --border-color: #4A5568;
+      }
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    header {
+      background-color: var(--card-background);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 1rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .logo {
+      max-width: 180px;
+      margin: 0 auto;
+    }
+    
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    
+    .offline-card {
+      background-color: var(--card-background);
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      padding: 2rem;
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+      border: 1px solid var(--border-color);
+    }
+    
+    h1 {
+      color: var(--primary-color);
+      margin-bottom: 1rem;
+      font-size: 1.8rem;
+    }
+    
+    p {
+      margin-bottom: 1.5rem;
+      color: var(--text-color);
+    }
+    
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      color: var(--primary-color);
+    }
+    
+    .button {
+      display: inline-block;
+      background-color: var(--primary-color);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    .button:hover {
+      background-color: #2B6CB0;
+    }
+    
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.875rem;
+      background-color: var(--card-background);
+      border-top: 1px solid var(--border-color);
+    }
+    
+    @media (max-width: 768px) {
+      .offline-card {
+        padding: 1.5rem;
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+      }
+      
+      .icon {
+        font-size: 3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="/images/researka-logo.svg" alt="RESEARKA" class="logo">
+  </header>
+  
+  <main>
+    <div class="offline-card">
+      <div class="icon">📡</div>
+      <h1>You're Offline</h1>
+      <p>It seems you're not connected to the internet. Some features may be limited until you're back online.</p>
+      <p>Don't worry, you can still access previously viewed content and any changes you make will sync when you're back online.</p>
+      <a href="/" class="button">Try Again</a>
+    </div>
+  </main>
+  
+  <footer>
+    <p>&copy; 2025 RESEARKA Platform. All rights reserved.</p>
+  </footer>
+  
+  <script>
+    // Check if the user comes back online
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+    
+    // Try to reconnect periodically
+    setInterval(() => {
+      if (navigator.onLine) {
+        window.location.reload();
+      }
+    }, 10000); // Check every 10 seconds
+  </script>
+</body>
+</html>

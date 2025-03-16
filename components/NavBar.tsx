@@ -22,11 +22,22 @@ interface NavBarProps {
 
 const NavBar: React.FC<NavBarProps> = ({ 
   activePage = 'home',
-  isLoggedIn = false,
+  isLoggedIn: propIsLoggedIn = false,
   onLoginClick = () => {}
 }) => {
   // Convert activePage to lowercase for comparison
   const activePageLower = activePage.toLowerCase();
+  
+  // Check if user is logged in from localStorage (client-side only)
+  const [isLoggedIn, setIsLoggedIn] = React.useState(propIsLoggedIn);
+  
+  React.useEffect(() => {
+    // Check localStorage for login status (client-side only)
+    const storedLoginStatus = typeof window !== 'undefined' ? localStorage.getItem('isLoggedIn') : null;
+    if (storedLoginStatus === 'true') {
+      setIsLoggedIn(true);
+    }
+  }, []);
   
   return (
     <Box borderBottom="1px" borderColor="gray.200" py={2}>

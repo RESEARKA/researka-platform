@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -13,18 +13,11 @@ import {
   Input,
   VStack,
   Text,
-  Link as ChakraLink,
-  useToast,
-  InputGroup,
-  InputRightElement,
+  Flex,
   Divider,
-  useColorModeValue,
-  HStack,
-  Checkbox,
+  useToast
 } from '@chakra-ui/react';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
-import { useRouter } from 'next/router';
-import { useModal } from '../contexts/ModalContext';
+import { FaEthereum } from 'react-icons/fa';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -32,141 +25,123 @@ interface LoginModalProps {
   redirectPath?: string;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/profile' }) => {
   const toast = useToast();
-  const router = useRouter();
-  const { redirectPath: contextRedirectPath } = useModal();
-  
-  const bgColor = useColorModeValue('white', 'gray.800');
-  
-  const finalRedirectPath = redirectPath || contextRedirectPath;
-  
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password) {
-      toast({
-        title: 'Error',
-        description: 'Please fill in all fields',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    // Simulate login process
+
+  const handleWalletLogin = () => {
+    // Simulate wallet connection
     setTimeout(() => {
-      // In a real app, you would call your authentication API here
       toast({
-        title: 'Login Successful',
-        description: 'Welcome to Researka!',
-        status: 'success',
+        title: "Wallet connected",
+        description: "You've been successfully logged in",
+        status: "success",
         duration: 3000,
         isClosable: true,
       });
       
-      setIsLoading(false);
+      // Set login state in localStorage
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('loginMethod', 'wallet');
+      localStorage.setItem('userProfile', JSON.stringify({
+        name: 'Wallet User',
+        role: 'Researcher',
+        institution: 'Decentralized University',
+        articles: 3,
+        reviews: 12,
+        reputation: 89
+      }));
+      
       onClose();
       
-      // Navigate to the profile page by default, or to the redirect path if provided
-      if (finalRedirectPath && finalRedirectPath !== '/') {
-        router.push(finalRedirectPath);
-      } else {
-        router.push('/profile');
+      // Redirect to the specified path
+      if (redirectPath) {
+        window.location.href = redirectPath;
       }
-    }, 1500);
+    }, 1000);
   };
-  
+
+  const handleEmailLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simulate email login
+    setTimeout(() => {
+      toast({
+        title: "Login successful",
+        description: "You've been logged in via email",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Set login state in localStorage
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('loginMethod', 'email');
+      localStorage.setItem('userProfile', JSON.stringify({
+        name: 'Email User',
+        role: 'Researcher',
+        institution: 'Science Academy',
+        articles: 5,
+        reviews: 8,
+        reputation: 76
+      }));
+      
+      onClose();
+      
+      // Redirect to the specified path
+      if (redirectPath) {
+        window.location.href = redirectPath;
+      }
+    }, 1000);
+  };
+
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose}
-      isCentered
-      motionPreset="slideInBottom"
-      size={{ base: "sm", md: "md" }}
-    >
-      <ModalOverlay backdropFilter="blur(4px)" />
-      <ModalContent bg={bgColor} borderRadius="lg">
-        <ModalHeader textAlign="center">Login to Researka</ModalHeader>
+    <Modal isOpen={isOpen} onClose={onClose} isCentered>
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Login to Researka</ModalHeader>
         <ModalCloseButton />
-        
         <ModalBody>
-          <form onSubmit={handleLogin}>
-            <VStack spacing={4}>
-              <FormControl id="email" isRequired>
-                <FormLabel>Email</FormLabel>
-                <Input 
-                  type="email" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  placeholder="your.email@example.com"
-                />
-              </FormControl>
-              
-              <FormControl id="password" isRequired>
-                <FormLabel>Password</FormLabel>
-                <InputGroup>
-                  <Input 
-                    type={showPassword ? 'text' : 'password'} 
-                    value={password} 
-                    onChange={(e) => setPassword(e.target.value)} 
-                    placeholder="Enter your password"
-                  />
-                  <InputRightElement width="3rem">
-                    <Button 
-                      h="1.5rem" 
-                      size="sm" 
-                      onClick={() => setShowPassword(!showPassword)}
-                      variant="ghost"
-                    >
-                      {showPassword ? <FiEyeOff /> : <FiEye />}
-                    </Button>
-                  </InputRightElement>
-                </InputGroup>
-              </FormControl>
-              
-              <HStack width="100%" justify="space-between">
-                <Checkbox 
-                  isChecked={rememberMe} 
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                >
-                  Remember me
-                </Checkbox>
-                <ChakraLink color="blue.600" fontSize="sm">
-                  Forgot password?
-                </ChakraLink>
-              </HStack>
-              
-              <Button 
-                type="submit" 
-                colorScheme="green" 
-                width="full" 
-                mt={4} 
-                isLoading={isLoading}
-                loadingText="Logging in..."
-              >
-                Login
-              </Button>
-            </VStack>
-          </form>
-          
-          <Divider my={6} />
-          
-          <Text textAlign="center" mb={4}>
-            Don't have an account?{' '}
-            <ChakraLink color="blue.600" onClick={onClose} href="/register">
-              Sign up
-            </ChakraLink>
-          </Text>
+          <VStack spacing={4} align="stretch">
+            <Button 
+              leftIcon={<FaEthereum />} 
+              colorScheme="blue" 
+              variant="outline"
+              onClick={handleWalletLogin}
+            >
+              Connect Wallet
+            </Button>
+            
+            <Flex align="center" my={4}>
+              <Divider />
+              <Text mx={2} fontSize="sm" color="gray.500">or</Text>
+              <Divider />
+            </Flex>
+            
+            <form onSubmit={handleEmailLogin}>
+              <VStack spacing={4}>
+                <FormControl id="email">
+                  <FormLabel>Email address</FormLabel>
+                  <Input type="email" placeholder="your@email.com" />
+                </FormControl>
+                <FormControl id="password">
+                  <FormLabel>Password</FormLabel>
+                  <Input type="password" placeholder="********" />
+                </FormControl>
+                <Button type="submit" colorScheme="green" width="full">
+                  Login with Email
+                </Button>
+              </VStack>
+            </form>
+            
+            <Text fontSize="sm" textAlign="center" mt={2}>
+              Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
+            </Text>
+          </VStack>
         </ModalBody>
+        <ModalFooter>
+          <Text fontSize="xs" color="gray.500">
+            By logging in, you agree to our Terms of Service and Privacy Policy
+          </Text>
+        </ModalFooter>
       </ModalContent>
     </Modal>
   );

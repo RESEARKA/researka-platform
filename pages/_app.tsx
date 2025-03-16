@@ -3,7 +3,19 @@ import type { AppProps } from 'next/app';
 import { ChakraProvider } from '@chakra-ui/react';
 import { WalletProvider } from '../frontend/src/contexts/WalletContext';
 import { ModalProvider } from '../contexts/ModalContext';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Head from 'next/head';
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+    },
+  },
+});
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -14,14 +26,19 @@ function MyApp({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Add DNS prefetch for zkSync resources */}
         <link rel="dns-prefetch" href="https://mainnet.era.zksync.io" />
+        {/* Add preconnect for performance */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </Head>
-      <ChakraProvider>
-        <WalletProvider>
-          <ModalProvider>
-            <Component {...pageProps} />
-          </ModalProvider>
-        </WalletProvider>
-      </ChakraProvider>
+      <QueryClientProvider client={queryClient}>
+        <ChakraProvider>
+          <WalletProvider>
+            <ModalProvider>
+              <Component {...pageProps} />
+            </ModalProvider>
+          </WalletProvider>
+        </ChakraProvider>
+      </QueryClientProvider>
     </>
   );
 }

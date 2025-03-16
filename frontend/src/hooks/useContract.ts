@@ -34,7 +34,7 @@ interface PlatformStats {
 const contractCache: Record<string, ethers.Contract> = {};
 
 // Hook for ResearkaToken contract
-export function useTokenContract(withSigner = false): TokenContract | null {
+export function useTokenContract(withSigner = false, tokenAddress?: string): TokenContract | null {
   const { provider, account, chainId } = useWallet();
   
   return useMemo(() => {
@@ -43,7 +43,8 @@ export function useTokenContract(withSigner = false): TokenContract | null {
     try {
       let contractAddress: string;
       try {
-        contractAddress = getContractAddress('token', chainId);
+        // Use provided token address if available, otherwise get from config
+        contractAddress = tokenAddress || getContractAddress('token', chainId);
       } catch (error) {
         console.error('Contract not deployed on this network:', error);
         return null;
@@ -73,7 +74,7 @@ export function useTokenContract(withSigner = false): TokenContract | null {
       console.error('Error creating token contract instance:', error);
       return null;
     }
-  }, [provider, account, chainId, withSigner]);
+  }, [provider, account, chainId, withSigner, tokenAddress]);
 }
 
 // Hook for ResearchaTreasury contract
