@@ -26,7 +26,7 @@ import dynamic from 'next/dynamic';
 const FeaturedArticle = dynamic(
   () => import('../frontend/src/components/articles/FeaturedArticle'),
   { 
-    ssr: true, 
+    ssr: false, 
     loading: () => <Skeleton height="300px" width="100%" borderRadius="md" />
   }
 );
@@ -177,7 +177,7 @@ const Home: React.FC = () => {
       <Box py={6} bg="white">
         <Container maxW="container.xl">
           <VStack spacing={6}>
-            <Text fontWeight="medium" fontSize="md" color="gray.600">SEARCH ARTICLES</Text>
+            <Heading as="h2" size="lg" color="gray.600" textAlign="center">DECENTRALIZING ACADEMIC RESEARCH</Heading>
             
             <form onSubmit={handleSearch} style={{ width: '100%' }}>
               <InputGroup size="lg">
