@@ -4,12 +4,13 @@ import React, { useState, useCallback, Suspense, lazy } from 'react';
 import {
   Box,
   Container,
+  Grid,
+  GridItem,
   Flex,
   Input,
   Text,
   Button,
   Heading,
-  HStack,
   VStack,
   Tag,
   TagLabel,
@@ -29,6 +30,9 @@ import Head from 'next/head';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { FiSearch, FiCalendar, FiEye, FiChevronDown } from 'react-icons/fi';
+import { useModal } from '../contexts/ModalContext';
+import LoginModal from '../components/LoginModal';
+import NavBar from '../components/NavBar';
 
 // Dynamically import components for better performance
 const FeaturedArticle = dynamic(
@@ -105,7 +109,17 @@ const Home: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isSearching, setIsSearching] = useState(false);
+  const { isOpen, onOpen, onClose, setRedirectPath, redirectPath } = useModal();
   
+  const handleLoginClick = (redirectPath?: string) => {
+    if (redirectPath) {
+      setRedirectPath(redirectPath);
+    } else {
+      setRedirectPath('/profile');
+    }
+    onOpen();
+  };
+
   // Memoized search handler with debounce
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -150,71 +164,11 @@ const Home: React.FC = () => {
       </Head>
 
       {/* Header/Navigation */}
-      <Box borderBottom="1px" borderColor="gray.200" py={2}>
-        <Container maxW="container.xl">
-          <Flex 
-            justify="space-between" 
-            align="center"
-            direction={{ base: "column", md: "row" }}
-            gap={{ base: 4, md: 0 }}
-          >
-            <ChakraLink href="/" _hover={{ textDecoration: 'none' }}>
-              <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
-            </ChakraLink>
-            
-            <HStack 
-              spacing={{ base: 2, md: 4 }}
-              flexWrap={{ base: "wrap", md: "nowrap" }}
-              justifyContent={{ base: "center", md: "flex-end" }}
-              fontSize="2xs"
-            >
-              <Button as="a" href="/" variant="ghost" colorScheme="blue" isActive={true} size={{ base: "sm", md: "md" }}>HOME</Button>
-              <Button as="a" href="/search" variant="ghost" size={{ base: "sm", md: "md" }}>SEARCH</Button>
-              <Button as="a" href="/submit" variant="ghost" size={{ base: "sm", md: "md" }}>SUBMIT</Button>
-              <Button as="a" href="/review" variant="ghost" size={{ base: "sm", md: "md" }}>REVIEW</Button>
-              
-              {/* INFO Dropdown */}
-              <Menu>
-                <MenuButton 
-                  as={Button} 
-                  rightIcon={<FiChevronDown />}
-                  variant="ghost"
-                  size={{ base: "sm", md: "md" }}
-                >
-                  INFO
-                </MenuButton>
-                <MenuList minWidth="180px" fontSize="sm"> {/* Making submenu text 10% bigger */}
-                  <MenuItem as="a" href="/info/roles">ROLES</MenuItem>
-                  <MenuItem as="a" href="/info/about">ABOUT</MenuItem>
-                  <MenuItem as="a" href="/info/team">TEAM</MenuItem>
-                  <MenuItem as="a" href="/info/whitepaper">WHITEPAPER</MenuItem>
-                  <MenuItem as="a" href="/info/contact">CONTACT</MenuItem>
-                </MenuList>
-              </Menu>
-              
-              {/* GOVERNANCE Dropdown */}
-              <Menu>
-                <MenuButton 
-                  as={Button} 
-                  rightIcon={<FiChevronDown />}
-                  variant="ghost"
-                  size={{ base: "sm", md: "md" }}
-                >
-                  GOVERNANCE
-                </MenuButton>
-                <MenuList minWidth="180px" fontSize="sm"> {/* Making submenu text 10% bigger */}
-                  <MenuItem as="a" href="/governance/legal">LEGAL</MenuItem>
-                  <MenuItem as="a" href="/governance/privacy-policy">PRIVACY POLICY</MenuItem>
-                  <MenuItem as="a" href="/governance/cookie-policy">COOKIE POLICY</MenuItem>
-                  <MenuItem as="a" href="/governance/privacy-center">PRIVACY CENTER</MenuItem>
-                </MenuList>
-              </Menu>
-              
-              <Button as="a" href="/login" colorScheme="blue" size={{ base: "sm", md: "md" }}>LOGIN</Button>
-            </HStack>
-          </Flex>
-        </Container>
-      </Box>
+      <NavBar 
+        activePage="home"
+        isLoggedIn={false}
+        onLoginClick={handleLoginClick}
+      />
 
       {/* Search Section */}
       <Box py={6} bg="white">
@@ -254,7 +208,11 @@ const Home: React.FC = () => {
               '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' },
               '&::-webkit-scrollbar-thumb:hover': { background: '#555' }
             }}>
-              <HStack spacing={2} wrap="nowrap" minWidth="max-content">
+              <Flex 
+                flexWrap="nowrap" 
+                gap={2} 
+                minWidth="max-content"
+              >
                 {CATEGORIES.MAIN.map((category) => (
                   <Tag 
                     key={category.id}
@@ -271,7 +229,7 @@ const Home: React.FC = () => {
                     <TagLabel>{category.name}</TagLabel>
                   </Tag>
                 ))}
-              </HStack>
+              </Flex>
             </Box>
             
             {/* Subcategories - Responsive grid layout */}
@@ -344,6 +302,13 @@ const Home: React.FC = () => {
           </Flex>
         </Container>
       </Box>
+      
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={isOpen} 
+        onClose={onClose} 
+        redirectPath={redirectPath}
+      />
     </>
   );
 };

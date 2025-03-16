@@ -1,0 +1,369 @@
+import React, { useState } from 'react';
+import {
+  Box,
+  Container,
+  Grid,
+  GridItem,
+  Flex,
+  Heading,
+  Text,
+  VStack,
+  Button,
+  FormControl,
+  FormLabel,
+  Input,
+  Textarea,
+  Select,
+  FormHelperText,
+  useSteps,
+  Stepper,
+  Step,
+  StepIndicator,
+  StepStatus,
+  StepIcon,
+  StepNumber,
+  StepTitle,
+  StepDescription,
+  StepSeparator,
+  useToast,
+  Divider,
+  useColorModeValue,
+  Badge,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Link as ChakraLink,
+} from '@chakra-ui/react';
+import { FiUpload, FiFileText, FiCheck, FiArrowLeft, FiArrowRight, FiChevronDown } from 'react-icons/fi';
+import Head from 'next/head';
+import Link from 'next/link';
+import NavBar from '../components/NavBar';
+
+// Define the steps for the submission process
+const steps = [
+  { title: 'Basic Info', description: 'Article details' },
+  { title: 'Content', description: 'Write or upload' },
+  { title: 'Review', description: 'Check your submission' },
+  { title: 'Submit', description: 'Finalize submission' },
+];
+
+const SubmitPage: React.FC = () => {
+  const { activeStep, setActiveStep } = useSteps({
+    index: 0,
+    count: steps.length,
+  });
+  
+  const [formData, setFormData] = useState({
+    title: '',
+    abstract: '',
+    category: '',
+    keywords: '',
+    content: '',
+    file: null,
+  });
+  
+  const toast = useToast();
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleNext = () => {
+    setActiveStep(activeStep + 1);
+  };
+  
+  const handlePrevious = () => {
+    setActiveStep(activeStep - 1);
+  };
+  
+  const handleSubmit = () => {
+    // In a real app, you would send the data to your API
+    toast({
+      title: 'Submission successful!',
+      description: 'Your article has been submitted for review.',
+      status: 'success',
+      duration: 5000,
+      isClosable: true,
+    });
+    
+    // Reset form and go back to first step
+    setFormData({
+      title: '',
+      abstract: '',
+      category: '',
+      keywords: '',
+      content: '',
+      file: null,
+    });
+    setActiveStep(0);
+  };
+  
+  return (
+    <>
+      <Head>
+        <title>Submit Article | Researka</title>
+        <meta name="description" content="Submit your article to Researka" />
+      </Head>
+      
+      <NavBar 
+        activePage="submit"
+        isLoggedIn={true}
+      />
+      
+      <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
+        <Container maxW="container.lg">
+          <VStack spacing={8}>
+            <Heading as="h1" size="xl">Submit Your Article</Heading>
+            <Text color="gray.600" textAlign="center" maxW="container.md">
+              Share your research with the academic community. All submissions undergo peer review before publication.
+            </Text>
+            
+            <Box w="100%" py={4}>
+              <Stepper index={activeStep} colorScheme="green">
+                {steps.map((step, index) => (
+                  <Step key={index}>
+                    <StepIndicator>
+                      <StepStatus
+                        complete={<StepIcon />}
+                        incomplete={<StepNumber />}
+                        active={<StepNumber />}
+                      />
+                    </StepIndicator>
+                    
+                    <Box flexShrink={0}>
+                      <StepTitle>{step.title}</StepTitle>
+                      <StepDescription>{step.description}</StepDescription>
+                    </Box>
+                    
+                    <StepSeparator />
+                  </Step>
+                ))}
+              </Stepper>
+            </Box>
+            
+            <Box 
+              w="100%" 
+              bg={bgColor} 
+              p={8} 
+              borderRadius="lg" 
+              boxShadow="sm"
+              borderWidth="1px"
+              borderColor={borderColor}
+            >
+              {activeStep === 0 && (
+                <VStack spacing={6} align="stretch">
+                  <Heading size="md">Basic Information</Heading>
+                  
+                  <FormControl isRequired>
+                    <FormLabel>Article Title</FormLabel>
+                    <Input 
+                      name="title" 
+                      value={formData.title} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter the title of your article"
+                    />
+                  </FormControl>
+                  
+                  <FormControl isRequired>
+                    <FormLabel>Abstract</FormLabel>
+                    <Textarea 
+                      name="abstract" 
+                      value={formData.abstract} 
+                      onChange={handleInputChange} 
+                      placeholder="Provide a brief summary of your article"
+                      rows={5}
+                    />
+                    <FormHelperText>Maximum 300 words</FormHelperText>
+                  </FormControl>
+                  
+                  <FormControl isRequired>
+                    <FormLabel>Category</FormLabel>
+                    <Select 
+                      name="category" 
+                      value={formData.category} 
+                      onChange={handleInputChange} 
+                      placeholder="Select category"
+                    >
+                      <option value="blockchain">Blockchain & Cryptocurrency</option>
+                      <option value="ai">Artificial Intelligence</option>
+                      <option value="computer-science">Computer Science</option>
+                      <option value="economics">Economics</option>
+                      <option value="medicine">Medicine & Healthcare</option>
+                      <option value="physics">Physics</option>
+                      <option value="biology">Biology</option>
+                      <option value="social-science">Social Sciences</option>
+                      <option value="other">Other</option>
+                    </Select>
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel>Keywords</FormLabel>
+                    <Input 
+                      name="keywords" 
+                      value={formData.keywords} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter keywords separated by commas"
+                    />
+                    <FormHelperText>e.g., blockchain, academic publishing, decentralization</FormHelperText>
+                  </FormControl>
+                </VStack>
+              )}
+              
+              {activeStep === 1 && (
+                <VStack spacing={6} align="stretch">
+                  <Heading size="md">Article Content</Heading>
+                  
+                  <Flex direction={{ base: 'column', md: 'row' }} gap={4}>
+                    <Button 
+                      leftIcon={<FiFileText />} 
+                      colorScheme="green" 
+                      variant="outline" 
+                      flex="1"
+                      py={8}
+                    >
+                      Write in Editor
+                    </Button>
+                    
+                    <Button 
+                      leftIcon={<FiUpload />} 
+                      colorScheme="green" 
+                      variant="outline" 
+                      flex="1"
+                      py={8}
+                    >
+                      Upload Document
+                    </Button>
+                  </Flex>
+                  
+                  <Divider my={4} />
+                  
+                  <FormControl>
+                    <FormLabel>Article Content</FormLabel>
+                    <Textarea 
+                      name="content" 
+                      value={formData.content} 
+                      onChange={handleInputChange} 
+                      placeholder="Write or paste your article content here"
+                      rows={12}
+                    />
+                  </FormControl>
+                </VStack>
+              )}
+              
+              {activeStep === 2 && (
+                <VStack spacing={6} align="stretch">
+                  <Heading size="md">Review Your Submission</Heading>
+                  
+                  <Box p={4} bg="gray.50" borderRadius="md">
+                    <VStack align="stretch" spacing={4}>
+                      <Flex justify="space-between">
+                        <Text fontWeight="bold">Title:</Text>
+                        <Text>{formData.title || 'Not provided'}</Text>
+                      </Flex>
+                      
+                      <Flex justify="space-between">
+                        <Text fontWeight="bold">Category:</Text>
+                        <Badge colorScheme="green">{formData.category || 'Not selected'}</Badge>
+                      </Flex>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Abstract:</Text>
+                      <Text>{formData.abstract || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Keywords:</Text>
+                      <Text>{formData.keywords || 'None'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Content Preview:</Text>
+                      <Text noOfLines={3}>{formData.content || 'No content added'}</Text>
+                    </VStack>
+                  </Box>
+                </VStack>
+              )}
+              
+              {activeStep === 3 && (
+                <VStack spacing={6} align="center">
+                  <Heading size="md">Ready to Submit</Heading>
+                  
+                  <Box 
+                    p={6} 
+                    bg="green.50" 
+                    borderRadius="md" 
+                    borderWidth="1px" 
+                    borderColor="green.200"
+                    width="100%"
+                  >
+                    <VStack spacing={4}>
+                      <FiCheck size={48} color="var(--chakra-colors-green-500)" />
+                      <Text fontWeight="medium" textAlign="center">
+                        Your article is ready for submission. Once submitted, it will enter our peer review process.
+                      </Text>
+                      <Text fontSize="sm" color="gray.600" textAlign="center">
+                        You will be notified of any updates or when reviews are completed.
+                      </Text>
+                    </VStack>
+                  </Box>
+                  
+                  <Button 
+                    colorScheme="green" 
+                    size="lg" 
+                    leftIcon={<FiUpload />}
+                    onClick={handleSubmit}
+                    mt={4}
+                  >
+                    Submit Article
+                  </Button>
+                </VStack>
+              )}
+              
+              <Flex justify="space-between" mt={8}>
+                <Button 
+                  leftIcon={<FiArrowLeft />} 
+                  onClick={handlePrevious}
+                  isDisabled={activeStep === 0}
+                  variant="ghost"
+                >
+                  Previous
+                </Button>
+                
+                {activeStep < 3 ? (
+                  <Button 
+                    rightIcon={<FiArrowRight />} 
+                    onClick={handleNext}
+                    colorScheme="green"
+                  >
+                    Next
+                  </Button>
+                ) : null}
+              </Flex>
+            </Box>
+          </VStack>
+        </Container>
+      </Box>
+      
+      {/* Footer */}
+      <Box py={6} bg="white" borderTop="1px" borderColor="gray.200">
+        <Container maxW="container.xl">
+          <Flex justify="center" align="center" direction="column">
+            <Text fontSize="sm" color="gray.500">
+              &copy; {new Date().getFullYear()} Researka Platform. All rights reserved.
+            </Text>
+            <Text fontSize="xs" color="gray.400" mt={1}>
+              A decentralized academic publishing solution built on zkSync
+            </Text>
+          </Flex>
+        </Container>
+      </Box>
+    </>
+  );
+};
+
+export default SubmitPage;
