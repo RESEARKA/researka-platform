@@ -24,7 +24,7 @@ import dynamic from 'next/dynamic';
 
 // Dynamically import components for better performance
 const FeaturedArticle = dynamic(
-  () => import('../frontend/src/components/articles/FeaturedArticle'),
+  () => import('../components/articles/FeaturedArticle'),
   { 
     ssr: true, 
     loading: () => <Skeleton height="300px" width="100%" borderRadius="md" />
@@ -255,45 +255,7 @@ const Home: React.FC = () => {
           <VStack spacing={6} align="stretch">
             {/* Featured Article - Using Suspense for better loading experience */}
             <Suspense fallback={<Skeleton height="300px" width="100%" borderRadius="md" />}>
-              <Box 
-                bg="white" 
-                p={6} 
-                borderRadius="md" 
-                boxShadow="sm"
-                borderWidth="1px"
-                borderColor="gray.200"
-              >
-                <HStack spacing={2} mb={2}>
-                  {FEATURED_ARTICLE.categories.map((category, index) => (
-                    <Tag key={index} size="sm" colorScheme={index === 0 ? "blue" : "green"} borderRadius="full">
-                      {category}
-                    </Tag>
-                  ))}
-                </HStack>
-                
-                <Heading as="h2" size="lg" mb={2} color="gray.700">
-                  {FEATURED_ARTICLE.title}
-                </Heading>
-                
-                <Text fontSize="sm" color="gray.600" mb={3}>
-                  {FEATURED_ARTICLE.authors}
-                </Text>
-                
-                <Text color="gray.600" mb={4}>
-                  {FEATURED_ARTICLE.abstract}
-                </Text>
-                
-                <Flex justify="space-between" align="center" color="gray.500" fontSize="sm">
-                  <Flex align="center">
-                    <FiCalendar style={{ marginRight: '5px' }} />
-                    <Text>{FEATURED_ARTICLE.date}</Text>
-                  </Flex>
-                  <Flex align="center">
-                    <FiEye style={{ marginRight: '5px' }} />
-                    <Text>{FEATURED_ARTICLE.views}</Text>
-                  </Flex>
-                </Flex>
-              </Box>
+              <FeaturedArticle article={FEATURED_ARTICLE} />
             </Suspense>
             
             {/* More articles would go here */}
