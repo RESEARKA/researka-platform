@@ -361,7 +361,7 @@ const Home: React.FC = () => {
       <Box py={8} bg="white">
         <Container maxW="container.xl">
           <VStack spacing={6}>
-            <Text fontSize="lg" fontWeight="bold" mb={4}>
+            <Text fontSize="lg" fontWeight="bold" mb={4} color="gray.600">
               DECENTRALIZING ACADEMIC RESEARCH
             </Text>
             
