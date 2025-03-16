@@ -1,0 +1,45 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ../dist:/var/www/researka.org/dist
+    restart: always
+    networks:
+      - web
+    depends_on:
+      - frontend
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - web
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    volumes:
+      - ../dist:/app/dist
+    environment:
+      - NODE_ENV=production
+      - CDN_URL=${CDN_URL:-}
+      - API_URL=${API_URL:-https://api.researka.org/api}
+    restart: always
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge

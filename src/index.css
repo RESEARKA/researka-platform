@@ -1,0 +1,143 @@
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap');
+
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Notus styling overrides */
+:root {
+  font-family: 'Open Sans', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1a1a1a;
+  background-color: #f8f9fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* Reset button styles to allow Notus styling to take precedence */
+button {
+  background-color: transparent;
+}
+
+/* Notus custom styles */
+.transform {
+  transition-property: transform;
+}
+
+.transition-all {
+  transition-property: all;
+}
+
+.ease-linear {
+  transition-timing-function: linear;
+}
+
+.duration-150 {
+  transition-duration: 150ms;
+}
+
+/* Control SVG sizes throughout the application */
+svg {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+}
+
+/* Specific control for large SVGs that appear between content */
+.eye-icon svg,
+.checklist-icon svg {
+  max-width: 24px;
+  max-height: 24px;
+}
+
+/* Dashboard specific icons */
+.dashboard-icon {
+  max-width: 1.25rem;
+  max-height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Ensure all images are properly sized */
+img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Article content images */
+.article-content img {
+  display: block;
+  margin: 1.5rem auto;
+  max-width: 90%;
+  max-height: 500px;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Notus specific styles */
+.bg-blueGray-50 {
+  background-color: #f8fafc;
+}
+
+.bg-blueGray-100 {
+  background-color: #f1f5f9;
+}
+
+.bg-blueGray-200 {
+  background-color: #e2e8f0;
+}
+
+.bg-blueGray-300 {
+  background-color: #cbd5e1;
+}
+
+.bg-blueGray-400 {
+  background-color: #94a3b8;
+}
+
+.bg-blueGray-500 {
+  background-color: #64748b;
+}
+
+.bg-blueGray-600 {
+  background-color: #475569;
+}
+
+.bg-blueGray-700 {
+  background-color: #334155;
+}
+
+.bg-blueGray-800 {
+  background-color: #1e293b;
+}
+
+.bg-blueGray-900 {
+  background-color: #0f172a;
+}
+
+.text-blueGray-700 {
+  color: #334155;
+}
+
+.text-blueGray-500 {
+  color: #64748b;
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}

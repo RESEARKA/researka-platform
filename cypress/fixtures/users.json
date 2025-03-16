@@ -1,0 +1,17 @@
+{
+  "testUser": {
+    "email": "test@example.com",
+    "password": "Password123!",
+    "username": "testuser"
+  },
+  "authorUser": {
+    "email": "author@university.edu",
+    "password": "AuthorPass123!",
+    "username": "authoruser"
+  },
+  "reviewerUser": {
+    "email": "reviewer@university.edu",
+    "password": "ReviewerPass123!",
+    "username": "revieweruser"
+  }
+}

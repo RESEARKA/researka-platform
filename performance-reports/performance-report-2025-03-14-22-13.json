@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-03-14T18:13:47.554Z",
+  "metrics": {
+    "desktop": {
+      "fcp": "1.2s",
+      "lcp": "2.1s",
+      "tti": "2.8s",
+      "tbt": "210ms",
+      "cls": "0.05"
+    },
+    "mobile": {
+      "fcp": "2.5s",
+      "lcp": "3.8s",
+      "tti": "4.2s",
+      "tbt": "450ms",
+      "cls": "0.08"
+    }
+  },
+  "recommendations": [
+    "Fix TypeScript errors",
+    "Optimize ethers.js dependency",
+    "Implement WebP/AVIF image formats",
+    "Configure Cloudflare CDN",
+    "Test on low-end mobile devices"
+  ]
+}
