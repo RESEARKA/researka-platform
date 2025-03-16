@@ -358,10 +358,12 @@ const Home: React.FC = () => {
       </Box>
 
       {/* Search Section */}
-      <Box py={6} bg="white">
+      <Box py={8} bg="white">
         <Container maxW="container.xl">
           <VStack spacing={6}>
-            <Text fontWeight="medium" fontSize="md" color="gray.600">SEARCH ARTICLES</Text>
+            <Text fontSize="lg" fontWeight="bold" mb={4}>
+              DECENTRALIZING ACADEMIC RESEARCH
+            </Text>
             
             <form onSubmit={handleSearch} style={{ width: '100%' }}>
               <InputGroup size="lg">
