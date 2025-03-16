@@ -1,8 +1,14 @@
 import React from 'react';
 import type { AppProps } from 'next/app';
 import { ChakraProvider } from '@chakra-ui/react';
-import { WalletProvider } from '../frontend/src/contexts/WalletContext';
 import Head from 'next/head';
+import dynamic from 'next/dynamic';
+
+// Import WalletProvider as a client-side only component
+const WalletProviderClient = dynamic(
+  () => import('../frontend/src/contexts/WalletContext').then(mod => mod.WalletProvider),
+  { ssr: false }
+);
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -15,9 +21,9 @@ function MyApp({ Component, pageProps }: AppProps) {
         <link rel="dns-prefetch" href="https://mainnet.era.zksync.io" />
       </Head>
       <ChakraProvider>
-        <WalletProvider>
+        <WalletProviderClient>
           <Component {...pageProps} />
-        </WalletProvider>
+        </WalletProviderClient>
       </ChakraProvider>
     </>
   );
