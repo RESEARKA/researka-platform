@@ -336,14 +336,12 @@ const Home: React.FC = () => {
                     height="100%"
                     display="flex"
                     flexDirection="column"
+                    onClick={() => window.location.href = `/article/${article.id}`}
+                    cursor="pointer"
                   >
-                    <NextLink href={`/article/${article.id}`} passHref legacyBehavior>
-                      <LinkOverlay>
-                        <Heading as="h3" size="md" mb={2}>
-                          {article.title}
-                        </Heading>
-                      </LinkOverlay>
-                    </NextLink>
+                    <Heading as="h3" size="md" mb={2}>
+                      {article.title}
+                    </Heading>
                     <Text fontSize="sm" color="gray.500" mb={2}>
                       {article.authors}
                     </Text>
@@ -365,8 +363,7 @@ const Home: React.FC = () => {
             
             <Flex justify="center" mt={6}>
               <Button 
-                as={Link}
-                href="/articles"
+                onClick={() => window.location.href = "/articles"}
                 colorScheme="blue" 
                 variant="outline"
                 size="md"

@@ -180,27 +180,6 @@ export const MATHEMATICS_ARTICLES: Article[] = [
   }
 ];
 
-// All articles combined
-export const ALL_ARTICLES: Article[] = [
-  ...BIOLOGY_ARTICLES,
-  ...PHYSICS_ARTICLES,
-  ...COMPUTER_SCIENCE_ARTICLES,
-  ...CHEMISTRY_ARTICLES,
-  ...MATHEMATICS_ARTICLES
-];
-
-// Featured article
-export const FEATURED_ARTICLE: Article = {
-  id: 501,
-  title: "Epigenetic Regulation of Neural Stem Cell Differentiation in Alzheimer's Disease Models",
-  authors: "Dr. Eliza J. Thornfield, Prof. Hiroshi Nakamura, Dr. Sophia Menendez Rodriguez",
-  abstract: "Recent advances in understanding epigenetic mechanisms have revealed their crucial role in neural stem cell fate determination. This study investigates how DNA methylation patterns and histone modifications influence neural stem cell differentiation in transgenic mouse models of Alzheimer's disease, providing insights into potential therapeutic targets for neurodegenerative disorders.",
-  date: "Jan 15, 2025",
-  views: 842,
-  categories: ["BIOLOGY", "LIFE SCIENCES & BIOMEDICINE"],
-  imageUrl: "https://via.placeholder.com/400x200?text=Biology+Research"
-};
-
 // Get random articles with a stable seed for SSR
 export function getRandomArticles(count: number = 3): Article[] {
   // Use a stable set of articles for SSR to avoid hydration errors
@@ -210,3 +189,24 @@ export function getRandomArticles(count: number = 3): Article[] {
     COMPUTER_SCIENCE_ARTICLES[1]  // Quantum-Resistant Cryptographic Protocols article
   ].slice(0, count);
 }
+
+// Combine all articles into a single array for easy access
+export const ALL_ARTICLES: Article[] = [
+  ...BIOLOGY_ARTICLES,
+  ...PHYSICS_ARTICLES,
+  ...COMPUTER_SCIENCE_ARTICLES,
+  ...CHEMISTRY_ARTICLES,
+  ...MATHEMATICS_ARTICLES
+];
+
+// Featured article for the homepage
+export const FEATURED_ARTICLE: Article = {
+  id: 999,
+  title: "Epigenetic Regulation of Neural Stem Cell Differentiation in Alzheimer's Disease Models",
+  authors: "Dr. Eliza J. Thornfield, Prof. Hiroshi Nakamura, Dr. Sophia Menendez Rodriguez",
+  abstract: "Recent advances in understanding epigenetic mechanisms have revealed their crucial role in neural stem cell fate determination. This study investigates how DNA methylation patterns and histone modifications influence neural stem cell differentiation in transgenic mouse models of Alzheimer's disease, providing insights into potential therapeutic targets for neurodegenerative disorders.",
+  date: "Jan 15, 2025",
+  views: 842,
+  categories: ["BIOLOGY", "NEUROSCIENCE"],
+  imageUrl: "https://images.unsplash.com/photo-1559757175-7cb057fba3c9?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80"
+};
