@@ -163,8 +163,8 @@ const MobileNav: React.FC<MobileNavProps> = ({
                   mt={1}
                 >
                   <Box
-                    as="button"
-                    onClick={() => window.location.href = '/profile'}
+                    as="a"
+                    href="/profile"
                     py={2}
                     px={4}
                     width="100%"

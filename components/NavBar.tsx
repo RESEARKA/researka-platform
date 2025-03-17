@@ -156,7 +156,7 @@ const NavBar: React.FC<NavBarProps> = ({
                   {username || 'User'}
                 </MenuButton>
                 <MenuList minWidth="180px" fontSize="sm">
-                  <MenuItem onClick={() => window.location.href = '/profile'}>
+                  <MenuItem as="a" href="/profile">
                     Profile
                   </MenuItem>
                   <MenuItem onClick={handleLogout}>
