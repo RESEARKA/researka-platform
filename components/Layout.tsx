@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { Box } from '@chakra-ui/react';
 import NavBar from './NavBar';
 import MobileNav from './MobileNav';
+import { useModal } from '../contexts/ModalContext';
 
 interface LayoutProps {
   title?: string;
@@ -17,6 +18,17 @@ const Layout: React.FC<LayoutProps> = ({
   children,
   activePage
 }) => {
+  const { onOpen, setRedirectPath } = useModal();
+  
+  const handleLoginClick = (redirectPath?: string) => {
+    if (redirectPath) {
+      setRedirectPath(redirectPath);
+    } else {
+      setRedirectPath('/profile');
+    }
+    onOpen();
+  };
+
   return (
     <>
       <Head>
@@ -27,8 +39,8 @@ const Layout: React.FC<LayoutProps> = ({
       </Head>
       
       <Box minH="100vh" bg="white">
-        <NavBar activePage={activePage} />
-        <MobileNav activePage={activePage} />
+        <NavBar activePage={activePage} onLoginClick={handleLoginClick} />
+        <MobileNav activePage={activePage} onLoginClick={handleLoginClick} />
         
         <Box as="main">
           {children}

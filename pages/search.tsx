@@ -26,14 +26,27 @@ import {
 import { FiSearch } from 'react-icons/fi';
 import Layout from '../components/Layout';
 import { getRandomArticles, Article } from '../data/articles';
+import LoginModal from '../components/LoginModal';
+import { useModal } from '../contexts/ModalContext';
 
 // Sample search results
 const SAMPLE_RESULTS: Article[] = getRandomArticles(6);
+
+// Sample image URLs for articles
+const imageUrls = [
+  'https://images.unsplash.com/photo-1532094349884-543bc11b234d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80',
+  'https://images.unsplash.com/photo-1507413245164-6160d8298b31?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80',
+  'https://images.unsplash.com/photo-1551033406-611cf9a28f67?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80',
+  'https://images.unsplash.com/photo-1582719471384-894fbb16e074?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80',
+  'https://images.unsplash.com/photo-1507668077129-56e32842fceb?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80',
+  'https://images.unsplash.com/photo-1581094794329-c8112a89af12?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80'
+];
 
 const Search = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(SAMPLE_RESULTS);
   const [isSearching, setIsSearching] = useState(false);
+  const { isOpen, onClose, redirectPath, setRedirectPath, onOpen } = useModal();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,19 +63,17 @@ const Search = () => {
         article.abstract.toLowerCase().includes(searchQuery.toLowerCase())
       );
       
-      setSearchResults(filteredResults.length > 0 ? filteredResults : SAMPLE_RESULTS);
+      setSearchResults(filteredResults);
       setIsSearching(false);
-    }, 800);
+    }, 1000);
   };
 
-  // Define an array of image URLs to use for search results
-  const imageUrls = [
-    'https://images.unsplash.com/photo-1532094349884-543bc11b234d?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
-    'https://images.unsplash.com/photo-1516321165247-4aa89a48be28?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
-    'https://images.unsplash.com/photo-1507413245164-6160d8298b31?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
-    'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
-    'https://images.unsplash.com/photo-1554475901-4538ddfbccc2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80'
-  ];
+  const handleLoginClick = (redirectPath?: string) => {
+    if (redirectPath) {
+      setRedirectPath(redirectPath);
+    }
+    onOpen();
+  };
 
   return (
     <Layout title="Search | Researka" description="Search for research papers on Researka" activePage="search">
@@ -150,6 +161,7 @@ const Search = () => {
                         variant="ghost"
                         colorScheme="gray"
                         size="sm"
+                        onClick={() => handleLoginClick(`/article/${article.id}`)}
                       >
                         Save
                       </Button>
@@ -161,6 +173,7 @@ const Search = () => {
           </>
         )}
       </Container>
+      <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />
     </Layout>
   );
 };
