@@ -190,15 +190,6 @@ export function getRandomArticles(count: number = 3): Article[] {
   ].slice(0, count);
 }
 
-// Combine all articles into a single array for easy access
-export const ALL_ARTICLES: Article[] = [
-  ...BIOLOGY_ARTICLES,
-  ...PHYSICS_ARTICLES,
-  ...COMPUTER_SCIENCE_ARTICLES,
-  ...CHEMISTRY_ARTICLES,
-  ...MATHEMATICS_ARTICLES
-];
-
 // Featured article for the homepage
 export const FEATURED_ARTICLE: Article = {
   id: 999,
@@ -210,3 +201,13 @@ export const FEATURED_ARTICLE: Article = {
   categories: ["BIOLOGY", "NEUROSCIENCE"],
   imageUrl: "https://images.unsplash.com/photo-1559757175-7cb057fba3c9?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80"
 };
+
+// Combine all articles into a single array for easy access
+export const ALL_ARTICLES: Article[] = [
+  ...BIOLOGY_ARTICLES,
+  ...PHYSICS_ARTICLES,
+  ...COMPUTER_SCIENCE_ARTICLES,
+  ...CHEMISTRY_ARTICLES,
+  ...MATHEMATICS_ARTICLES,
+  FEATURED_ARTICLE // Add featured article to all articles
+];
