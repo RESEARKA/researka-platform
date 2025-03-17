@@ -9,9 +9,9 @@ import {
   useColorModeValue,
   Divider,
   Button,
-  Link as ChakraLink
 } from '@chakra-ui/react';
 import { FiMenu, FiX, FiChevronDown } from 'react-icons/fi';
+import Link from 'next/link';
 
 interface MobileNavProps {
   activePage?: string;
@@ -50,7 +50,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
             const userData = JSON.parse(storedUser);
             setUsername(userData.username || userData.name || 'User');
           } catch (e) {
-            console.error('Failed to parse user data:', e);
+            setUsername('User');
           }
         }
       }
@@ -71,47 +71,46 @@ const MobileNav: React.FC<MobileNavProps> = ({
   return (
     <Box 
       display={{ base: 'block', md: 'none' }}
+      position="sticky"
+      top={0}
+      zIndex={10}
+      bg={bgColor}
       borderBottom="1px"
       borderColor={borderColor}
-      py={2}
     >
-      <Flex justify="space-between" align="center" px={4}>
-        <Box 
-          as="button" 
-          onClick={() => window.location.href = "/"} 
-          _hover={{ textDecoration: 'none' }}
-        >
-          <Box fontWeight="bold" fontSize="xl" color="green.400">RESEARKA</Box>
-        </Box>
+      <Flex
+        py={2}
+        px={4}
+        justify="space-between"
+        align="center"
+      >
+        <Link href="/" passHref>
+          <Box 
+            as="a"
+            fontSize="xl"
+            fontWeight="bold"
+            color="green.400"
+          >
+            RESEARKA
+          </Box>
+        </Link>
         
         <IconButton
-          aria-label="Toggle Navigation"
+          aria-label={navIsOpen ? "Close menu" : "Open menu"}
           icon={navIsOpen ? <FiX /> : <FiMenu />}
           variant="ghost"
           onClick={onNavToggle}
-          size="lg"
-          _hover={{ bg: 'gray.100' }}
         />
       </Flex>
       
       <Collapse in={navIsOpen} animateOpacity>
-        <VStack
-          spacing={4}
-          p={4}
-          align="stretch"
-          bg={bgColor}
-          borderBottomRadius="md"
-          boxShadow={navIsOpen ? "sm" : "none"}
-          mt={2}
-        >
-          {/* Main Nav Items */}
+        <VStack spacing={0} align="stretch" pb={4} px={2}>
           <MobileNavItem 
             href="/" 
             label="HOME" 
             isActive={activePageLower === 'home'} 
           />
           
-          {/* SEARCH functionality */}
           <MobileNavItem 
             href="/search" 
             label="SEARCH" 
@@ -162,33 +161,30 @@ const MobileNav: React.FC<MobileNavProps> = ({
                   ml={4}
                   mt={1}
                 >
-                  <Box
-                    as="a"
-                    href="/profile"
-                    py={2}
-                    px={4}
-                    width="100%"
-                    textAlign="left"
-                    fontWeight="500"
-                    borderRadius="md"
-                    _hover={{ bg: 'gray.100' }}
-                    _active={{ bg: 'gray.200' }}
-                    display="block"
-                  >
-                    Profile
-                  </Box>
+                  <Link href="/profile" passHref>
+                    <Box
+                      as="a"
+                      py={2}
+                      px={4}
+                      width="100%"
+                      textAlign="left"
+                      display="block"
+                      borderRadius="md"
+                      _hover={{ bg: 'gray.100' }}
+                    >
+                      Profile
+                    </Box>
+                  </Link>
                   <Box
                     as="button"
-                    onClick={handleLogout}
                     py={2}
                     px={4}
                     width="100%"
                     textAlign="left"
-                    fontWeight="500"
-                    borderRadius="md"
-                    _hover={{ bg: 'gray.100' }}
-                    _active={{ bg: 'gray.200' }}
                     display="block"
+                    borderRadius="md"
+                    onClick={handleLogout}
+                    _hover={{ bg: 'gray.100' }}
                   >
                     Logout
                   </Box>
@@ -196,17 +192,20 @@ const MobileNav: React.FC<MobileNavProps> = ({
               </Collapse>
             </Box>
           ) : (
-            <MobileNavItem 
-              href="#" 
-              label="LOGIN" 
-              isActive={false} 
+            <Button
+              colorScheme="blue"
+              width="100%"
+              justifyContent="flex-start"
               onClick={() => onLoginClick()}
-            />
+              mt={2}
+              sx={{
+                minHeight: '44px',
+              }}
+            >
+              Login
+            </Button>
           )}
           
-          <Divider />
-          
-          {/* INFO Dropdown */}
           <MobileNavDropdown 
             label="INFO" 
             items={[
@@ -218,7 +217,6 @@ const MobileNav: React.FC<MobileNavProps> = ({
             ]}
           />
           
-          {/* GOVERNANCE Dropdown */}
           <MobileNavDropdown 
             label="GOVERNANCE" 
             items={[
@@ -281,27 +279,28 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
   }
   
   return (
-    <Button
-      as="a"
-      href={href}
-      variant="ghost"
-      justifyContent="flex-start"
-      width="100%"
-      height="auto"
-      py={3}
-      px={4}
-      borderRadius="md"
-      fontWeight="500"
-      {...activeStyle}
-      _hover={{ bg: 'gray.100' }}
-      _active={{ bg: 'gray.200' }}
-      sx={{
-        // Increase touch target size
-        minHeight: '44px',
-      }}
-    >
-      {label}
-    </Button>
+    <Link href={href} passHref>
+      <Button
+        as="a"
+        variant="ghost"
+        justifyContent="flex-start"
+        width="100%"
+        height="auto"
+        py={3}
+        px={4}
+        borderRadius="md"
+        fontWeight="500"
+        {...activeStyle}
+        _hover={{ bg: 'gray.100' }}
+        _active={{ bg: 'gray.200' }}
+        sx={{
+          // Increase touch target size
+          minHeight: '44px',
+        }}
+      >
+        {label}
+      </Button>
+    </Link>
   );
 };
 
@@ -314,22 +313,16 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
   const { isOpen, onToggle } = useDisclosure();
   
   return (
-    <Box width="100%">
+    <Box>
       <Button
-        as="div"
         variant="ghost"
-        justifyContent="space-between"
-        alignItems="center"
         width="100%"
-        height="auto"
+        justifyContent="space-between"
         py={3}
         px={4}
-        borderRadius="md"
-        fontWeight="500"
         onClick={onToggle}
         rightIcon={<FiChevronDown />}
-        _hover={{ bg: 'gray.100' }}
-        _active={{ bg: 'gray.200' }}
+        fontWeight="500"
         sx={{
           // Increase touch target size
           minHeight: '44px',
@@ -337,7 +330,6 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
       >
         {label}
       </Button>
-      
       <Collapse in={isOpen} animateOpacity>
         <Box
           pl={4}
@@ -348,22 +340,20 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
           mt={1}
         >
           {items.map((item, index) => (
-            <Box
-              key={index}
-              as="a"
-              href={item.href}
-              py={2}
-              px={4}
-              width="100%"
-              textAlign="left"
-              fontWeight="500"
-              borderRadius="md"
-              _hover={{ bg: 'gray.100' }}
-              _active={{ bg: 'gray.200' }}
-              display="block"
-            >
-              {item.label}
-            </Box>
+            <Link key={index} href={item.href} passHref>
+              <Box
+                as="a"
+                py={2}
+                px={4}
+                width="100%"
+                textAlign="left"
+                display="block"
+                borderRadius="md"
+                _hover={{ bg: 'gray.100' }}
+              >
+                {item.label}
+              </Box>
+            </Link>
           ))}
         </Box>
       </Collapse>

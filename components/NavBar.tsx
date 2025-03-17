@@ -3,16 +3,18 @@ import {
   Box, 
   Flex, 
   Button, 
+  Container,
+  Heading,
+  Spacer,
   Menu,
   MenuButton,
   MenuList,
   MenuItem,
-  Container,
-  Heading,
-  Spacer,
-  Link as ChakraLink
+  Avatar,
+  Text
 } from '@chakra-ui/react';
 import { FiChevronDown } from 'react-icons/fi';
+import Link from 'next/link';
 
 interface NavBarProps {
   activePage?: string;
@@ -25,7 +27,6 @@ const NavBar: React.FC<NavBarProps> = ({
   isLoggedIn: propIsLoggedIn = false,
   onLoginClick = () => {}
 }) => {
-  // Convert activePage to lowercase for comparison
   const activePageLower = activePage.toLowerCase();
   
   // Check if user is logged in from localStorage (client-side only)
@@ -33,20 +34,21 @@ const NavBar: React.FC<NavBarProps> = ({
   const [username, setUsername] = React.useState<string | null>(null);
   
   React.useEffect(() => {
-    // Check localStorage for login status (client-side only)
+    // Check localStorage for login status and user data (client-side only)
     if (typeof window !== 'undefined') {
       const storedLoginStatus = localStorage.getItem('isLoggedIn');
+      const storedUser = localStorage.getItem('user');
+      
       if (storedLoginStatus === 'true') {
         setIsLoggedIn(true);
         
-        // Try to get username
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
+        if (storedUser) {
           try {
-            const userData = JSON.parse(userStr);
+            const userData = JSON.parse(storedUser);
             setUsername(userData.username || userData.name || 'User');
           } catch (e) {
-            console.error('Failed to parse user data');
+            // If JSON parsing fails, just use a generic username
+            setUsername('User');
           }
         }
       }
@@ -73,13 +75,14 @@ const NavBar: React.FC<NavBarProps> = ({
           direction={{ base: "column", md: "row" }}
           gap={{ base: 4, md: 0 }}
         >
-          <Box 
-            as="button" 
-            onClick={() => window.location.href = "/"} 
-            _hover={{ textDecoration: 'none' }}
-          >
-            <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
-          </Box>
+          <Link href="/" passHref>
+            <Box 
+              as="a" 
+              _hover={{ textDecoration: 'none' }}
+            >
+              <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
+            </Box>
+          </Link>
           
           <Spacer display={{ base: "none", md: "block" }} />
           
@@ -149,28 +152,29 @@ const NavBar: React.FC<NavBarProps> = ({
                   fontWeight="500"
                   color="blue.500"
                   borderRadius="md"
-                  mx={1}
-                  _hover={{ bg: "gray.100" }}
-                  _active={{ bg: "gray.200" }}
+                  _hover={{ bg: "blue.50" }}
+                  _active={{ bg: "blue.100" }}
                 >
-                  {username || 'User'}
+                  {username || 'Profile'}
                 </MenuButton>
                 <MenuList minWidth="180px" fontSize="sm">
-                  <MenuItem as="a" href="/profile">
-                    Profile
-                  </MenuItem>
-                  <MenuItem onClick={handleLogout}>
-                    Logout
-                  </MenuItem>
+                  <Link href="/profile" passHref>
+                    <MenuItem as="a">Profile</MenuItem>
+                  </Link>
+                  <MenuItem onClick={handleLogout}>Logout</MenuItem>
                 </MenuList>
               </Menu>
             ) : (
-              <NavItem 
-                href="#" 
-                label="LOGIN" 
-                isActive={false} 
+              <Button
+                size="sm"
+                colorScheme="blue"
                 onClick={() => onLoginClick()}
-              />
+                height="auto"
+                px={4}
+                py={2}
+              >
+                Login
+              </Button>
             )}
           </Flex>
         </Flex>
@@ -216,24 +220,25 @@ const NavItem: React.FC<NavItemProps> = ({
   }
   
   return (
-    <Button
-      as="a"
-      href={href}
-      variant="ghost"
-      size="sm"
-      px={3}
-      py={1}
-      height="auto"
-      fontWeight="500"
-      color="gray.700"
-      borderRadius="md"
-      mx={1}
-      _hover={{ bg: "gray.100" }}
-      _active={{ bg: "gray.200" }}
-      {...(isActive && { fontWeight: "600", color: "blue.500" })}
-    >
-      {label}
-    </Button>
+    <Link href={href} passHref>
+      <Button
+        as="a"
+        variant="ghost"
+        size="sm"
+        px={3}
+        py={1}
+        height="auto"
+        fontWeight="500"
+        color="gray.700"
+        borderRadius="md"
+        mx={1}
+        _hover={{ bg: "gray.100" }}
+        _active={{ bg: "gray.200" }}
+        {...(isActive && { fontWeight: "600", color: "blue.500" })}
+      >
+        {label}
+      </Button>
+    </Link>
   );
 };
 
@@ -264,13 +269,11 @@ const NavDropdown: React.FC<NavDropdownProps> = ({ label, items }) => {
       </MenuButton>
       <MenuList minWidth="180px" fontSize="sm">
         {items.map((item, index) => (
-          <MenuItem 
-            key={index} 
-            as="a"
-            href={item.href}
-          >
-            {item.label}
-          </MenuItem>
+          <Link key={index} href={item.href} passHref>
+            <MenuItem as="a">
+              {item.label}
+            </MenuItem>
+          </Link>
         ))}
       </MenuList>
     </Menu>
