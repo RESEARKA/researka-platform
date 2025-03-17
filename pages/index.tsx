@@ -321,8 +321,9 @@ const Home: React.FC = () => {
             >
               {recentArticles.map((article, i) => (
                 <GridItem key={i}>
-                  <LinkBox
-                    as="article" 
+                  <Box
+                    as="a" 
+                    href={`/article/${article.id}`}
                     p={5} 
                     borderWidth="1px" 
                     borderRadius="lg" 
@@ -336,8 +337,8 @@ const Home: React.FC = () => {
                     height="100%"
                     display="flex"
                     flexDirection="column"
-                    onClick={() => window.location.href = `/article/${article.id}`}
-                    cursor="pointer"
+                    textDecoration="none"
+                    color="inherit"
                   >
                     <Heading as="h3" size="md" mb={2}>
                       {article.title}
@@ -356,14 +357,15 @@ const Home: React.FC = () => {
                         <Text fontSize="xs">{article.views} views</Text>
                       </Flex>
                     </Flex>
-                  </LinkBox>
+                  </Box>
                 </GridItem>
               ))}
             </Grid>
             
             <Flex justify="center" mt={6}>
               <Button 
-                onClick={() => window.location.href = "/articles"}
+                as="a"
+                href="/articles"
                 colorScheme="blue" 
                 variant="outline"
                 size="md"

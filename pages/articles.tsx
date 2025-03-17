@@ -138,8 +138,9 @@ const ArticlesPage = () => {
           >
             {filteredArticles.map((article, index) => (
               <GridItem key={index}>
-                <LinkBox
-                  as="article" 
+                <Box
+                  as="a"
+                  href={`/article/${article.id}`}
                   borderWidth="1px" 
                   borderRadius="lg" 
                   overflow="hidden"
@@ -152,8 +153,8 @@ const ArticlesPage = () => {
                   height="100%"
                   display="flex"
                   flexDirection="column"
-                  onClick={() => window.location.href = `/article/${article.id}`}
-                  cursor="pointer"
+                  textDecoration="none"
+                  color="inherit"
                   bg={useColorModeValue('white', 'gray.800')}
                 >
                   <Image
@@ -202,7 +203,7 @@ const ArticlesPage = () => {
                       </Flex>
                     </Flex>
                   </Box>
-                </LinkBox>
+                </Box>
               </GridItem>
             ))}
           </Grid>

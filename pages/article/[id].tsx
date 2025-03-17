@@ -13,7 +13,8 @@ import {
   Flex,
   Button,
   useColorModeValue,
-  Skeleton
+  Skeleton,
+  Link
 } from '@chakra-ui/react';
 import { FiArrowLeft, FiCalendar, FiEye } from 'react-icons/fi';
 import Layout from '../../components/Layout';
@@ -126,7 +127,8 @@ const ArticlePage = () => {
             leftIcon={<FiArrowLeft />} 
             variant="ghost" 
             alignSelf="flex-start"
-            onClick={() => router.back()}
+            as="a"
+            href="/"
           >
             Back
           </Button>
