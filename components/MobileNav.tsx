@@ -111,26 +111,12 @@ const MobileNav: React.FC<MobileNavProps> = ({
             isActive={activePageLower === 'home'} 
           />
           
-          {/* SEARCH functionality is not yet implemented */}
-          <Button
-            variant="ghost"
-            justifyContent="flex-start"
-            width="100%"
-            height="auto"
-            py={3}
-            px={4}
-            borderRadius="md"
-            fontWeight="500"
-            color="gray.500" // Lighter color to indicate it's disabled
-            cursor="not-allowed" // Change cursor to indicate it's not clickable
-            _hover={{ bg: "transparent" }} // Disable hover effect
-            sx={{
-              // Increase touch target size
-              minHeight: '44px',
-            }}
-          >
-            SEARCH
-          </Button>
+          {/* SEARCH functionality */}
+          <MobileNavItem 
+            href="/search" 
+            label="SEARCH" 
+            isActive={activePageLower === 'search'} 
+          />
           
           <MobileNavItem 
             href={isLoggedIn ? "/submit" : "#"} 
@@ -165,7 +151,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
                   minHeight: '44px',
                 }}
               >
-                {username}
+                {username || 'User'}
               </Button>
               <Collapse in={userMenuIsOpen} animateOpacity>
                 <Box
@@ -176,6 +162,21 @@ const MobileNav: React.FC<MobileNavProps> = ({
                   ml={4}
                   mt={1}
                 >
+                  <Box
+                    as="button"
+                    onClick={() => window.location.href = '/profile'}
+                    py={2}
+                    px={4}
+                    width="100%"
+                    textAlign="left"
+                    fontWeight="500"
+                    borderRadius="md"
+                    _hover={{ bg: 'gray.100' }}
+                    _active={{ bg: 'gray.200' }}
+                    display="block"
+                  >
+                    Profile
+                  </Box>
                   <Box
                     as="button"
                     onClick={handleLogout}

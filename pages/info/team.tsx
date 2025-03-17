@@ -1,7 +1,6 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, SimpleGrid, Image, Flex } from '@chakra-ui/react';
-import Link from 'next/link';
+import Layout from '../../components/Layout';
 
 // Team member data
 const TEAM_MEMBERS = [
@@ -9,42 +8,25 @@ const TEAM_MEMBERS = [
     name: 'Dr. Sarah Johnson',
     role: 'Founder & Chief Scientist',
     bio: 'Dr. Johnson is a renowned researcher in distributed systems with over 15 years of experience in academic publishing.',
-    image: '/images/team/optimized/team-member-1.jpg'
+    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80'
   },
   {
     name: 'Michael Chen',
     role: 'Chief Technology Officer',
     bio: 'Michael leads our technical development with expertise in blockchain technology and decentralized applications.',
-    image: '/images/team/optimized/team-member-2.jpg'
+    image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80'
   },
   {
     name: 'Dr. Amara Okafor',
     role: 'Head of Research',
     bio: 'Dr. Okafor oversees our research initiatives and partnerships with academic institutions worldwide.',
-    image: '/images/team/optimized/team-member-3.jpg'
-  },
-  {
-    name: 'James Wilson',
-    role: 'Chief Operating Officer',
-    bio: 'James brings 20 years of experience in operations management to ensure smooth functioning of the platform.',
-    image: '/images/team/optimized/team-member-4.jpg'
-  },
-  {
-    name: 'Dr. Maria Rodriguez',
-    role: 'Head of Community',
-    bio: 'Dr. Rodriguez builds and nurtures our global community of researchers, reviewers, and readers.',
-    image: '/images/team/optimized/team-member-5.jpg'
+    image: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80'
   }
 ];
 
 const TeamPage: React.FC = () => {
   return (
-    <>
-      <Head>
-        <title>Our Team | RESEARKA</title>
-        <meta name="description" content="Meet the team behind RESEARKA - a decentralized academic publishing platform" />
-      </Head>
-
+    <Layout title="Our Team | RESEARKA" description="Meet the team behind RESEARKA" activePage="info">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
@@ -95,7 +77,7 @@ const TeamPage: React.FC = () => {
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

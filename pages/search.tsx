@@ -55,6 +55,15 @@ const Search = () => {
     }, 800);
   };
 
+  // Define an array of image URLs to use for search results
+  const imageUrls = [
+    'https://images.unsplash.com/photo-1532094349884-543bc11b234d?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    'https://images.unsplash.com/photo-1516321165247-4aa89a48be28?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    'https://images.unsplash.com/photo-1507413245164-6160d8298b31?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    'https://images.unsplash.com/photo-1554475901-4538ddfbccc2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80'
+  ];
+
   return (
     <Layout title="Search | Researka" description="Search for research papers on Researka" activePage="search">
       <Container maxW="container.xl" py={8}>
@@ -102,13 +111,14 @@ const Search = () => {
                 <Card key={index} maxW="100%" borderRadius="lg" overflow="hidden" boxShadow="md">
                   <CardBody>
                     <Image
-                      src={article.imageUrl || 'https://via.placeholder.com/400x200?text=Research+Paper'}
+                      src={imageUrls[index % imageUrls.length]}
                       alt={article.title}
                       borderRadius="md"
                       mb={4}
                       objectFit="cover"
                       height="200px"
                       width="100%"
+                      fallbackSrc="https://via.placeholder.com/400x200?text=Research+Paper"
                     />
                     <Stack spacing={2}>
                       <Heading size="md">{article.title}</Heading>

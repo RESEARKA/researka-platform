@@ -19,7 +19,8 @@ export const BIOLOGY_ARTICLES: Article[] = [
     abstract: "This study demonstrates the successful application of CRISPR-Cas9 gene editing technology in human embryonic stem cells to correct genetic mutations associated with hereditary diseases. Our results show high efficiency and specificity with minimal off-target effects.",
     date: "Feb 12, 2025",
     views: 723,
-    categories: ["BIOLOGY", "GENETICS"]
+    categories: ["BIOLOGY", "GENETICS"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Biology+Research"
   },
   {
     id: 102,
@@ -28,7 +29,8 @@ export const BIOLOGY_ARTICLES: Article[] = [
     abstract: "Our comprehensive analysis of gut microbiome composition across diverse human populations reveals significant correlations between bacterial diversity and metabolic health markers. The findings suggest potential therapeutic targets for metabolic disorders.",
     date: "Jan 28, 2025",
     views: 651,
-    categories: ["BIOLOGY", "MICROBIOLOGY"]
+    categories: ["BIOLOGY", "MICROBIOLOGY"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Microbiome+Research"
   },
   {
     id: 103,
@@ -37,7 +39,8 @@ export const BIOLOGY_ARTICLES: Article[] = [
     abstract: "This research explores the molecular and cellular mechanisms underlying neuroplasticity in adult mammalian brains. We identify key signaling pathways that regulate synaptic remodeling and neurogenesis in response to environmental stimuli and learning.",
     date: "Mar 5, 2025",
     views: 589,
-    categories: ["BIOLOGY", "NEUROSCIENCE"]
+    categories: ["BIOLOGY", "NEUROSCIENCE"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Neuroscience+Research"
   }
 ];
 
@@ -50,7 +53,8 @@ export const PHYSICS_ARTICLES: Article[] = [
     abstract: "We present experimental evidence of quantum entanglement persisting in macroscopic systems at room temperature. Our novel detection method overcomes previous limitations in measuring quantum correlations in complex systems.",
     date: "Feb 20, 2025",
     views: 842,
-    categories: ["PHYSICS", "QUANTUM PHYSICS"]
+    categories: ["PHYSICS", "QUANTUM PHYSICS"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Physics+Research"
   },
   {
     id: 202,
@@ -59,7 +63,8 @@ export const PHYSICS_ARTICLES: Article[] = [
     abstract: "Using deep optical and radio observations, we map the dark matter distribution in ultra-diffuse galaxies. Our findings challenge current cosmological models and suggest alternative dark matter properties.",
     date: "Jan 15, 2025",
     views: 705,
-    categories: ["PHYSICS", "ASTROPHYSICS"]
+    categories: ["PHYSICS", "ASTROPHYSICS"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Astrophysics+Research"
   },
   {
     id: 203,
@@ -68,7 +73,8 @@ export const PHYSICS_ARTICLES: Article[] = [
     abstract: "This study investigates the unique electronic properties of topological insulators and demonstrates their potential applications in quantum computing. We report the successful fabrication of topological qubits with enhanced coherence times.",
     date: "Mar 10, 2025",
     views: 631,
-    categories: ["PHYSICS", "CONDENSED MATTER"]
+    categories: ["PHYSICS", "CONDENSED MATTER"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Condensed+Matter+Research"
   }
 ];
 
@@ -81,7 +87,8 @@ export const COMPUTER_SCIENCE_ARTICLES: Article[] = [
     abstract: "We present a novel self-supervised learning framework that significantly reduces the need for labeled data in computer vision tasks. Our approach achieves state-of-the-art performance on benchmark datasets with only 10% of the typically required labeled examples.",
     date: "Feb 28, 2025",
     views: 912,
-    categories: ["COMPUTER SCIENCE", "MACHINE LEARNING"]
+    categories: ["COMPUTER SCIENCE", "MACHINE LEARNING"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Machine+Learning+Research"
   },
   {
     id: 302,
@@ -90,7 +97,8 @@ export const COMPUTER_SCIENCE_ARTICLES: Article[] = [
     abstract: "This research introduces new cryptographic protocols designed to withstand attacks from quantum computers. We provide security proofs and performance evaluations showing practical implementation feasibility on current hardware.",
     date: "Jan 20, 2025",
     views: 783,
-    categories: ["COMPUTER SCIENCE", "CYBERSECURITY"]
+    categories: ["COMPUTER SCIENCE", "CYBERSECURITY"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Cybersecurity+Research"
   },
   {
     id: 303,
@@ -99,7 +107,8 @@ export const COMPUTER_SCIENCE_ARTICLES: Article[] = [
     abstract: "We demonstrate the application of federated learning techniques to healthcare data analysis, enabling collaborative model training without sharing sensitive patient information. Our approach maintains diagnostic accuracy while ensuring regulatory compliance.",
     date: "Mar 8, 2025",
     views: 675,
-    categories: ["COMPUTER SCIENCE", "HEALTHCARE INFORMATICS"]
+    categories: ["COMPUTER SCIENCE", "HEALTHCARE INFORMATICS"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Healthcare+Informatics+Research"
   }
 ];
 
@@ -112,7 +121,8 @@ export const CHEMISTRY_ARTICLES: Article[] = [
     abstract: "This study reports the synthesis and characterization of novel nanostructured catalysts that efficiently convert carbon dioxide to value-added chemicals. Our materials show unprecedented selectivity and stability under industrial conditions.",
     date: "Feb 15, 2025",
     views: 621,
-    categories: ["CHEMISTRY", "CATALYSIS"]
+    categories: ["CHEMISTRY", "CATALYSIS"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Catalysis+Research"
   },
   {
     id: 402,
@@ -121,7 +131,8 @@ export const CHEMISTRY_ARTICLES: Article[] = [
     abstract: "We present an environmentally friendly method for synthesizing biodegradable polymers using agricultural waste as feedstock. The resulting materials exhibit mechanical properties comparable to conventional plastics while being fully compostable.",
     date: "Jan 25, 2025",
     views: 574,
-    categories: ["CHEMISTRY", "POLYMER SCIENCE"]
+    categories: ["CHEMISTRY", "POLYMER SCIENCE"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Polymer+Science+Research"
   },
   {
     id: 403,
@@ -130,7 +141,42 @@ export const CHEMISTRY_ARTICLES: Article[] = [
     abstract: "Using advanced molecular dynamics simulations, we investigate the binding mechanisms of small-molecule drugs to therapeutic protein targets. Our findings reveal previously unknown interaction patterns that can guide structure-based drug design efforts.",
     date: "Mar 12, 2025",
     views: 542,
-    categories: ["CHEMISTRY", "MEDICINAL CHEMISTRY"]
+    categories: ["CHEMISTRY", "MEDICINAL CHEMISTRY"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Medicinal+Chemistry+Research"
+  }
+];
+
+// Mathematics articles
+export const MATHEMATICS_ARTICLES: Article[] = [
+  {
+    id: 501,
+    title: "New Approaches to the Riemann Hypothesis: Analytical and Computational Insights",
+    authors: "Prof. Alan Zhang, Dr. Rebecca Johnson, Dr. Carlos Mendez",
+    abstract: "We present novel analytical approaches to the Riemann Hypothesis, complemented by high-performance computing simulations. Our results provide new evidence supporting the hypothesis and identify promising directions for future proof attempts.",
+    date: "Feb 22, 2025",
+    views: 498,
+    categories: ["MATHEMATICS", "NUMBER THEORY"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Number+Theory+Research"
+  },
+  {
+    id: 502,
+    title: "Topological Data Analysis: Applications in Complex Systems Modeling",
+    authors: "Dr. Lisa Park, Prof. Michael Brown, Dr. Sophia Wilson",
+    abstract: "This research applies topological data analysis techniques to extract meaningful patterns from high-dimensional data in complex systems. We demonstrate successful applications in climate modeling, financial markets, and biological networks.",
+    date: "Jan 18, 2025",
+    views: 463,
+    categories: ["MATHEMATICS", "DATA SCIENCE"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Data+Science+Research"
+  },
+  {
+    id: 503,
+    title: "Advances in Non-Euclidean Geometry and Their Implications for Cosmology",
+    authors: "Prof. David Lee, Dr. Jennifer Martinez, Dr. Ahmed Hassan",
+    abstract: "We develop new mathematical frameworks based on non-Euclidean geometry that provide insights into the large-scale structure of the universe. Our models reconcile observational data with theoretical predictions from general relativity.",
+    date: "Mar 3, 2025",
+    views: 429,
+    categories: ["MATHEMATICS", "GEOMETRY"],
+    imageUrl: "https://via.placeholder.com/400x200?text=Geometry+Research"
   }
 ];
 
@@ -139,7 +185,8 @@ export const ALL_ARTICLES: Article[] = [
   ...BIOLOGY_ARTICLES,
   ...PHYSICS_ARTICLES,
   ...COMPUTER_SCIENCE_ARTICLES,
-  ...CHEMISTRY_ARTICLES
+  ...CHEMISTRY_ARTICLES,
+  ...MATHEMATICS_ARTICLES
 ];
 
 // Featured article
@@ -151,7 +198,7 @@ export const FEATURED_ARTICLE: Article = {
   date: "Jan 15, 2025",
   views: 842,
   categories: ["BIOLOGY", "LIFE SCIENCES & BIOMEDICINE"],
-  imageUrl: "/images/featured-research.jpg"
+  imageUrl: "https://via.placeholder.com/400x200?text=Biology+Research"
 };
 
 // Get random articles with a stable seed for SSR
