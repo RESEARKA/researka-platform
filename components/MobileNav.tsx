@@ -282,8 +282,8 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
   
   return (
     <Button
-      as="button"
-      onClick={() => window.location.href = href}
+      as="a"
+      href={href}
       variant="ghost"
       justifyContent="flex-start"
       width="100%"
@@ -350,8 +350,8 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
           {items.map((item, index) => (
             <Box
               key={index}
-              as="button"
-              onClick={() => window.location.href = item.href}
+              as="a"
+              href={item.href}
               py={2}
               px={4}
               width="100%"

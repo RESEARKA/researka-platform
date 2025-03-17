@@ -217,8 +217,8 @@ const NavItem: React.FC<NavItemProps> = ({
   
   return (
     <Button
-      as="button"
-      onClick={() => window.location.href = href}
+      as="a"
+      href={href}
       variant="ghost"
       size="sm"
       px={3}
@@ -266,7 +266,8 @@ const NavDropdown: React.FC<NavDropdownProps> = ({ label, items }) => {
         {items.map((item, index) => (
           <MenuItem 
             key={index} 
-            onClick={() => window.location.href = item.href}
+            as="a"
+            href={item.href}
           >
             {item.label}
           </MenuItem>
