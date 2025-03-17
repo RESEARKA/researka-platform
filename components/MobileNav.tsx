@@ -9,6 +9,7 @@ import {
   useColorModeValue,
   Divider,
   Button,
+  Link as ChakraLink
 } from '@chakra-ui/react';
 import { FiMenu, FiX, FiChevronDown } from 'react-icons/fi';
 import Link from 'next/link';
@@ -37,7 +38,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
   const [userMenuIsOpen, setUserMenuIsOpen] = React.useState(false);
   
   React.useEffect(() => {
-    // Check localStorage for login status and user data (client-side only)
+    // Check localStorage for login status (client-side only)
     if (typeof window !== 'undefined') {
       const storedLoginStatus = localStorage.getItem('isLoggedIn');
       const storedUser = localStorage.getItem('user');
@@ -50,7 +51,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
             const userData = JSON.parse(storedUser);
             setUsername(userData.username || userData.name || 'User');
           } catch (e) {
-            setUsername('User');
+            console.error('Failed to parse user data:', e);
           }
         }
       }
@@ -71,65 +72,104 @@ const MobileNav: React.FC<MobileNavProps> = ({
   return (
     <Box 
       display={{ base: 'block', md: 'none' }}
-      position="sticky"
-      top={0}
-      zIndex={10}
-      bg={bgColor}
       borderBottom="1px"
       borderColor={borderColor}
+      py={2}
     >
-      <Flex
-        py={2}
-        px={4}
-        justify="space-between"
-        align="center"
-      >
-        <Link href="/" passHref>
-          <Box 
-            as="a"
-            fontSize="xl"
-            fontWeight="bold"
-            color="green.400"
-          >
-            RESEARKA
-          </Box>
+      <Flex justify="space-between" align="center" px={4}>
+        <Link href="/" passHref legacyBehavior>
+          <ChakraLink _hover={{ textDecoration: 'none' }}>
+            <Box fontWeight="bold" fontSize="xl" color="green.400">RESEARKA</Box>
+          </ChakraLink>
         </Link>
         
         <IconButton
-          aria-label={navIsOpen ? "Close menu" : "Open menu"}
+          aria-label="Toggle Navigation"
           icon={navIsOpen ? <FiX /> : <FiMenu />}
           variant="ghost"
           onClick={onNavToggle}
+          size="lg"
+          _hover={{ bg: 'gray.100' }}
         />
       </Flex>
       
       <Collapse in={navIsOpen} animateOpacity>
-        <VStack spacing={0} align="stretch" pb={4} px={2}>
+        <VStack
+          spacing={4}
+          p={4}
+          align="stretch"
+          bg={bgColor}
+          borderBottomRadius="md"
+          boxShadow={navIsOpen ? "sm" : "none"}
+          mt={2}
+        >
+          {/* Main Nav Items */}
           <MobileNavItem 
             href="/" 
             label="HOME" 
             isActive={activePageLower === 'home'} 
           />
           
+          {/* SEARCH functionality */}
           <MobileNavItem 
             href="/search" 
             label="SEARCH" 
             isActive={activePageLower === 'search'} 
           />
           
-          <MobileNavItem 
-            href={isLoggedIn ? "/submit" : "#"} 
-            label="SUBMIT" 
-            isActive={activePageLower === 'submit'} 
-            onClick={!isLoggedIn ? () => onLoginClick('/submit') : undefined}
-          />
+          {isLoggedIn ? (
+            <MobileNavItem 
+              href="/submit" 
+              label="SUBMIT" 
+              isActive={activePageLower === 'submit'} 
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              justifyContent="flex-start"
+              width="100%"
+              height="auto"
+              py={3}
+              px={4}
+              borderRadius="md"
+              fontWeight="500"
+              _hover={{ bg: 'gray.100' }}
+              _active={{ bg: 'gray.200' }}
+              onClick={() => onLoginClick('/submit')}
+              sx={{
+                minHeight: '44px',
+              }}
+            >
+              SUBMIT
+            </Button>
+          )}
           
-          <MobileNavItem 
-            href={isLoggedIn ? "/review" : "#"} 
-            label="REVIEW" 
-            isActive={activePageLower === 'review'} 
-            onClick={!isLoggedIn ? () => onLoginClick('/review') : undefined}
-          />
+          {isLoggedIn ? (
+            <MobileNavItem 
+              href="/review" 
+              label="REVIEW" 
+              isActive={activePageLower === 'review'} 
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              justifyContent="flex-start"
+              width="100%"
+              height="auto"
+              py={3}
+              px={4}
+              borderRadius="md"
+              fontWeight="500"
+              _hover={{ bg: 'gray.100' }}
+              _active={{ bg: 'gray.200' }}
+              onClick={() => onLoginClick('/review')}
+              sx={{
+                minHeight: '44px',
+              }}
+            >
+              REVIEW
+            </Button>
+          )}
           
           {isLoggedIn ? (
             <Box>
@@ -161,30 +201,31 @@ const MobileNav: React.FC<MobileNavProps> = ({
                   ml={4}
                   mt={1}
                 >
-                  <Link href="/profile" passHref>
-                    <Box
-                      as="a"
+                  <Link href="/profile" passHref legacyBehavior>
+                    <ChakraLink
                       py={2}
                       px={4}
                       width="100%"
-                      textAlign="left"
                       display="block"
                       borderRadius="md"
-                      _hover={{ bg: 'gray.100' }}
+                      _hover={{ textDecoration: 'none', bg: 'gray.100' }}
+                      _active={{ bg: 'gray.200' }}
                     >
                       Profile
-                    </Box>
+                    </ChakraLink>
                   </Link>
                   <Box
                     as="button"
+                    onClick={handleLogout}
                     py={2}
                     px={4}
                     width="100%"
                     textAlign="left"
-                    display="block"
+                    fontWeight="500"
                     borderRadius="md"
-                    onClick={handleLogout}
                     _hover={{ bg: 'gray.100' }}
+                    _active={{ bg: 'gray.200' }}
+                    display="block"
                   >
                     Logout
                   </Box>
@@ -193,19 +234,28 @@ const MobileNav: React.FC<MobileNavProps> = ({
             </Box>
           ) : (
             <Button
-              colorScheme="blue"
-              width="100%"
+              variant="ghost"
               justifyContent="flex-start"
+              width="100%"
+              height="auto"
+              py={3}
+              px={4}
+              borderRadius="md"
+              fontWeight="500"
+              _hover={{ bg: 'gray.100' }}
+              _active={{ bg: 'gray.200' }}
               onClick={() => onLoginClick()}
-              mt={2}
               sx={{
                 minHeight: '44px',
               }}
             >
-              Login
+              LOGIN
             </Button>
           )}
           
+          <Divider />
+          
+          {/* INFO Dropdown */}
           <MobileNavDropdown 
             label="INFO" 
             items={[
@@ -217,6 +267,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
             ]}
           />
           
+          {/* GOVERNANCE Dropdown */}
           <MobileNavDropdown 
             label="GOVERNANCE" 
             items={[
@@ -279,27 +330,24 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
   }
   
   return (
-    <Link href={href} passHref>
-      <Button
-        as="a"
-        variant="ghost"
-        justifyContent="flex-start"
-        width="100%"
-        height="auto"
+    <Link href={href} passHref legacyBehavior>
+      <ChakraLink
+        display="block"
         py={3}
         px={4}
+        width="100%"
         borderRadius="md"
         fontWeight="500"
-        {...activeStyle}
-        _hover={{ bg: 'gray.100' }}
+        _hover={{ textDecoration: 'none', bg: 'gray.100' }}
         _active={{ bg: 'gray.200' }}
         sx={{
           // Increase touch target size
           minHeight: '44px',
         }}
+        {...activeStyle}
       >
         {label}
-      </Button>
+      </ChakraLink>
     </Link>
   );
 };
@@ -313,16 +361,22 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
   const { isOpen, onToggle } = useDisclosure();
   
   return (
-    <Box>
+    <Box width="100%">
       <Button
+        as="div"
         variant="ghost"
-        width="100%"
         justifyContent="space-between"
+        alignItems="center"
+        width="100%"
+        height="auto"
         py={3}
         px={4}
+        borderRadius="md"
+        fontWeight="500"
         onClick={onToggle}
         rightIcon={<FiChevronDown />}
-        fontWeight="500"
+        _hover={{ bg: 'gray.100' }}
+        _active={{ bg: 'gray.200' }}
         sx={{
           // Increase touch target size
           minHeight: '44px',
@@ -330,6 +384,7 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
       >
         {label}
       </Button>
+      
       <Collapse in={isOpen} animateOpacity>
         <Box
           pl={4}
@@ -340,19 +395,18 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
           mt={1}
         >
           {items.map((item, index) => (
-            <Link key={index} href={item.href} passHref>
-              <Box
-                as="a"
+            <Link key={index} href={item.href} passHref legacyBehavior>
+              <ChakraLink
+                display="block"
                 py={2}
                 px={4}
                 width="100%"
-                textAlign="left"
-                display="block"
                 borderRadius="md"
-                _hover={{ bg: 'gray.100' }}
+                _hover={{ textDecoration: 'none', bg: 'gray.100' }}
+                _active={{ bg: 'gray.200' }}
               >
                 {item.label}
-              </Box>
+              </ChakraLink>
             </Link>
           ))}
         </Box>

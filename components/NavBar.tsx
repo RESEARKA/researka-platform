@@ -3,15 +3,14 @@ import {
   Box, 
   Flex, 
   Button, 
-  Container,
-  Heading,
-  Spacer,
   Menu,
   MenuButton,
   MenuList,
   MenuItem,
-  Avatar,
-  Text
+  Container,
+  Heading,
+  Spacer,
+  Link as ChakraLink
 } from '@chakra-ui/react';
 import { FiChevronDown } from 'react-icons/fi';
 import Link from 'next/link';
@@ -27,6 +26,7 @@ const NavBar: React.FC<NavBarProps> = ({
   isLoggedIn: propIsLoggedIn = false,
   onLoginClick = () => {}
 }) => {
+  // Convert activePage to lowercase for comparison
   const activePageLower = activePage.toLowerCase();
   
   // Check if user is logged in from localStorage (client-side only)
@@ -34,21 +34,20 @@ const NavBar: React.FC<NavBarProps> = ({
   const [username, setUsername] = React.useState<string | null>(null);
   
   React.useEffect(() => {
-    // Check localStorage for login status and user data (client-side only)
+    // Check localStorage for login status (client-side only)
     if (typeof window !== 'undefined') {
       const storedLoginStatus = localStorage.getItem('isLoggedIn');
-      const storedUser = localStorage.getItem('user');
-      
       if (storedLoginStatus === 'true') {
         setIsLoggedIn(true);
         
-        if (storedUser) {
+        // Try to get username
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
           try {
-            const userData = JSON.parse(storedUser);
+            const userData = JSON.parse(userStr);
             setUsername(userData.username || userData.name || 'User');
           } catch (e) {
-            // If JSON parsing fails, just use a generic username
-            setUsername('User');
+            console.error('Failed to parse user data');
           }
         }
       }
@@ -75,13 +74,10 @@ const NavBar: React.FC<NavBarProps> = ({
           direction={{ base: "column", md: "row" }}
           gap={{ base: 4, md: 0 }}
         >
-          <Link href="/" passHref>
-            <Box 
-              as="a" 
-              _hover={{ textDecoration: 'none' }}
-            >
+          <Link href="/" passHref legacyBehavior>
+            <ChakraLink _hover={{ textDecoration: 'none' }}>
               <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
-            </Box>
+            </ChakraLink>
           </Link>
           
           <Spacer display={{ base: "none", md: "block" }} />
@@ -104,19 +100,55 @@ const NavBar: React.FC<NavBarProps> = ({
               isActive={activePageLower === 'search'} 
             />
             
-            <NavItem 
-              href={isLoggedIn ? "/submit" : "#"} 
-              label="SUBMIT" 
-              isActive={activePageLower === 'submit'} 
-              onClick={!isLoggedIn ? () => onLoginClick('/submit') : undefined}
-            />
+            {isLoggedIn ? (
+              <NavItem 
+                href="/submit" 
+                label="SUBMIT" 
+                isActive={activePageLower === 'submit'} 
+              />
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                px={3}
+                py={1}
+                height="auto"
+                fontWeight="500"
+                color="gray.700"
+                borderRadius="md"
+                mx={1}
+                _hover={{ bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
+                onClick={() => onLoginClick('/submit')}
+              >
+                SUBMIT
+              </Button>
+            )}
             
-            <NavItem 
-              href={isLoggedIn ? "/review" : "#"} 
-              label="REVIEW" 
-              isActive={activePageLower === 'review'} 
-              onClick={!isLoggedIn ? () => onLoginClick('/review') : undefined}
-            />
+            {isLoggedIn ? (
+              <NavItem 
+                href="/review" 
+                label="REVIEW" 
+                isActive={activePageLower === 'review'} 
+              />
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                px={3}
+                py={1}
+                height="auto"
+                fontWeight="500"
+                color="gray.700"
+                borderRadius="md"
+                mx={1}
+                _hover={{ bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
+                onClick={() => onLoginClick('/review')}
+              >
+                REVIEW
+              </Button>
+            )}
             
             <NavDropdown 
               label="INFO" 
@@ -152,28 +184,39 @@ const NavBar: React.FC<NavBarProps> = ({
                   fontWeight="500"
                   color="blue.500"
                   borderRadius="md"
-                  _hover={{ bg: "blue.50" }}
-                  _active={{ bg: "blue.100" }}
+                  mx={1}
+                  _hover={{ bg: "gray.100" }}
+                  _active={{ bg: "gray.200" }}
                 >
-                  {username || 'Profile'}
+                  {username || 'User'}
                 </MenuButton>
                 <MenuList minWidth="180px" fontSize="sm">
-                  <Link href="/profile" passHref>
-                    <MenuItem as="a">Profile</MenuItem>
+                  <Link href="/profile" passHref legacyBehavior>
+                    <MenuItem as={ChakraLink}>
+                      Profile
+                    </MenuItem>
                   </Link>
-                  <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                  <MenuItem onClick={handleLogout}>
+                    Logout
+                  </MenuItem>
                 </MenuList>
               </Menu>
             ) : (
               <Button
+                variant="ghost"
                 size="sm"
-                colorScheme="blue"
-                onClick={() => onLoginClick()}
+                px={3}
+                py={1}
                 height="auto"
-                px={4}
-                py={2}
+                fontWeight="500"
+                color="gray.700"
+                borderRadius="md"
+                mx={1}
+                _hover={{ bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
+                onClick={() => onLoginClick()}
               >
-                Login
+                LOGIN
               </Button>
             )}
           </Flex>
@@ -220,24 +263,20 @@ const NavItem: React.FC<NavItemProps> = ({
   }
   
   return (
-    <Link href={href} passHref>
-      <Button
-        as="a"
-        variant="ghost"
-        size="sm"
+    <Link href={href} passHref legacyBehavior>
+      <ChakraLink
         px={3}
         py={1}
-        height="auto"
-        fontWeight="500"
-        color="gray.700"
         borderRadius="md"
+        fontWeight={isActive ? "600" : "500"}
+        color={isActive ? "blue.500" : "gray.700"}
         mx={1}
-        _hover={{ bg: "gray.100" }}
+        _hover={{ textDecoration: 'none', bg: "gray.100" }}
         _active={{ bg: "gray.200" }}
-        {...(isActive && { fontWeight: "600", color: "blue.500" })}
+        display="inline-block"
       >
         {label}
-      </Button>
+      </ChakraLink>
     </Link>
   );
 };
@@ -269,8 +308,8 @@ const NavDropdown: React.FC<NavDropdownProps> = ({ label, items }) => {
       </MenuButton>
       <MenuList minWidth="180px" fontSize="sm">
         {items.map((item, index) => (
-          <Link key={index} href={item.href} passHref>
-            <MenuItem as="a">
+          <Link key={index} href={item.href} passHref legacyBehavior>
+            <MenuItem as={ChakraLink}>
               {item.label}
             </MenuItem>
           </Link>
