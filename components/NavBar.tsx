@@ -9,8 +9,8 @@ import {
   MenuItem,
   Container,
   Heading,
-  Link as ChakraLink,
-  Spacer
+  Spacer,
+  Link as ChakraLink
 } from '@chakra-ui/react';
 import { FiChevronDown } from 'react-icons/fi';
 
@@ -48,9 +48,13 @@ const NavBar: React.FC<NavBarProps> = ({
           direction={{ base: "column", md: "row" }}
           gap={{ base: 4, md: 0 }}
         >
-          <ChakraLink href="/" _hover={{ textDecoration: 'none' }}>
+          <Box 
+            as="button" 
+            onClick={() => window.location.href = "/"} 
+            _hover={{ textDecoration: 'none' }}
+          >
             <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
-          </ChakraLink>
+          </Box>
           
           <Spacer display={{ base: "none", md: "block" }} />
           
@@ -166,8 +170,8 @@ const NavItem: React.FC<NavItemProps> = ({
   
   return (
     <Button
-      as="a"
-      href={href}
+      as="button"
+      onClick={() => window.location.href = href}
       variant="ghost"
       size="sm"
       px={3}
@@ -213,7 +217,10 @@ const NavDropdown: React.FC<NavDropdownProps> = ({ label, items }) => {
       </MenuButton>
       <MenuList minWidth="180px" fontSize="sm">
         {items.map((item, index) => (
-          <MenuItem key={index} as="a" href={item.href}>
+          <MenuItem 
+            key={index} 
+            onClick={() => window.location.href = item.href}
+          >
             {item.label}
           </MenuItem>
         ))}

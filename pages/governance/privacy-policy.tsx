@@ -1,16 +1,10 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Divider, List, ListItem, ListIcon } from '@chakra-ui/react';
-import Link from 'next/link';
+import Layout from '../../components/Layout';
 
 const PrivacyPolicyPage: React.FC = () => {
   return (
-    <>
-      <Head>
-        <title>Privacy Policy | RESEARKA</title>
-        <meta name="description" content="RESEARKA's Privacy Policy - How we collect, use, and protect your data" />
-      </Head>
-
+    <Layout title="Privacy Policy | Researka" description="Researka's privacy policy">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
@@ -26,7 +20,7 @@ const PrivacyPolicyPage: React.FC = () => {
             <Heading as="h1" size="xl">Privacy Policy</Heading>
             
             <Text fontSize="lg">
-              At RESEARKA, we are committed to protecting your privacy and ensuring the security of your personal information. 
+              At Researka, we are committed to protecting your privacy and ensuring the security of your personal information. 
               This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform.
             </Text>
             
@@ -158,12 +152,12 @@ const PrivacyPolicyPage: React.FC = () => {
             </Text>
             <Box pl={4} mt={2}>
               <Text>Email: privacy@researka.io</Text>
-              <Text>Address: RESEARKA Foundation, 123 Innovation Way, Tech District, San Francisco, CA 94105, United States</Text>
+              <Text>Address: Researka Foundation, 123 Innovation Way, Tech District, San Francisco, CA 94105, United States</Text>
             </Box>
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

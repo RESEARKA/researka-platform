@@ -1,16 +1,10 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@chakra-ui/react';
-import Link from 'next/link';
+import Layout from '../../components/Layout';
 
 const AboutPage: React.FC = () => {
   return (
-    <>
-      <Head>
-        <title>About | RESEARKA</title>
-        <meta name="description" content="Learn about RESEARKA - a decentralized academic publishing platform" />
-      </Head>
-
+    <Layout title="About | Researka" description="Learn about Researka's mission and vision">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
@@ -23,24 +17,26 @@ const AboutPage: React.FC = () => {
           </Breadcrumb>
 
           <VStack spacing={8} align="start">
-            <Heading as="h1" size="xl">About RESEARKA</Heading>
+            <Heading as="h1" size="xl">About Researka</Heading>
             
             <Text fontSize="lg">
-              RESEARKA is a revolutionary decentralized academic publishing platform powered by blockchain technology. 
-              Our mission is to democratize academic research by providing an open, transparent, and accessible platform 
-              for researchers worldwide.
+              Researka is a decentralized platform revolutionizing how research is published, accessed, and evaluated.
+              Our mission is to democratize knowledge and accelerate scientific progress through open collaboration.
             </Text>
             
             <Heading as="h2" size="lg">Our Vision</Heading>
             <Text>
-              We envision a world where academic knowledge is freely accessible to all, where researchers have 
-              full control over their intellectual property, and where the academic publishing process is transparent, 
-              efficient, and fair.
+              We envision a world where scientific knowledge is accessible to everyone, where researchers have full control over their work, 
+              and where the scientific community collaboratively evaluates research based on merit rather than prestige.
+            </Text>
+            <Text mt={4}>
+              By leveraging blockchain technology and decentralized governance, we're creating a transparent, 
+              equitable, and efficient ecosystem for scientific communication that serves the global community.
             </Text>
             
             <Heading as="h2" size="lg">What We Do</Heading>
             <Text>
-              RESEARKA leverages blockchain technology to create a decentralized platform for academic publishing. 
+              Researka leverages blockchain technology to create a decentralized platform for academic publishing. 
               Our platform allows researchers to publish their work directly, retain ownership of their intellectual 
               property, and receive fair compensation for their contributions.
             </Text>
@@ -56,7 +52,7 @@ const AboutPage: React.FC = () => {
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

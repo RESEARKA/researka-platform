@@ -1,16 +1,10 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Divider, Table, Thead, Tbody, Tr, Th, Td } from '@chakra-ui/react';
-import Link from 'next/link';
+import Layout from '../../components/Layout';
 
 const CookiePolicyPage: React.FC = () => {
   return (
-    <>
-      <Head>
-        <title>Cookie Policy | RESEARKA</title>
-        <meta name="description" content="RESEARKA's Cookie Policy - How we use cookies and similar technologies" />
-      </Head>
-
+    <Layout title="Cookie Policy | Researka" description="Researka's cookie policy">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
@@ -21,10 +15,9 @@ const CookiePolicyPage: React.FC = () => {
               <BreadcrumbLink>Cookie Policy</BreadcrumbLink>
             </BreadcrumbItem>
           </Breadcrumb>
-
-          <VStack spacing={8} align="start">
-            <Heading as="h1" size="xl">Cookie Policy</Heading>
-            
+          
+          <VStack spacing={6} align="start">
+            <Heading as="h1" size="2xl">Cookie Policy</Heading>
             <Text fontSize="lg">
               This Cookie Policy explains how RESEARKA uses cookies and similar technologies to recognize you when you visit our platform. 
               It explains what these technologies are and why we use them, as well as your rights to control our use of them.
@@ -34,7 +27,7 @@ const CookiePolicyPage: React.FC = () => {
               <strong>Last Updated:</strong> March 16, 2025
             </Text>
             
-            <Heading as="h2" size="lg">What Are Cookies?</Heading>
+            <Heading as="h2" size="lg" pt={4}>What Are Cookies?</Heading>
             <Text>
               Cookies are small data files that are placed on your computer or mobile device when you visit a website. 
               Cookies are widely used by website owners to make their websites work, or to work more efficiently, 
@@ -51,7 +44,7 @@ const CookiePolicyPage: React.FC = () => {
             
             <Divider />
             
-            <Heading as="h2" size="lg">Types of Cookies We Use</Heading>
+            <Heading as="h2" size="lg" pt={4}>Types of Cookies We Use</Heading>
             <Text mb={4}>
               We use the following types of cookies:
             </Text>
@@ -90,7 +83,7 @@ const CookiePolicyPage: React.FC = () => {
             
             <Divider />
             
-            <Heading as="h2" size="lg">Specific Cookies We Use</Heading>
+            <Heading as="h2" size="lg" pt={4}>Specific Cookies We Use</Heading>
             <Text mb={4}>
               Below is a detailed list of the cookies we use on our platform:
             </Text>
@@ -134,7 +127,7 @@ const CookiePolicyPage: React.FC = () => {
             
             <Divider />
             
-            <Heading as="h2" size="lg">How to Control Cookies</Heading>
+            <Heading as="h2" size="lg" pt={4}>How to Control Cookies</Heading>
             <Text>
               You can set or amend your web browser controls to accept or refuse cookies. If you choose to reject cookies, 
               you may still use our platform, though your access to some functionality and areas may be restricted. 
@@ -154,16 +147,16 @@ const CookiePolicyPage: React.FC = () => {
             
             <Divider />
             
-            <Heading as="h2" size="lg">Cookie Preferences</Heading>
+            <Heading as="h2" size="lg" pt={4}>Cookie Preferences</Heading>
             <Text>
               You can manage your cookie preferences at any time by visiting our 
-              <Link href="/governance/privacy-center" passHref><a> Privacy Center</a></Link>. 
+              <a href="/governance/privacy-center">Privacy Center</a>. 
               There, you can choose which categories of cookies you accept or reject.
             </Text>
             
             <Divider />
             
-            <Heading as="h2" size="lg">Changes to This Cookie Policy</Heading>
+            <Heading as="h2" size="lg" pt={4}>Changes to This Cookie Policy</Heading>
             <Text>
               We may update this Cookie Policy from time to time to reflect changes in technology, regulation, or our business practices. 
               Any changes will become effective when we post the revised Cookie Policy on our platform. 
@@ -172,7 +165,7 @@ const CookiePolicyPage: React.FC = () => {
             
             <Divider />
             
-            <Heading as="h2" size="lg">Contact Us</Heading>
+            <Heading as="h2" size="lg" pt={4}>Contact Us</Heading>
             <Text>
               If you have any questions about our use of cookies or this Cookie Policy, please contact us at:
             </Text>
@@ -183,7 +176,7 @@ const CookiePolicyPage: React.FC = () => {
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

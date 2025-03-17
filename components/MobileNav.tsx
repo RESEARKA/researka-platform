@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Flex,
@@ -12,7 +12,6 @@ import {
   Link as ChakraLink
 } from '@chakra-ui/react';
 import { FiMenu, FiX, FiChevronDown } from 'react-icons/fi';
-import Link from 'next/link';
 
 interface MobileNavProps {
   activePage?: string;
@@ -40,9 +39,13 @@ const MobileNav: React.FC<MobileNavProps> = ({
       py={2}
     >
       <Flex justify="space-between" align="center" px={4}>
-        <ChakraLink href="/" _hover={{ textDecoration: 'none' }}>
+        <Box 
+          as="button" 
+          onClick={() => window.location.href = "/"} 
+          _hover={{ textDecoration: 'none' }}
+        >
           <Box fontWeight="bold" fontSize="xl" color="green.400">RESEARKA</Box>
-        </ChakraLink>
+        </Box>
         
         <IconButton
           aria-label="Toggle Navigation"
@@ -71,11 +74,26 @@ const MobileNav: React.FC<MobileNavProps> = ({
             isActive={activePageLower === 'home'} 
           />
           
-          <MobileNavItem 
-            href="/search" 
-            label="SEARCH" 
-            isActive={activePageLower === 'search'} 
-          />
+          {/* SEARCH functionality is not yet implemented */}
+          <Button
+            variant="ghost"
+            justifyContent="flex-start"
+            width="100%"
+            height="auto"
+            py={3}
+            px={4}
+            borderRadius="md"
+            fontWeight="500"
+            color="gray.500" // Lighter color to indicate it's disabled
+            cursor="not-allowed" // Change cursor to indicate it's not clickable
+            _hover={{ bg: "transparent" }} // Disable hover effect
+            sx={{
+              // Increase touch target size
+              minHeight: '44px',
+            }}
+          >
+            SEARCH
+          </Button>
           
           <MobileNavItem 
             href={isLoggedIn ? "/submit" : "#"} 
@@ -183,28 +201,27 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
   }
   
   return (
-    <ChakraLink
-      as={Link}
-      href={href}
-      _hover={{ textDecoration: 'none' }}
+    <Button
+      as="button"
+      onClick={() => window.location.href = href}
+      variant="ghost"
+      justifyContent="flex-start"
       width="100%"
+      height="auto"
+      py={3}
+      px={4}
+      borderRadius="md"
+      fontWeight="500"
+      {...activeStyle}
+      _hover={{ bg: 'gray.100' }}
+      _active={{ bg: 'gray.200' }}
+      sx={{
+        // Increase touch target size
+        minHeight: '44px',
+      }}
     >
-      <Box
-        py={3}
-        px={4}
-        borderRadius="md"
-        fontWeight="500"
-        {...activeStyle}
-        _hover={{ bg: 'gray.100' }}
-        _active={{ bg: 'gray.200' }}
-        sx={{
-          // Increase touch target size
-          minHeight: '44px',
-        }}
-      >
-        {label}
-      </Box>
-    </ChakraLink>
+      {label}
+    </Button>
   );
 };
 
@@ -217,16 +234,20 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
   const { isOpen, onToggle } = useDisclosure();
   
   return (
-    <Box>
-      <Flex
+    <Box width="100%">
+      <Button
+        as="div"
+        variant="ghost"
+        justifyContent="space-between"
+        alignItems="center"
+        width="100%"
+        height="auto"
         py={3}
         px={4}
         borderRadius="md"
         fontWeight="500"
-        justify="space-between"
-        align="center"
-        cursor="pointer"
         onClick={onToggle}
+        rightIcon={<FiChevronDown />}
         _hover={{ bg: 'gray.100' }}
         _active={{ bg: 'gray.200' }}
         sx={{
@@ -235,28 +256,36 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
         }}
       >
         {label}
-        <Box
-          as={FiChevronDown}
-          transition="all .25s ease-in-out"
-          transform={isOpen ? "rotate(180deg)" : ""}
-        />
-      </Flex>
+      </Button>
       
       <Collapse in={isOpen} animateOpacity>
-        <VStack
-          spacing={2}
-          pl={6}
-          align="stretch"
-          mt={2}
+        <Box
+          pl={4}
+          py={2}
+          borderLeft="1px"
+          borderColor="gray.200"
+          ml={4}
+          mt={1}
         >
           {items.map((item, index) => (
-            <MobileNavItem
+            <Box
               key={index}
-              href={item.href}
-              label={item.label}
-            />
+              as="button"
+              onClick={() => window.location.href = item.href}
+              py={2}
+              px={4}
+              width="100%"
+              textAlign="left"
+              fontWeight="500"
+              borderRadius="md"
+              _hover={{ bg: 'gray.100' }}
+              _active={{ bg: 'gray.200' }}
+              display="block"
+            >
+              {item.label}
+            </Box>
           ))}
-        </VStack>
+        </Box>
       </Collapse>
     </Box>
   );
