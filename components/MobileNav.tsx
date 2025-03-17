@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Flex,
@@ -21,15 +21,52 @@ interface MobileNavProps {
 
 const MobileNav: React.FC<MobileNavProps> = ({
   activePage = 'home',
-  isLoggedIn = false,
+  isLoggedIn: propIsLoggedIn = false,
   onLoginClick = () => {}
 }) => {
-  const { isOpen, onToggle } = useDisclosure();
+  const { isOpen: navIsOpen, onToggle: onNavToggle } = useDisclosure();
   const activePageLower = activePage.toLowerCase();
   
   // Background colors
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  
+  // Check if user is logged in from localStorage (client-side only)
+  const [isLoggedIn, setIsLoggedIn] = React.useState(propIsLoggedIn);
+  const [username, setUsername] = React.useState<string | null>(null);
+  const [userMenuIsOpen, setUserMenuIsOpen] = React.useState(false);
+  
+  React.useEffect(() => {
+    // Check localStorage for login status and user data (client-side only)
+    if (typeof window !== 'undefined') {
+      const storedLoginStatus = localStorage.getItem('isLoggedIn');
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedLoginStatus === 'true') {
+        setIsLoggedIn(true);
+        
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setUsername(userData.username || userData.name || 'User');
+          } catch (e) {
+            console.error('Failed to parse user data:', e);
+          }
+        }
+      }
+    }
+  }, []);
+  
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setIsLoggedIn(false);
+      setUsername(null);
+      window.location.href = '/';
+    }
+  };
   
   return (
     <Box 
@@ -49,22 +86,22 @@ const MobileNav: React.FC<MobileNavProps> = ({
         
         <IconButton
           aria-label="Toggle Navigation"
-          icon={isOpen ? <FiX /> : <FiMenu />}
+          icon={navIsOpen ? <FiX /> : <FiMenu />}
           variant="ghost"
-          onClick={onToggle}
+          onClick={onNavToggle}
           size="lg"
           _hover={{ bg: 'gray.100' }}
         />
       </Flex>
       
-      <Collapse in={isOpen} animateOpacity>
+      <Collapse in={navIsOpen} animateOpacity>
         <VStack
           spacing={4}
           p={4}
           align="stretch"
           bg={bgColor}
           borderBottomRadius="md"
-          boxShadow={isOpen ? "sm" : "none"}
+          boxShadow={navIsOpen ? "sm" : "none"}
           mt={2}
         >
           {/* Main Nav Items */}
@@ -110,11 +147,53 @@ const MobileNav: React.FC<MobileNavProps> = ({
           />
           
           {isLoggedIn ? (
-            <MobileNavItem 
-              href="/profile" 
-              label="PROFILE" 
-              isActive={activePageLower === 'profile'} 
-            />
+            <Box>
+              <Button
+                variant="ghost"
+                justifyContent="flex-start"
+                width="100%"
+                height="auto"
+                py={3}
+                px={4}
+                borderRadius="md"
+                fontWeight="500"
+                onClick={() => setUserMenuIsOpen(!userMenuIsOpen)}
+                _hover={{ bg: 'gray.100' }}
+                _active={{ bg: 'gray.200' }}
+                sx={{
+                  // Increase touch target size
+                  minHeight: '44px',
+                }}
+              >
+                {username}
+              </Button>
+              <Collapse in={userMenuIsOpen} animateOpacity>
+                <Box
+                  pl={4}
+                  py={2}
+                  borderLeft="1px"
+                  borderColor="gray.200"
+                  ml={4}
+                  mt={1}
+                >
+                  <Box
+                    as="button"
+                    onClick={handleLogout}
+                    py={2}
+                    px={4}
+                    width="100%"
+                    textAlign="left"
+                    fontWeight="500"
+                    borderRadius="md"
+                    _hover={{ bg: 'gray.100' }}
+                    _active={{ bg: 'gray.200' }}
+                    display="block"
+                  >
+                    Logout
+                  </Box>
+                </Box>
+              </Collapse>
+            </Box>
           ) : (
             <MobileNavItem 
               href="#" 

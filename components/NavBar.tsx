@@ -30,14 +30,39 @@ const NavBar: React.FC<NavBarProps> = ({
   
   // Check if user is logged in from localStorage (client-side only)
   const [isLoggedIn, setIsLoggedIn] = React.useState(propIsLoggedIn);
+  const [username, setUsername] = React.useState<string | null>(null);
   
   React.useEffect(() => {
     // Check localStorage for login status (client-side only)
-    const storedLoginStatus = typeof window !== 'undefined' ? localStorage.getItem('isLoggedIn') : null;
-    if (storedLoginStatus === 'true') {
-      setIsLoggedIn(true);
+    if (typeof window !== 'undefined') {
+      const storedLoginStatus = localStorage.getItem('isLoggedIn');
+      if (storedLoginStatus === 'true') {
+        setIsLoggedIn(true);
+        
+        // Try to get username
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const userData = JSON.parse(userStr);
+            setUsername(userData.username || userData.name || 'User');
+          } catch (e) {
+            console.error('Failed to parse user data');
+          }
+        }
+      }
     }
   }, []);
+  
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setIsLoggedIn(false);
+      setUsername(null);
+      window.location.href = '/';
+    }
+  };
   
   return (
     <Box borderBottom="1px" borderColor="gray.200" py={2}>
@@ -90,21 +115,6 @@ const NavBar: React.FC<NavBarProps> = ({
               onClick={!isLoggedIn ? () => onLoginClick('/review') : undefined}
             />
             
-            {isLoggedIn ? (
-              <NavItem 
-                href="/profile" 
-                label="PROFILE" 
-                isActive={activePageLower === 'profile'} 
-              />
-            ) : (
-              <NavItem 
-                href="#" 
-                label="LOGIN" 
-                isActive={true} 
-                onClick={() => onLoginClick()}
-              />
-            )}
-            
             <NavDropdown 
               label="INFO" 
               items={[
@@ -125,6 +135,43 @@ const NavBar: React.FC<NavBarProps> = ({
                 { label: "PRIVACY CENTER", href: "/governance/privacy-center" }
               ]}
             />
+            
+            {isLoggedIn ? (
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<FiChevronDown />}
+                  variant="ghost"
+                  size="sm"
+                  px={3}
+                  py={1}
+                  height="auto"
+                  fontWeight="500"
+                  color="blue.500"
+                  borderRadius="md"
+                  mx={1}
+                  _hover={{ bg: "gray.100" }}
+                  _active={{ bg: "gray.200" }}
+                >
+                  {username || 'User'}
+                </MenuButton>
+                <MenuList minWidth="180px" fontSize="sm">
+                  <MenuItem onClick={() => window.location.href = '/profile'}>
+                    Profile
+                  </MenuItem>
+                  <MenuItem onClick={handleLogout}>
+                    Logout
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+            ) : (
+              <NavItem 
+                href="#" 
+                label="LOGIN" 
+                isActive={false} 
+                onClick={() => onLoginClick()}
+              />
+            )}
           </Flex>
         </Flex>
       </Container>
