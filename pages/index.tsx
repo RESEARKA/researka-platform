@@ -47,6 +47,10 @@ const NavBar = dynamic(() => import('../components/NavBar'), {
   ssr: true
 });
 
+const MobileNav = dynamic(() => import('../components/MobileNav'), {
+  ssr: true
+});
+
 // Dynamically import components for better performance
 const FeaturedArticle = dynamic(
   () => import('../frontend/src/components/articles/FeaturedArticle').then(mod => mod),
@@ -235,14 +239,26 @@ const Home: React.FC = () => {
       <Box as="header" bg={useColorModeValue('white', 'gray.800')} position="sticky" top={0} zIndex={10} boxShadow="sm">
         <Container maxW="container.xl">
           <Suspense fallback={<Box py={4}>Loading navigation...</Box>}>
-            <NavBar 
-              activePage="home"
-              isLoggedIn={false}
-              onLoginClick={handleLoginClick}
-            />
+            {/* Desktop Navigation - only visible on md screens and larger */}
+            <Box display={{ base: "none", md: "block" }}>
+              <NavBar 
+                activePage="home"
+                isLoggedIn={false}
+                onLoginClick={handleLoginClick}
+              />
+            </Box>
           </Suspense>
         </Container>
       </Box>
+      
+      {/* Mobile Navigation - only visible on small screens */}
+      <Suspense fallback={<Box py={4}>Loading navigation...</Box>}>
+        <MobileNav
+          activePage="home"
+          isLoggedIn={false}
+          onLoginClick={handleLoginClick}
+        />
+      </Suspense>
 
       {/* Search Section */}
       <Box py={6} bg="white">

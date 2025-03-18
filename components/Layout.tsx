@@ -47,7 +47,9 @@ const Layout: React.FC<LayoutProps> = ({
       </Head>
       
       <Box minH="100vh" bg={bgColor}>
-        <NavBar activePage={activePage} onLoginClick={handleLoginClick} />
+        <Box display={{ base: "none", md: "block" }}>
+          <NavBar activePage={activePage} onLoginClick={handleLoginClick} />
+        </Box>
         <MobileNav activePage={activePage} onLoginClick={handleLoginClick} />
         
         <Box as="main">
