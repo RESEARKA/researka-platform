@@ -261,15 +261,20 @@ const Home: React.FC = () => {
       </Suspense>
 
       {/* Search Section */}
-      <Box py={6} bg="white">
-        <Container maxW="container.xl">
-          <VStack spacing={6}>
+      <Box py={6} bg="white" overflow="visible">
+        <Container maxW="container.xl" overflow="visible">
+          <VStack spacing={6} overflow="visible">
             <Heading 
               as="h2" 
               size="md" 
               color="gray.600" 
               textAlign="center"
-              fontSize="1.44rem"
+              fontSize={{ base: "sm", sm: "lg", md: "3xl" }}
+              px={{ base: 2, sm: 4 }}
+              whiteSpace="normal"
+              wordBreak="break-word"
+              overflow="visible"
+              width="100%"
             >
               DECENTRALIZING ACADEMIC RESEARCH
             </Heading>

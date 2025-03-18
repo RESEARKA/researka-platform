@@ -33,7 +33,7 @@ import {
 import { FiSearch, FiFilter, FiStar, FiClock, FiCalendar, FiUser, FiBookmark, FiChevronDown } from 'react-icons/fi';
 import Head from 'next/head';
 import Link from 'next/link';
-import NavBar from '../components/NavBar';
+import Layout from '../components/Layout';
 
 // Mock data for articles awaiting review
 const mockArticles = [
@@ -142,18 +142,7 @@ const ReviewPage: React.FC = () => {
     });
   
   return (
-    <>
-      <Head>
-        <title>Review Articles | Researka</title>
-        <meta name="description" content="Review academic articles on Researka" />
-      </Head>
-      
-      {/* Header/Navigation */}
-      <NavBar 
-        activePage="review"
-        isLoggedIn={true}
-      />
-      
+    <Layout title="Review Articles | Researka" description="Review academic articles on Researka" activePage="review">
       <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
         <Container maxW="container.xl">
           <VStack spacing={8} align="stretch">
@@ -335,7 +324,7 @@ const ReviewPage: React.FC = () => {
           </Flex>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

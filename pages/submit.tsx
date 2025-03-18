@@ -29,16 +29,12 @@ import {
   Divider,
   useColorModeValue,
   Badge,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  Link as ChakraLink,
 } from '@chakra-ui/react';
-import { FiUpload, FiFileText, FiCheck, FiArrowLeft, FiArrowRight, FiChevronDown } from 'react-icons/fi';
+import { FiUpload, FiArrowRight, FiArrowLeft, FiCheck } from 'react-icons/fi';
+import Layout from '../components/Layout';
+import { FiFileText, FiChevronDown } from 'react-icons/fi';
 import Head from 'next/head';
 import Link from 'next/link';
-import NavBar from '../components/NavBar';
 
 // Define the steps for the submission process
 const steps = [
@@ -117,18 +113,8 @@ const SubmitPage: React.FC = () => {
   };
   
   return (
-    <>
-      <Head>
-        <title>Submit Article | Researka</title>
-        <meta name="description" content="Submit your article to Researka" />
-      </Head>
-      
-      <NavBar 
-        activePage="submit"
-        isLoggedIn={true}
-      />
-      
-      <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
+    <Layout title="Submit Your Article | Researka" description="Submit your research article to Researka" activePage="submit">
+      <Box py={6} bg={bgColor}>
         <Container maxW="container.lg">
           <VStack spacing={8}>
             <Heading as="h1" size="xl">Submit Your Article</Heading>
@@ -382,7 +368,7 @@ const SubmitPage: React.FC = () => {
           </Flex>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

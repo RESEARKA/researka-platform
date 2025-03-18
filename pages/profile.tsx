@@ -37,7 +37,7 @@ import { FiEdit, FiFileText, FiStar, FiSettings, FiBookmark, FiChevronLeft, FiCh
 import Head from 'next/head';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import NavBar from '../components/NavBar';
+import Layout from '../components/Layout';
 import ResponsiveText from '../components/ResponsiveText';
 import { useArticles, Article, ArticlesResponse } from '../hooks/useArticles';
 import { useReviews, Review, ReviewsResponse } from '../hooks/useReviews';
@@ -318,22 +318,7 @@ const ProfilePage: React.FC = () => {
   // If there's an error, show error state
   if (hasErrorData) {
     return (
-      <>
-        <Head>
-          <title>Profile | RESEARKA</title>
-          <meta name="description" content="Your Researka profile" />
-        </Head>
-        
-        <NavBar 
-          activePage="profile"
-          isLoggedIn={true}
-        />
-        
-        <MobileNav 
-          activePage="profile"
-          isLoggedIn={true}
-        />
-        
+      <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
         <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
           <Container maxW="container.lg">
             <ErrorState 
@@ -342,30 +327,12 @@ const ProfilePage: React.FC = () => {
             />
           </Container>
         </Box>
-      </>
+      </Layout>
     );
   }
   
   return (
-    <>
-      <Head>
-        <title>Profile | RESEARKA</title>
-        <meta name="description" content="Your Researka profile" />
-        {/* Add preload for critical resources */}
-        <link rel="preload" href="/images/researka-logo.svg" as="image" />
-      </Head>
-      
-      {/* Header/Navigation */}
-      <NavBar 
-        activePage="profile"
-        isLoggedIn={true}
-      />
-      
-      <MobileNav 
-        activePage="profile"
-        isLoggedIn={true}
-      />
-      
+    <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
       <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
         <Container maxW="container.lg">
           {isLoadingData ? (
@@ -555,7 +522,7 @@ const ProfilePage: React.FC = () => {
           </Flex>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 
