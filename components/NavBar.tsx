@@ -139,7 +139,10 @@ const NavBar: React.FC<NavBarProps> = ({
                 mx={1}
                 _hover={{ bg: "gray.100" }}
                 _active={{ bg: "gray.200" }}
-                onClick={() => onLoginClick('/submit')}
+                onClick={() => {
+                  // Use the onLoginClick function to set the redirect path in the ModalContext
+                  onLoginClick('/submit');
+                }}
               >
                 SUBMIT
               </Button>
@@ -164,7 +167,10 @@ const NavBar: React.FC<NavBarProps> = ({
                 mx={1}
                 _hover={{ bg: "gray.100" }}
                 _active={{ bg: "gray.200" }}
-                onClick={() => onLoginClick('/review')}
+                onClick={() => {
+                  // Use the onLoginClick function to set the redirect path in the ModalContext
+                  onLoginClick('/review');
+                }}
               >
                 REVIEW
               </Button>
@@ -213,7 +219,10 @@ const NavBar: React.FC<NavBarProps> = ({
                 mx={1}
                 _hover={{ bg: "gray.100" }}
                 _active={{ bg: "gray.200" }}
-                onClick={() => onLoginClick()}
+                onClick={() => {
+                  // Use the onLoginClick function to set the redirect path in the ModalContext
+                  onLoginClick('/profile');
+                }}
               >
                 LOGIN
               </Button>

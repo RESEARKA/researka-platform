@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -18,15 +18,22 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { FaEthereum } from 'react-icons/fa';
+import { useRouter } from 'next/router';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  redirectPath?: string; // This prop is kept for backward compatibility but will be ignored
+  redirectPath?: string; // Used for redirecting to /submit or /review pages, otherwise defaults to /profile
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/profile' }) => {
   const toast = useToast();
+  const router = useRouter();
+  
+  // Debug: Log the redirectPath value when component mounts or redirectPath changes
+  React.useEffect(() => {
+    console.log('LoginModal received redirectPath:', redirectPath);
+  }, [redirectPath]);
 
   const handleWalletLogin = () => {
     // Simulate wallet connection
@@ -53,8 +60,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       
       onClose();
       
-      // Always redirect to the profile page, ignoring the redirectPath prop
-      window.location.href = '/profile';
+      // Use Next.js router for redirection
+      console.log('Redirecting to:', redirectPath);
+      router.push(redirectPath);
     }, 1000);
   };
 
@@ -84,8 +92,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       
       onClose();
       
-      // Always redirect to the profile page, ignoring the redirectPath prop
-      window.location.href = '/profile';
+      // Use Next.js router for redirection
+      console.log('Redirecting to:', redirectPath);
+      router.push(redirectPath);
     }, 1000);
   };
 

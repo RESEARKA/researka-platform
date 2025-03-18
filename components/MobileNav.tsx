@@ -179,13 +179,19 @@ const MobileNav: React.FC<MobileNavProps> = ({
               <MobileNavItem 
                 label="SUBMIT" 
                 href="#"
-                onClick={() => onLoginClick('/submit')} 
+                onClick={(e: React.MouseEvent<HTMLElement>) => {
+                  e.preventDefault();
+                  onLoginClick('/submit');
+                }} 
               />
               
               <MobileNavItem 
                 label="REVIEW" 
                 href="#"
-                onClick={() => onLoginClick('/review')} 
+                onClick={(e: React.MouseEvent<HTMLElement>) => {
+                  e.preventDefault();
+                  onLoginClick('/review');
+                }} 
               />
             </>
           )}
@@ -222,7 +228,9 @@ const MobileNav: React.FC<MobileNavProps> = ({
               py={3}
               px={4}
               as="button"
-              onClick={() => onLoginClick()}
+              onClick={() => {
+                onLoginClick('/profile');
+              }}
               width="100%"
               textAlign="left"
               _hover={{ bg: "gray.100" }}
@@ -246,7 +254,7 @@ interface MobileNavItemProps {
   href: string;
   label: string;
   isActive?: boolean;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLElement>) => void;
 }
 
 const MobileNavItem: React.FC<MobileNavItemProps> = ({ 
@@ -260,10 +268,10 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
   const activeColor = 'blue.600';
   const color = 'gray.800';
   
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLElement>) => {
     if (onClick) {
       e.preventDefault();
-      onClick();
+      onClick(e);
     }
   };
   
