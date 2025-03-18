@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Image, Skeleton } from '@chakra-ui/react';
+import { Box, Image, Skeleton, useColorModeValue } from '@chakra-ui/react';
 import { createResponsiveImage, isMobileDevice } from '../utils/imageOptimizer';
 
 interface ResponsiveImageProps {
@@ -58,8 +58,8 @@ const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
           width="100%"
           height="100%"
           borderRadius={borderRadius}
-          startColor="gray.100"
-          endColor="gray.300"
+          startColor={useColorModeValue('gray.100', 'gray.700')}
+          endColor={useColorModeValue('gray.300', 'gray.600')}
         />
       )}
       <Image
@@ -76,6 +76,7 @@ const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
         onLoad={() => setIsLoaded(true)}
         opacity={isLoaded ? 1 : 0}
         transition="opacity 0.3s ease-in-out"
+        filter={useColorModeValue('none', 'brightness(0.9)')}
       />
     </Box>
   );

@@ -10,10 +10,12 @@ import {
   Container,
   Heading,
   Spacer,
-  Link as ChakraLink
+  Link as ChakraLink,
+  useColorModeValue
 } from '@chakra-ui/react';
 import { FiChevronDown } from 'react-icons/fi';
 import Link from 'next/link';
+import ColorModeToggle from './ColorModeToggle';
 
 interface NavBarProps {
   activePage?: string;
@@ -95,9 +97,29 @@ const NavBar: React.FC<NavBarProps> = ({
             />
             
             <NavItem 
-              href="/search" 
-              label="SEARCH" 
-              isActive={activePageLower === 'search'} 
+              href="/articles" 
+              label="ARTICLES" 
+              isActive={activePageLower === 'articles'} 
+            />
+            
+            <NavDropdown 
+              label="INFO" 
+              items={[
+                { label: "About", href: "/info/about" },
+                { label: "Roles", href: "/info/roles" },
+                { label: "Whitepaper", href: "/info/whitepaper" },
+                { label: "Contact", href: "/info/contact" }
+              ]}
+            />
+            
+            <NavDropdown 
+              label="GOVERNANCE" 
+              items={[
+                { label: "Privacy Center", href: "/governance/privacy-center" },
+                { label: "Privacy Policy", href: "/governance/privacy-policy" },
+                { label: "Cookie Policy", href: "/governance/cookie-policy" },
+                { label: "Legal", href: "/governance/legal" }
+              ]}
             />
             
             {isLoggedIn ? (
@@ -114,11 +136,11 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color="gray.800"
+                color={useColorModeValue("gray.800", "gray.200")}
                 borderRadius="md"
                 mx={1}
-                _hover={{ bg: "gray.100" }}
-                _active={{ bg: "gray.200" }}
+                _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
+                _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
                 onClick={() => onLoginClick('/submit')}
               >
                 SUBMIT
@@ -139,37 +161,18 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color="gray.800"
+                color={useColorModeValue("gray.800", "gray.200")}
                 borderRadius="md"
                 mx={1}
-                _hover={{ bg: "gray.100" }}
-                _active={{ bg: "gray.200" }}
+                _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
+                _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
                 onClick={() => onLoginClick('/review')}
               >
                 REVIEW
               </Button>
             )}
             
-            <NavDropdown 
-              label="INFO" 
-              items={[
-                { label: "ROLES", href: "/info/roles" },
-                { label: "ABOUT", href: "/info/about" },
-                { label: "TEAM", href: "/info/team" },
-                { label: "WHITEPAPER", href: "/info/whitepaper" },
-                { label: "CONTACT", href: "/info/contact" }
-              ]}
-            />
-            
-            <NavDropdown 
-              label="GOVERNANCE" 
-              items={[
-                { label: "LEGAL", href: "/governance/legal" },
-                { label: "PRIVACY POLICY", href: "/governance/privacy-policy" },
-                { label: "COOKIE POLICY", href: "/governance/cookie-policy" },
-                { label: "PRIVACY CENTER", href: "/governance/privacy-center" }
-              ]}
-            />
+            <ColorModeToggle size="sm" />
             
             {isLoggedIn ? (
               <Menu>
@@ -182,11 +185,11 @@ const NavBar: React.FC<NavBarProps> = ({
                   py={1}
                   height="auto"
                   fontWeight="500"
-                  color="blue.700"
+                  color={useColorModeValue("blue.700", "blue.300")}
                   borderRadius="md"
                   mx={1}
-                  _hover={{ bg: "gray.100" }}
-                  _active={{ bg: "gray.200" }}
+                  _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
+                  _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
                 >
                   {username || 'User'}
                 </MenuButton>
@@ -209,11 +212,11 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color="gray.800"
+                color={useColorModeValue("gray.800", "gray.200")}
                 borderRadius="md"
                 mx={1}
-                _hover={{ bg: "gray.100" }}
-                _active={{ bg: "gray.200" }}
+                _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
+                _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
                 onClick={() => onLoginClick()}
               >
                 LOGIN

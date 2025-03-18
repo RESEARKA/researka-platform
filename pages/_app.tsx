@@ -1,12 +1,14 @@
 import React from 'react';
 import type { AppProps } from 'next/app';
-import { ChakraProvider } from '@chakra-ui/react';
+import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
 import { WalletProvider } from '../frontend/src/contexts/WalletContext';
 import { ModalProvider } from '../contexts/ModalContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Head from 'next/head';
 import ErrorBoundary from '../components/ErrorBoundary';
 import * as Sentry from '@sentry/nextjs';
+import theme from '../styles/theme';
+import AnimatedPage from '../components/AnimatedPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -32,15 +34,19 @@ function MyApp({ Component, pageProps }: AppProps) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </Head>
+      {/* Add ColorModeScript to persist color mode */}
+      <ColorModeScript initialColorMode={theme.config.initialColorMode} />
       <QueryClientProvider client={queryClient}>
-        <ChakraProvider>
+        <ChakraProvider theme={theme}>
           <WalletProvider>
             <ModalProvider>
               <ErrorBoundary onReset={() => {
                 // Optional: Reset any state or perform actions when error boundary resets
                 console.log('Error boundary reset');
               }}>
-                <Component {...pageProps} />
+                <AnimatedPage>
+                  <Component {...pageProps} />
+                </AnimatedPage>
               </ErrorBoundary>
             </ModalProvider>
           </WalletProvider>

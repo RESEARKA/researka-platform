@@ -305,7 +305,7 @@ const Home: React.FC = () => {
               <FeaturedArticle 
                 title={FEATURED_ARTICLE_DATA.title}
                 abstract={FEATURED_ARTICLE_DATA.abstract}
-                authors={FEATURED_ARTICLE_DATA.authors.split(', ')}
+                authors={FEATURED_ARTICLE_DATA.authors}
                 categories={FEATURED_ARTICLE_DATA.categories}
                 date={FEATURED_ARTICLE_DATA.date}
                 views={FEATURED_ARTICLE_DATA.views}

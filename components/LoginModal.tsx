@@ -15,7 +15,8 @@ import {
   Text,
   Flex,
   Divider,
-  useToast
+  useToast,
+  useColorModeValue
 } from '@chakra-ui/react';
 import { FaEthereum } from 'react-icons/fa';
 
@@ -96,8 +97,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Login to Researka</ModalHeader>
+      <ModalContent bg={useColorModeValue('white', 'gray.800')}>
+        <ModalHeader color={useColorModeValue('gray.800', 'white')}>Login to Researka</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
@@ -112,34 +113,48 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
             
             <Flex align="center" my={4}>
               <Divider />
-              <Text mx={2} fontSize="sm" color="gray.500">or</Text>
+              <Text mx={2} fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>or</Text>
               <Divider />
             </Flex>
             
             <form onSubmit={handleEmailLogin}>
               <VStack spacing={4}>
-                <FormControl id="email">
-                  <FormLabel>Email address</FormLabel>
-                  <Input type="email" placeholder="your@email.com" />
+                <FormControl id="email" isRequired>
+                  <FormLabel color={useColorModeValue('gray.700', 'gray.300')}>Email</FormLabel>
+                  <Input 
+                    type="email" 
+                    placeholder="your@email.com"
+                    bg={useColorModeValue('white', 'gray.700')}
+                    borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  />
                 </FormControl>
-                <FormControl id="password">
-                  <FormLabel>Password</FormLabel>
-                  <Input type="password" placeholder="********" />
+                
+                <FormControl id="password" isRequired>
+                  <FormLabel color={useColorModeValue('gray.700', 'gray.300')}>Password</FormLabel>
+                  <Input 
+                    type="password" 
+                    placeholder="********"
+                    bg={useColorModeValue('white', 'gray.700')}
+                    borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  />
                 </FormControl>
-                <Button type="submit" colorScheme="green" width="full">
+                
+                <Button 
+                  type="submit" 
+                  colorScheme="green" 
+                  width="full"
+                  mt={2}
+                >
                   Login with Email
                 </Button>
               </VStack>
             </form>
-            
-            <Text fontSize="sm" textAlign="center" mt={2}>
-              Don&apos;t have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
-            </Text>
           </VStack>
         </ModalBody>
-        <ModalFooter>
-          <Text fontSize="xs" color="gray.500">
-            By logging in, you agree to our Terms of Service and Privacy Policy
+        
+        <ModalFooter justifyContent="center">
+          <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+            Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
           </Text>
         </ModalFooter>
       </ModalContent>

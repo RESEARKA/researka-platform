@@ -1,6 +1,6 @@
 import React from 'react';
 import Head from 'next/head';
-import { Box } from '@chakra-ui/react';
+import { Box, useColorModeValue } from '@chakra-ui/react';
 import NavBar from './NavBar';
 import MobileNav from './MobileNav';
 import { useModal } from '../contexts/ModalContext';
@@ -25,6 +25,7 @@ const Layout: React.FC<LayoutProps> = ({
   activePage
 }) => {
   const { isOpen, onOpen, onClose, redirectPath, setRedirectPath } = useModal();
+  const bgColor = useColorModeValue('white', 'dark.bg');
   
   const handleLoginClick = (redirectPath?: string) => {
     if (redirectPath) {
@@ -44,7 +45,7 @@ const Layout: React.FC<LayoutProps> = ({
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      <Box minH="100vh" bg="white">
+      <Box minH="100vh" bg={bgColor}>
         <NavBar activePage={activePage} onLoginClick={handleLoginClick} />
         <MobileNav activePage={activePage} onLoginClick={handleLoginClick} />
         
