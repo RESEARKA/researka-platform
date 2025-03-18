@@ -6,9 +6,10 @@ import MobileNav from './MobileNav';
 import { useModal } from '../contexts/ModalContext';
 import dynamic from 'next/dynamic';
 
-// Dynamically import LoginModal with SSR disabled
+// Dynamically import LoginModal with SSR disabled and no caching
 const LoginModal = dynamic(() => import('./LoginModal'), {
   ssr: false,
+  loading: () => null
 });
 
 interface LayoutProps {
@@ -54,7 +55,7 @@ const Layout: React.FC<LayoutProps> = ({
         </Box>
         
         {/* Login Modal */}
-        <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />
+        {isOpen && <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />}
       </Box>
     </>
   );

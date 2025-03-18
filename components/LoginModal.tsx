@@ -22,7 +22,7 @@ import { FaEthereum } from 'react-icons/fa';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  redirectPath?: string;
+  redirectPath?: string; // This prop is kept for backward compatibility but will be ignored
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/profile' }) => {
@@ -53,10 +53,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       
       onClose();
       
-      // Redirect to the specified path
-      if (redirectPath) {
-        window.location.href = redirectPath;
-      }
+      // Always redirect to the profile page, ignoring the redirectPath prop
+      window.location.href = '/profile';
     }, 1000);
   };
 
@@ -86,10 +84,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       
       onClose();
       
-      // Redirect to the specified path
-      if (redirectPath) {
-        window.location.href = redirectPath;
-      }
+      // Always redirect to the profile page, ignoring the redirectPath prop
+      window.location.href = '/profile';
     }, 1000);
   };
 
@@ -104,43 +100,48 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
             <Button 
               leftIcon={<FaEthereum />} 
               colorScheme="blue" 
-              variant="outline"
               onClick={handleWalletLogin}
+              width="full"
             >
               Connect Wallet
             </Button>
             
-            <Flex align="center" my={4}>
-              <Divider />
-              <Text mx={2} fontSize="sm" color="gray.500">or</Text>
-              <Divider />
+            <Flex align="center" my={2}>
+              <Divider flex="1" />
+              <Text mx={4} color="gray.500" fontSize="sm">OR</Text>
+              <Divider flex="1" />
             </Flex>
             
             <form onSubmit={handleEmailLogin}>
               <VStack spacing={4}>
-                <FormControl id="email" isRequired>
-                  <FormLabel color="gray.700">Email</FormLabel>
+                <FormControl>
+                  <FormLabel color="gray.700">Email Address</FormLabel>
                   <Input 
                     type="email" 
-                    placeholder="your@email.com"
+                    placeholder="your@email.com" 
+                    required 
                     bg="white"
                     borderColor="gray.300"
+                    _hover={{ borderColor: "gray.400" }}
                   />
                 </FormControl>
                 
-                <FormControl id="password" isRequired>
+                <FormControl>
                   <FormLabel color="gray.700">Password</FormLabel>
                   <Input 
                     type="password" 
-                    placeholder="********"
+                    placeholder="********" 
+                    required 
                     bg="white"
                     borderColor="gray.300"
+                    _hover={{ borderColor: "gray.400" }}
                   />
                 </FormControl>
                 
                 <Button 
                   type="submit" 
-                  colorScheme="green" 
+                  colorScheme="blue" 
+                  variant="outline" 
                   width="full"
                   mt={2}
                 >
@@ -152,8 +153,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         </ModalBody>
         
         <ModalFooter justifyContent="center">
-          <Text fontSize="sm" color="gray.600">
-            Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
+          <Text fontSize="sm" color="gray.500">
+            Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign Up</Button>
           </Text>
         </ModalFooter>
       </ModalContent>
