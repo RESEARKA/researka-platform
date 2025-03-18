@@ -1,21 +1,19 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon } from '@chakra-ui/react';
+import Layout from '../../components/Layout';
 import Link from 'next/link';
 
 const RolesPage: React.FC = () => {
   return (
-    <>
-      <Head>
-        <title>Roles | RESEARKA</title>
-        <meta name="description" content="Learn about the different roles in the RESEARKA ecosystem" />
-      </Head>
-
+    <Layout title="Roles | RESEARKA" description="Learn about the different roles in the RESEARKA ecosystem">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
             <BreadcrumbItem>
-              <BreadcrumbLink as="a" href="/">Home</BreadcrumbLink>
+              <BreadcrumbLink as="a" href="/" onClick={(e) => {
+                e.preventDefault();
+                window.location.href = '/';
+              }}>Home</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbItem isCurrentPage>
               <BreadcrumbLink>Roles</BreadcrumbLink>
@@ -170,7 +168,7 @@ const RolesPage: React.FC = () => {
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

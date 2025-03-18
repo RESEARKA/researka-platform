@@ -1,21 +1,19 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Button, Flex } from '@chakra-ui/react';
+import Layout from '../../components/Layout';
 import Link from 'next/link';
 
 const WhitepaperPage: React.FC = () => {
   return (
-    <>
-      <Head>
-        <title>Whitepaper | RESEARKA</title>
-        <meta name="description" content="RESEARKA Whitepaper - The technical foundation of our decentralized academic publishing platform" />
-      </Head>
-
+    <Layout title="Whitepaper | RESEARKA" description="RESEARKA Whitepaper - The technical foundation of our decentralized academic publishing platform">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
             <BreadcrumbItem>
-              <BreadcrumbLink as="a" href="/">Home</BreadcrumbLink>
+              <BreadcrumbLink as="a" href="/" onClick={(e) => {
+                e.preventDefault();
+                window.location.href = '/';
+              }}>Home</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbItem isCurrentPage>
               <BreadcrumbLink>Whitepaper</BreadcrumbLink>
@@ -83,7 +81,7 @@ const WhitepaperPage: React.FC = () => {
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 

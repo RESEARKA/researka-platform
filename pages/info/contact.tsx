@@ -1,6 +1,6 @@
 import React from 'react';
-import Head from 'next/head';
 import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, FormControl, FormLabel, Input, Textarea, Button, useToast, SimpleGrid } from '@chakra-ui/react';
+import Layout from '../../components/Layout';
 import Link from 'next/link';
 
 const ContactPage: React.FC = () => {
@@ -19,17 +19,15 @@ const ContactPage: React.FC = () => {
   };
   
   return (
-    <>
-      <Head>
-        <title>Contact Us | RESEARKA</title>
-        <meta name="description" content="Get in touch with the RESEARKA team" />
-      </Head>
-
+    <Layout title="Contact Us | RESEARKA" description="Get in touch with the RESEARKA team">
       <Box py={8}>
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
             <BreadcrumbItem>
-              <BreadcrumbLink as="a" href="/">Home</BreadcrumbLink>
+              <BreadcrumbLink as="a" href="/" onClick={(e) => {
+                e.preventDefault();
+                window.location.href = '/';
+              }}>Home</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbItem isCurrentPage>
               <BreadcrumbLink>Contact</BreadcrumbLink>
@@ -106,7 +104,7 @@ const ContactPage: React.FC = () => {
           </VStack>
         </Container>
       </Box>
-    </>
+    </Layout>
   );
 };
 
