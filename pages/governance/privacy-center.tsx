@@ -54,7 +54,10 @@ const PrivacyCenterPage: React.FC = () => {
         <Container maxW="container.xl">
           <Breadcrumb mb={6}>
             <BreadcrumbItem>
-              <BreadcrumbLink as="a" href="/">Home</BreadcrumbLink>
+              <BreadcrumbLink as="a" href="/" onClick={(e) => {
+                e.preventDefault();
+                window.location.href = '/';
+              }}>Home</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbItem isCurrentPage>
               <BreadcrumbLink>Privacy Center</BreadcrumbLink>

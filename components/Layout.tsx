@@ -4,6 +4,12 @@ import { Box } from '@chakra-ui/react';
 import NavBar from './NavBar';
 import MobileNav from './MobileNav';
 import { useModal } from '../contexts/ModalContext';
+import dynamic from 'next/dynamic';
+
+// Dynamically import LoginModal with SSR disabled
+const LoginModal = dynamic(() => import('./LoginModal'), {
+  ssr: false,
+});
 
 interface LayoutProps {
   title?: string;
@@ -18,7 +24,7 @@ const Layout: React.FC<LayoutProps> = ({
   children,
   activePage
 }) => {
-  const { onOpen, setRedirectPath } = useModal();
+  const { isOpen, onOpen, onClose, redirectPath, setRedirectPath } = useModal();
   
   const handleLoginClick = (redirectPath?: string) => {
     if (redirectPath) {
@@ -45,6 +51,9 @@ const Layout: React.FC<LayoutProps> = ({
         <Box as="main">
           {children}
         </Box>
+        
+        {/* Login Modal */}
+        <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />
       </Box>
     </>
   );
