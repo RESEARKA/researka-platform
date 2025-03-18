@@ -103,6 +103,7 @@ const ArticlesPage = () => {
                   placeholder="Search by title, abstract, or author..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search articles"
                 />
               </InputGroup>
               
@@ -110,6 +111,8 @@ const ArticlesPage = () => {
                 placeholder="Filter by category" 
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
+                aria-label="Filter articles by category"
+                id="category-filter"
               >
                 {allCategories.map(category => (
                   <option key={category} value={category}>{category}</option>
@@ -120,10 +123,12 @@ const ArticlesPage = () => {
                 placeholder="Sort by" 
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Sort articles"
+                id="sort-articles"
               >
                 <option value="date">Most Recent</option>
                 <option value="views">Most Viewed</option>
-                <option value="title">Title (A-Z)</option>
+                <option value="title">Alphabetical</option>
               </Select>
             </Grid>
           </Box>
@@ -171,11 +176,11 @@ const ArticlesPage = () => {
                       {article.title}
                     </Heading>
                     
-                    <Text fontSize="sm" color="gray.500" mb={2}>
+                    <Text fontSize="sm" color="gray.700" mb={2}>
                       {article.authors}
                     </Text>
                     
-                    <Text fontSize="sm" mb={4} noOfLines={3} flex="1">
+                    <Text fontSize="sm" noOfLines={3} mb={4}>
                       {article.abstract}
                     </Text>
                     
@@ -195,11 +200,11 @@ const ArticlesPage = () => {
                     <Flex justify="space-between" align="center" mt="auto">
                       <Flex align="center">
                         <FiCalendar size={14} style={{ marginRight: '4px' }} />
-                        <Text fontSize="xs">{article.date}</Text>
+                        <Text fontSize="xs" color="gray.700">{article.date}</Text>
                       </Flex>
                       <Flex align="center">
                         <FiEye size={14} style={{ marginRight: '4px' }} />
-                        <Text fontSize="xs">{article.views} views</Text>
+                        <Text fontSize="xs" color="gray.700">{article.views} views</Text>
                       </Flex>
                     </Flex>
                   </Box>

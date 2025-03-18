@@ -64,7 +64,7 @@ const FeaturedArticle: React.FC<FeaturedArticleProps> = ({
           </LinkOverlay>
         </NextLink>
         
-        <Text fontSize="sm" color="gray.500" mb={2}>
+        <Text fontSize="sm" color="gray.700" mb={2}>
           By {authors.join(', ')}
         </Text>
         
@@ -72,7 +72,7 @@ const FeaturedArticle: React.FC<FeaturedArticleProps> = ({
           {abstract}
         </Text>
         
-        <Flex justify="space-between" fontSize="sm" color="gray.500" mt="auto">
+        <Flex justify="space-between" fontSize="sm" color="gray.700" mt="auto">
           <Flex align="center">
             <Box as="span">
               {date}

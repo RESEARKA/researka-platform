@@ -173,8 +173,9 @@ const SubmitPage: React.FC = () => {
                   <Heading size="md">Basic Information</Heading>
                   
                   <FormControl isRequired>
-                    <FormLabel>Article Title</FormLabel>
+                    <FormLabel htmlFor="article-title">Article Title</FormLabel>
                     <Input 
+                      id="article-title"
                       name="title" 
                       value={formData.title} 
                       onChange={handleInputChange} 
@@ -183,8 +184,9 @@ const SubmitPage: React.FC = () => {
                   </FormControl>
                   
                   <FormControl isRequired>
-                    <FormLabel>Abstract</FormLabel>
+                    <FormLabel htmlFor="article-abstract">Abstract</FormLabel>
                     <Textarea 
+                      id="article-abstract"
                       name="abstract" 
                       value={formData.abstract} 
                       onChange={handleInputChange} 
@@ -195,12 +197,14 @@ const SubmitPage: React.FC = () => {
                   </FormControl>
                   
                   <FormControl isRequired>
-                    <FormLabel>Category</FormLabel>
+                    <FormLabel htmlFor="category-select">Category</FormLabel>
                     <Select 
+                      id="category-select"
                       name="category" 
                       value={formData.category} 
                       onChange={handleInputChange} 
                       placeholder="Select category"
+                      aria-label="Select article category"
                     >
                       <option value="blockchain">Blockchain & Cryptocurrency</option>
                       <option value="ai">Artificial Intelligence</option>
@@ -215,8 +219,9 @@ const SubmitPage: React.FC = () => {
                   </FormControl>
                   
                   <FormControl>
-                    <FormLabel>Keywords</FormLabel>
+                    <FormLabel htmlFor="article-keywords">Keywords</FormLabel>
                     <Input 
+                      id="article-keywords"
                       name="keywords" 
                       value={formData.keywords} 
                       onChange={handleInputChange} 
@@ -256,8 +261,9 @@ const SubmitPage: React.FC = () => {
                   <Divider my={4} />
                   
                   <FormControl>
-                    <FormLabel>Article Content</FormLabel>
+                    <FormLabel htmlFor="article-content">Article Content</FormLabel>
                     <Textarea 
+                      id="article-content"
                       name="content" 
                       value={formData.content} 
                       onChange={handleInputChange} 

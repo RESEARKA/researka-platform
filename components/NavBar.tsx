@@ -76,7 +76,7 @@ const NavBar: React.FC<NavBarProps> = ({
         >
           <Link href="/" passHref legacyBehavior>
             <ChakraLink _hover={{ textDecoration: 'none' }}>
-              <Heading as="h1" size="lg" color="green.400">RESEARKA</Heading>
+              <Heading as="h1" size="lg" color="green.700">RESEARKA</Heading>
             </ChakraLink>
           </Link>
           
@@ -114,7 +114,7 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color="gray.700"
+                color="gray.800"
                 borderRadius="md"
                 mx={1}
                 _hover={{ bg: "gray.100" }}
@@ -139,7 +139,7 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color="gray.700"
+                color="gray.800"
                 borderRadius="md"
                 mx={1}
                 _hover={{ bg: "gray.100" }}
@@ -182,7 +182,7 @@ const NavBar: React.FC<NavBarProps> = ({
                   py={1}
                   height="auto"
                   fontWeight="500"
-                  color="blue.500"
+                  color="blue.700"
                   borderRadius="md"
                   mx={1}
                   _hover={{ bg: "gray.100" }}
@@ -209,7 +209,7 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color="gray.700"
+                color="gray.800"
                 borderRadius="md"
                 mx={1}
                 _hover={{ bg: "gray.100" }}
@@ -250,12 +250,12 @@ const NavItem: React.FC<NavItemProps> = ({
         py={1}
         height="auto"
         fontWeight="500"
-        color="gray.700"
+        color="gray.800"
         borderRadius="md"
         mx={1}
         _hover={{ bg: "gray.100" }}
         _active={{ bg: "gray.200" }}
-        {...(isActive && { fontWeight: "600", color: "blue.500" })}
+        {...(isActive && { fontWeight: "600", color: "blue.700" })}
       >
         {label}
       </Button>
@@ -269,7 +269,7 @@ const NavItem: React.FC<NavItemProps> = ({
         py={1}
         borderRadius="md"
         fontWeight={isActive ? "600" : "500"}
-        color={isActive ? "blue.500" : "gray.700"}
+        color={isActive ? "blue.700" : "gray.800"}
         mx={1}
         _hover={{ textDecoration: 'none', bg: "gray.100" }}
         _active={{ bg: "gray.200" }}
@@ -298,7 +298,7 @@ const NavDropdown: React.FC<NavDropdownProps> = ({ label, items }) => {
         py={1}
         height="auto"
         fontWeight="500"
-        color="gray.700"
+        color="gray.800"
         borderRadius="md"
         mx={1}
         _hover={{ bg: "gray.100" }}

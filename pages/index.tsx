@@ -59,48 +59,48 @@ const FeaturedArticle = dynamic(
 // Categories data
 const CATEGORIES = {
   MAIN: [
-    { id: 'all', name: 'ALL', color: 'blue' },
-    { id: 'life-sciences', name: 'LIFE SCIENCES & BIOMEDICINE', color: 'green' },
-    { id: 'physical-sciences', name: 'PHYSICAL SCIENCES', color: 'teal' },
-    { id: 'multidisciplinary', name: 'MULTIDISCIPLINARY', color: 'cyan' },
-    { id: 'technology', name: 'TECHNOLOGY & ENGINEERING', color: 'green' },
-    { id: 'social-sciences', name: 'SOCIAL SCIENCES', color: 'teal' },
-    { id: 'arts', name: 'ARTS & HUMANITIES', color: 'green' },
+    { id: 'all', name: 'ALL', color: 'blue.700' },
+    { id: 'life-sciences', name: 'LIFE SCIENCES & BIOMEDICINE', color: 'green.700' },
+    { id: 'physical-sciences', name: 'PHYSICAL SCIENCES', color: 'teal.700' },
+    { id: 'multidisciplinary', name: 'MULTIDISCIPLINARY', color: 'blue.700' },
+    { id: 'technology', name: 'TECHNOLOGY & ENGINEERING', color: 'green.700' },
+    { id: 'social-sciences', name: 'SOCIAL SCIENCES', color: 'teal.700' },
+    { id: 'arts', name: 'ARTS & HUMANITIES', color: 'green.700' },
   ],
   SUBCATEGORIES: [
-    { id: 'biology', name: 'BIOLOGY', color: 'gray' },
-    { id: 'chemistry', name: 'CHEMISTRY', color: 'gray' },
-    { id: 'data-science', name: 'DATA SCIENCE', color: 'gray' },
-    { id: 'physics', name: 'PHYSICS', color: 'gray' },
-    { id: 'mathematics', name: 'MATHEMATICS', color: 'gray' },
-    { id: 'earth-environmental', name: 'EARTH & ENVIRONMENTAL SCIENCES', color: 'gray' },
-    { id: 'astronomy', name: 'ASTRONOMY & ASTROPHYSICS', color: 'gray' },
-    { id: 'medicine', name: 'MEDICINE & HEALTH SCIENCES', color: 'gray' },
-    { id: 'neuroscience', name: 'NEUROSCIENCE', color: 'gray' },
-    { id: 'genetics', name: 'GENETICS', color: 'gray' },
-    { id: 'ecology', name: 'ECOLOGY & CONSERVATION', color: 'gray' },
-    { id: 'computer-science', name: 'COMPUTER SCIENCE', color: 'gray' },
-    { id: 'electrical', name: 'ELECTRICAL & ELECTRONIC ENGINEERING', color: 'gray' },
-    { id: 'mechanical', name: 'MECHANICAL ENGINEERING', color: 'gray' },
-    { id: 'materials', name: 'MATERIALS SCIENCE', color: 'gray' },
-    { id: 'ai', name: 'ARTIFICIAL INTELLIGENCE', color: 'gray' },
-    { id: 'blockchain', name: 'BLOCKCHAIN & DISTRIBUTED SYSTEMS', color: 'gray' },
-    { id: 'economics', name: 'ECONOMICS', color: 'gray' },
-    { id: 'psychology', name: 'PSYCHOLOGY', color: 'gray' },
-    { id: 'sociology', name: 'SOCIOLOGY', color: 'gray' },
-    { id: 'political', name: 'POLITICAL SCIENCE', color: 'gray' },
-    { id: 'education', name: 'EDUCATION', color: 'gray' },
-    { id: 'business', name: 'BUSINESS & MANAGEMENT', color: 'gray' },
-    { id: 'philosophy', name: 'PHILOSOPHY', color: 'gray' },
-    { id: 'literature', name: 'LITERATURE', color: 'gray' },
-    { id: 'history', name: 'HISTORY', color: 'gray' },
-    { id: 'cultural', name: 'CULTURAL STUDIES', color: 'gray' },
-    { id: 'linguistics', name: 'LINGUISTICS', color: 'gray' },
-    { id: 'visual', name: 'VISUAL & PERFORMING ARTS', color: 'gray' },
-    { id: 'sustainability', name: 'SUSTAINABILITY', color: 'gray' },
-    { id: 'cognitive', name: 'COGNITIVE SCIENCE', color: 'gray' },
-    { id: 'public-policy', name: 'PUBLIC POLICY', color: 'gray' },
-    { id: 'ethics', name: 'ETHICS', color: 'gray' },
+    { id: 'biology', name: 'BIOLOGY', color: 'gray.700' },
+    { id: 'chemistry', name: 'CHEMISTRY', color: 'gray.700' },
+    { id: 'data-science', name: 'DATA SCIENCE', color: 'gray.700' },
+    { id: 'physics', name: 'PHYSICS', color: 'gray.700' },
+    { id: 'mathematics', name: 'MATHEMATICS', color: 'gray.700' },
+    { id: 'earth-environmental', name: 'EARTH & ENVIRONMENTAL SCIENCES', color: 'gray.700' },
+    { id: 'astronomy', name: 'ASTRONOMY & ASTROPHYSICS', color: 'gray.700' },
+    { id: 'medicine', name: 'MEDICINE & HEALTH SCIENCES', color: 'gray.700' },
+    { id: 'neuroscience', name: 'NEUROSCIENCE', color: 'gray.700' },
+    { id: 'genetics', name: 'GENETICS', color: 'gray.700' },
+    { id: 'ecology', name: 'ECOLOGY & CONSERVATION', color: 'gray.700' },
+    { id: 'computer-science', name: 'COMPUTER SCIENCE', color: 'gray.700' },
+    { id: 'electrical', name: 'ELECTRICAL & ELECTRONIC ENGINEERING', color: 'gray.700' },
+    { id: 'mechanical', name: 'MECHANICAL ENGINEERING', color: 'gray.700' },
+    { id: 'materials', name: 'MATERIALS SCIENCE', color: 'gray.700' },
+    { id: 'ai', name: 'ARTIFICIAL INTELLIGENCE', color: 'gray.700' },
+    { id: 'blockchain', name: 'BLOCKCHAIN & DISTRIBUTED SYSTEMS', color: 'gray.700' },
+    { id: 'economics', name: 'ECONOMICS', color: 'gray.700' },
+    { id: 'psychology', name: 'PSYCHOLOGY', color: 'gray.700' },
+    { id: 'sociology', name: 'SOCIOLOGY', color: 'gray.700' },
+    { id: 'political', name: 'POLITICAL SCIENCE', color: 'gray.700' },
+    { id: 'education', name: 'EDUCATION', color: 'gray.700' },
+    { id: 'business', name: 'BUSINESS & MANAGEMENT', color: 'gray.700' },
+    { id: 'philosophy', name: 'PHILOSOPHY', color: 'gray.700' },
+    { id: 'literature', name: 'LITERATURE', color: 'gray.700' },
+    { id: 'history', name: 'HISTORY', color: 'gray.700' },
+    { id: 'cultural', name: 'CULTURAL STUDIES', color: 'gray.700' },
+    { id: 'linguistics', name: 'LINGUISTICS', color: 'gray.700' },
+    { id: 'visual', name: 'VISUAL & PERFORMING ARTS', color: 'gray.700' },
+    { id: 'sustainability', name: 'SUSTAINABILITY', color: 'gray.700' },
+    { id: 'cognitive', name: 'COGNITIVE SCIENCE', color: 'gray.700' },
+    { id: 'public-policy', name: 'PUBLIC POLICY', color: 'gray.700' },
+    { id: 'ethics', name: 'ETHICS', color: 'gray.700' },
   ]
 };
 
@@ -114,11 +114,13 @@ const MainCategories = lazy(() => Promise.resolve({
           size="md"
           borderRadius="full"
           variant="solid"
-          colorScheme={category.color}
+          colorScheme={category.color.split('.')[0]}
           cursor="pointer"
           onClick={() => onSelect(category.id)}
           _hover={{ opacity: 0.8 }}
           mb={2}
+          color="white"
+          bg={category.color}
         >
           <TagLabel>{category.name}</TagLabel>
         </Tag>
@@ -136,11 +138,12 @@ const SubCategories = lazy(() => Promise.resolve({
           size="sm"
           borderRadius="full"
           variant="outline"
-          colorScheme={category.color}
+          colorScheme={category.color.split('.')[0]}
           cursor="pointer"
           onClick={() => onSelect(category.id)}
           _hover={{ opacity: 0.8 }}
           mb={2}
+          color={category.color}
         >
           <TagLabel>{category.name}</TagLabel>
         </Tag>
@@ -343,7 +346,7 @@ const Home: React.FC = () => {
                     <Heading as="h3" size="md" mb={2}>
                       {article.title}
                     </Heading>
-                    <Text fontSize="sm" color="gray.500" mb={2}>
+                    <Text fontSize="sm" color="gray.700" mb={2}>
                       {article.authors}
                     </Text>
                     <Text fontSize="sm" mb={4} flex="1">
@@ -351,10 +354,10 @@ const Home: React.FC = () => {
                     </Text>
                     <Flex justify="space-between" align="center">
                       <Flex align="center">
-                        <Text fontSize="xs">{article.date}</Text>
+                        <Text fontSize="xs" color="gray.700">{article.date}</Text>
                       </Flex>
                       <Flex align="center">
-                        <Text fontSize="xs">{article.views} views</Text>
+                        <Text fontSize="xs" color="gray.700">{article.views} views</Text>
                       </Flex>
                     </Flex>
                   </Box>
