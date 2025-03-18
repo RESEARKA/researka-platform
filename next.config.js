@@ -120,6 +120,8 @@ const withPWA = require('next-pwa')({
   ]
 });
 
+// const { withSentryConfig } = require('@sentry/nextjs');
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -130,4 +132,22 @@ const nextConfig = {
   assetPrefix: process.env.NODE_ENV === 'production' ? process.env.CDN_URL || '' : '',
 };
 
+// const sentryWebpackPluginOptions = {
+//   // Additional config options for the Sentry webpack plugin. Keep in mind that
+//   // the following options are set automatically, and overriding them is not
+//   // recommended:
+//   //   release, url, org, project, authToken, configFile, stripPrefix,
+//   //   urlPrefix, include, ignore
+//   silent: true, // Suppresses all logs
+//   // For all available options, see:
+//   // https://github.com/getsentry/sentry-webpack-plugin#options.
+// };
+
+// Disable Sentry for now
+// module.exports = withSentryConfig(
+//   withPWA(nextConfig),
+//   sentryWebpackPluginOptions
+// );
+
+// Use only PWA without Sentry
 module.exports = withPWA(nextConfig);

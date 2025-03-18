@@ -44,7 +44,8 @@ const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
     // Use smaller image sizes for mobile devices
     widths: isMobile 
       ? [320, 480, 640, 768] 
-      : [640, 768, 1024, 1280, 1920]
+      : [640, 768, 1024, 1280, 1920],
+    quality: quality || 80 // Use provided quality or default to 80
   });
   
   return (

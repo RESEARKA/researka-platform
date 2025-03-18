@@ -5,6 +5,8 @@ import { WalletProvider } from '../frontend/src/contexts/WalletContext';
 import { ModalProvider } from '../contexts/ModalContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Head from 'next/head';
+import ErrorBoundary from '../components/ErrorBoundary';
+import * as Sentry from '@sentry/nextjs';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -34,7 +36,12 @@ function MyApp({ Component, pageProps }: AppProps) {
         <ChakraProvider>
           <WalletProvider>
             <ModalProvider>
-              <Component {...pageProps} />
+              <ErrorBoundary onReset={() => {
+                // Optional: Reset any state or perform actions when error boundary resets
+                console.log('Error boundary reset');
+              }}>
+                <Component {...pageProps} />
+              </ErrorBoundary>
             </ModalProvider>
           </WalletProvider>
         </ChakraProvider>

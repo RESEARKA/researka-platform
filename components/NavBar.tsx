@@ -47,7 +47,7 @@ const NavBar: React.FC<NavBarProps> = ({
             const userData = JSON.parse(userStr);
             setUsername(userData.username || userData.name || 'User');
           } catch (e) {
-            console.error('Failed to parse user data');
+            console.error('Failed to parse user data:', e);
           }
         }
       }

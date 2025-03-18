@@ -133,7 +133,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
             </form>
             
             <Text fontSize="sm" textAlign="center" mt={2}>
-              Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
+              Don&apos;t have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
             </Text>
           </VStack>
         </ModalBody>

@@ -16,8 +16,9 @@
     "incremental": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["node", "jest", "@testing-library/jest-dom"]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "src"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "src", "types"],
   "exclude": ["node_modules", "contracts", "scripts", "test", "hardhat.config.js"]
 }

@@ -149,16 +149,18 @@ export function createResponsiveImage(
     widths?: number[];
     format?: 'webp' | 'avif' | 'jpeg' | 'png' | 'original';
     defaultWidth?: number;
+    quality?: number;
   } = {}
 ): { src: string; srcSet: string } {
   const { 
     widths = [320, 640, 768, 1024, 1280, 1920],
     format = 'webp',
-    defaultWidth = 1280
+    defaultWidth = 1280,
+    quality = 80
   } = options;
   
   return {
-    src: getOptimizedImageUrl({ src, width: defaultWidth, format }),
+    src: getOptimizedImageUrl({ src, width: defaultWidth, format, quality }),
     srcSet: generateSrcSet(src, widths, format)
   };
 }
