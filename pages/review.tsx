@@ -44,9 +44,8 @@ const mockArticles = [
     author: 'Sarah Chen',
     category: 'Blockchain',
     date: 'March 15, 2025',
-    timeToReview: '~4 hours',
     keywords: ['blockchain', 'academic credentials', 'verification'],
-    compensation: '50 RKA tokens',
+    compensation: '50 RKA TOKENS',
   },
   {
     id: 2,
@@ -55,9 +54,8 @@ const mockArticles = [
     author: 'Michael Rodriguez',
     category: 'Academic Publishing',
     date: 'March 14, 2025',
-    timeToReview: '~3 hours',
     keywords: ['peer review', 'decentralization', 'scientific publishing'],
-    compensation: '45 RKA tokens',
+    compensation: '50 RKA TOKENS',
   },
   {
     id: 3,
@@ -66,9 +64,8 @@ const mockArticles = [
     author: 'Emma Johnson',
     category: 'Research Funding',
     date: 'March 12, 2025',
-    timeToReview: '~5 hours',
     keywords: ['smart contracts', 'research funding', 'automation'],
-    compensation: '60 RKA tokens',
+    compensation: '50 RKA TOKENS',
   },
   {
     id: 4,
@@ -77,9 +74,8 @@ const mockArticles = [
     author: 'David Kim',
     category: 'Bibliometrics',
     date: 'March 10, 2025',
-    timeToReview: '~3.5 hours',
     keywords: ['citation impact', 'tokenization', 'academic metrics'],
-    compensation: '40 RKA tokens',
+    compensation: '50 RKA TOKENS',
   },
 ];
 
@@ -134,8 +130,6 @@ const ReviewPage: React.FC = () => {
           return new Date(b.date).getTime() - new Date(a.date).getTime();
         case 'compensation':
           return parseInt(b.compensation) - parseInt(a.compensation);
-        case 'time':
-          return parseFloat(a.timeToReview) - parseFloat(b.timeToReview);
         default:
           return 0;
       }
@@ -198,7 +192,6 @@ const ReviewPage: React.FC = () => {
               >
                 <option value="date">Most Recent</option>
                 <option value="compensation">Highest Compensation</option>
-                <option value="time">Shortest Review Time</option>
               </Select>
             </Flex>
             
@@ -254,10 +247,6 @@ const ReviewPage: React.FC = () => {
                         <Flex align="center">
                           <FiCalendar size={12} style={{ marginRight: '4px' }} />
                           <Text>{article.date}</Text>
-                        </Flex>
-                        <Flex align="center">
-                          <FiClock size={12} style={{ marginRight: '4px' }} />
-                          <Text>{article.timeToReview}</Text>
                         </Flex>
                       </Flex>
                     </CardBody>
