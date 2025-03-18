@@ -143,11 +143,67 @@ npm start
 
 ## Deployment
 
-The smart contracts can be deployed to various networks:
+### Prerequisites
+- Node.js and npm installed
+- A wallet with ETH on Goerli testnet (for zkSync testnet deployment)
+- Private key of the deployment wallet
 
-- **Local**: `npm run deploy`
-- **Testnet**: `npm run deploy:testnet`
-- **Mainnet**: `npm run deploy:mainnet`
+### Environment Setup
+1. Copy the example environment file:
+   ```
+   cp .env.example .env
+   ```
+
+2. Fill in the required environment variables in the `.env` file:
+   ```
+   PRIVATE_KEY=your_private_key_here
+   INFURA_API_KEY=your_infura_api_key_here
+   ETHERSCAN_API_KEY=your_etherscan_api_key_here
+   ```
+
+### Deploy to zkSync Testnet
+1. Install dependencies:
+   ```
+   npm install
+   ```
+
+2. Compile the contracts:
+   ```
+   npx hardhat compile
+   ```
+
+3. Deploy the contracts to zkSync testnet:
+   ```
+   node scripts/deploy-zksync-testnet.js
+   ```
+   This will deploy all contracts to zkSync testnet and save the deployment information to the `deployments` directory.
+
+4. Update your `.env` file with the testnet contract addresses:
+   ```
+   node scripts/update-env-testnet.js
+   ```
+
+5. Verify the contracts on zkSync testnet explorer:
+   ```
+   node scripts/verify-zksync-testnet.js
+   ```
+
+### Testing the Deployment
+1. Run the development server:
+   ```
+   npm run dev
+   ```
+
+2. Open your browser and navigate to `http://localhost:3000/token-dashboard`
+
+3. Connect your wallet (make sure it's connected to zkSync testnet)
+
+4. You should now be able to interact with the deployed contracts
+
+### Important Notes
+- **DO NOT** use the mainnet deployment scripts until explicitly instructed to do so
+- Always test thoroughly on testnet before deploying to mainnet
+- Keep your private keys secure and never commit them to version control
 
 ## License
 
