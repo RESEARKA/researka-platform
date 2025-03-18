@@ -10,12 +10,10 @@ import {
   Container,
   Heading,
   Spacer,
-  Link as ChakraLink,
-  useColorModeValue
+  Link as ChakraLink
 } from '@chakra-ui/react';
 import { FiChevronDown } from 'react-icons/fi';
 import Link from 'next/link';
-import ColorModeToggle from './ColorModeToggle';
 
 interface NavBarProps {
   activePage?: string;
@@ -136,11 +134,11 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color={useColorModeValue("gray.800", "gray.200")}
+                color="gray.800"
                 borderRadius="md"
                 mx={1}
-                _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
-                _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
+                _hover={{ bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
                 onClick={() => onLoginClick('/submit')}
               >
                 SUBMIT
@@ -161,18 +159,16 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color={useColorModeValue("gray.800", "gray.200")}
+                color="gray.800"
                 borderRadius="md"
                 mx={1}
-                _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
-                _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
+                _hover={{ bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
                 onClick={() => onLoginClick('/review')}
               >
                 REVIEW
               </Button>
             )}
-            
-            <ColorModeToggle size="sm" />
             
             {isLoggedIn ? (
               <Menu>
@@ -185,15 +181,15 @@ const NavBar: React.FC<NavBarProps> = ({
                   py={1}
                   height="auto"
                   fontWeight="500"
-                  color={useColorModeValue("blue.700", "blue.300")}
+                  color="blue.700"
                   borderRadius="md"
                   mx={1}
-                  _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
-                  _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
+                  _hover={{ bg: "gray.100" }}
+                  _active={{ bg: "gray.200" }}
                 >
                   {username || 'User'}
                 </MenuButton>
-                <MenuList minWidth="180px" fontSize="sm">
+                <MenuList minWidth="180px" fontSize="sm" bg="white" borderColor="gray.200">
                   <Link href="/profile" passHref legacyBehavior>
                     <MenuItem as={ChakraLink}>
                       Profile
@@ -212,11 +208,11 @@ const NavBar: React.FC<NavBarProps> = ({
                 py={1}
                 height="auto"
                 fontWeight="500"
-                color={useColorModeValue("gray.800", "gray.200")}
+                color="gray.800"
                 borderRadius="md"
                 mx={1}
-                _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.200") }}
-                _active={{ bg: useColorModeValue("gray.200", "whiteAlpha.300") }}
+                _hover={{ bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
                 onClick={() => onLoginClick()}
               >
                 LOGIN
@@ -309,7 +305,7 @@ const NavDropdown: React.FC<NavDropdownProps> = ({ label, items }) => {
       >
         {label}
       </MenuButton>
-      <MenuList minWidth="180px" fontSize="sm">
+      <MenuList minWidth="180px" fontSize="sm" bg="white" borderColor="gray.200">
         {items.map((item, index) => (
           <Link key={index} href={item.href} passHref legacyBehavior>
             <MenuItem as={ChakraLink}>

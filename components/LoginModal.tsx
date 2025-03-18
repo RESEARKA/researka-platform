@@ -15,8 +15,7 @@ import {
   Text,
   Flex,
   Divider,
-  useToast,
-  useColorModeValue
+  useToast
 } from '@chakra-ui/react';
 import { FaEthereum } from 'react-icons/fa';
 
@@ -97,8 +96,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
-      <ModalContent bg={useColorModeValue('white', 'gray.800')}>
-        <ModalHeader color={useColorModeValue('gray.800', 'white')}>Login to Researka</ModalHeader>
+      <ModalContent bg="white">
+        <ModalHeader color="gray.800">Login to Researka</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
@@ -113,29 +112,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
             
             <Flex align="center" my={4}>
               <Divider />
-              <Text mx={2} fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>or</Text>
+              <Text mx={2} fontSize="sm" color="gray.500">or</Text>
               <Divider />
             </Flex>
             
             <form onSubmit={handleEmailLogin}>
               <VStack spacing={4}>
                 <FormControl id="email" isRequired>
-                  <FormLabel color={useColorModeValue('gray.700', 'gray.300')}>Email</FormLabel>
+                  <FormLabel color="gray.700">Email</FormLabel>
                   <Input 
                     type="email" 
                     placeholder="your@email.com"
-                    bg={useColorModeValue('white', 'gray.700')}
-                    borderColor={useColorModeValue('gray.300', 'gray.600')}
+                    bg="white"
+                    borderColor="gray.300"
                   />
                 </FormControl>
                 
                 <FormControl id="password" isRequired>
-                  <FormLabel color={useColorModeValue('gray.700', 'gray.300')}>Password</FormLabel>
+                  <FormLabel color="gray.700">Password</FormLabel>
                   <Input 
                     type="password" 
                     placeholder="********"
-                    bg={useColorModeValue('white', 'gray.700')}
-                    borderColor={useColorModeValue('gray.300', 'gray.600')}
+                    bg="white"
+                    borderColor="gray.300"
                   />
                 </FormControl>
                 
@@ -153,7 +152,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         </ModalBody>
         
         <ModalFooter justifyContent="center">
-          <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+          <Text fontSize="sm" color="gray.600">
             Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign up</Button>
           </Text>
         </ModalFooter>

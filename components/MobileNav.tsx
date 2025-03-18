@@ -6,7 +6,6 @@ import {
   VStack,
   Collapse,
   useDisclosure,
-  useColorModeValue,
   Divider,
   Button,
   Link as ChakraLink,
@@ -15,7 +14,6 @@ import {
 } from '@chakra-ui/react';
 import { FiMenu, FiX, FiChevronDown, FiUser, FiLogOut } from 'react-icons/fi';
 import Link from 'next/link';
-import ColorModeToggle from './ColorModeToggle';
 
 interface MobileNavProps {
   activePage?: string;
@@ -32,8 +30,8 @@ const MobileNav: React.FC<MobileNavProps> = ({
   const activePageLower = activePage.toLowerCase();
   
   // Background colors
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const bgColor = 'white';
+  const borderColor = 'gray.200';
   
   // Check if user is logged in from localStorage (client-side only)
   const [isLoggedIn, setIsLoggedIn] = React.useState(propIsLoggedIn);
@@ -97,7 +95,6 @@ const MobileNav: React.FC<MobileNavProps> = ({
         </Box>
         
         <HStack spacing={2}>
-          <ColorModeToggle size="sm" />
           <IconButton
             aria-label="Toggle Navigation"
             icon={navIsOpen ? <FiX /> : <FiMenu />}
@@ -126,7 +123,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
               width: '6px',
             },
             '&::-webkit-scrollbar-thumb': {
-              background: useColorModeValue('gray.300', 'gray.600'),
+              background: 'gray.300',
               borderRadius: '24px',
             },
           }}
@@ -193,7 +190,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
             </>
           )}
           
-          <Divider my={2} borderColor={useColorModeValue('gray.200', 'gray.700')} />
+          <Divider my={2} borderColor="gray.200" />
           
           {isLoggedIn ? (
             <>
@@ -210,7 +207,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
                 onClick={handleLogout}
                 width="100%"
                 textAlign="left"
-                _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                _hover={{ bg: "gray.100" }}
                 borderRadius="md"
                 transition="all 0.2s"
               >
@@ -228,7 +225,7 @@ const MobileNav: React.FC<MobileNavProps> = ({
               onClick={() => onLoginClick()}
               width="100%"
               textAlign="left"
-              _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+              _hover={{ bg: "gray.100" }}
               borderRadius="md"
               transition="all 0.2s"
               fontWeight="medium"
@@ -258,10 +255,10 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
   isActive = false,
   onClick
 }) => {
-  const activeBg = useColorModeValue('blue.50', 'blue.900');
-  const hoverBg = useColorModeValue('gray.100', 'gray.700');
-  const activeColor = useColorModeValue('blue.600', 'blue.200');
-  const color = useColorModeValue('gray.800', 'gray.200');
+  const activeBg = 'blue.50';
+  const hoverBg = 'gray.100';
+  const activeColor = 'blue.600';
+  const color = 'gray.800';
   
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (onClick) {
@@ -314,8 +311,8 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
         fontWeight="500"
         onClick={onToggle}
         rightIcon={<FiChevronDown />}
-        _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
-        _active={{ bg: useColorModeValue('gray.200', 'gray.800') }}
+        _hover={{ bg: "gray.100" }}
+        _active={{ bg: "gray.200" }}
         sx={{
           // Increase touch target size
           minHeight: '44px',
@@ -341,8 +338,8 @@ const MobileNavDropdown: React.FC<MobileNavDropdownProps> = ({ label, items }) =
                 px={4}
                 width="100%"
                 borderRadius="md"
-                _hover={{ textDecoration: 'none', bg: useColorModeValue('gray.100', 'gray.700') }}
-                _active={{ bg: useColorModeValue('gray.200', 'gray.800') }}
+                _hover={{ textDecoration: 'none', bg: "gray.100" }}
+                _active={{ bg: "gray.200" }}
               >
                 {item.label}
               </ChakraLink>
