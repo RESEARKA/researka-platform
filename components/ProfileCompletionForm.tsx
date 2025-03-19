@@ -272,10 +272,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
       }
     } else if (step === 2) {
       // Academic & Professional Details validation
-      if (!formData.orcidId) {
-        newErrors.orcidId = 'ORCID ID is required';
-        isValid = false;
-      } else if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formData.orcidId)) {
+      if (formData.orcidId && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formData.orcidId)) {
         newErrors.orcidId = 'Please enter a valid ORCID ID (format: 0000-0000-0000-0000)';
         isValid = false;
       }
@@ -577,7 +574,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   <FormControl isInvalid={!!errors.orcidId}>
                     <FormLabel>
                       <Flex align="center">
-                        ORCID ID
+                        ORCID ID (Optional)
                         <Tooltip label="ORCID provides a persistent digital identifier that distinguishes you from other researchers">
                           <Icon as={FiInfo} ml={1} color="gray.500" />
                         </Tooltip>
