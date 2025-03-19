@@ -30,7 +30,7 @@ import ArticleSkeleton from '../components/ArticleSkeleton';
 import PageTransition from '../components/PageTransition';
 import SimplePagination from '../components/SimplePagination';
 
-export default function ArticlesPage() {
+export default function FixedArticlesPage() {
   // State
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -66,8 +66,8 @@ export default function ArticlesPage() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(article => 
-        article.title?.toLowerCase().includes(query) || 
-        (article.description?.toLowerCase().includes(query) || article.abstract?.toLowerCase().includes(query)) ||
+        article.title.toLowerCase().includes(query) || 
+        (article.description?.toLowerCase().includes(query) || article.abstract.toLowerCase().includes(query)) ||
         article.categories.some(cat => cat.toLowerCase().includes(query))
       );
     }

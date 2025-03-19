@@ -1,0 +1,572 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Head from 'next/head';
+import Image from 'next/image';
+import {
+  Box,
+  Button,
+  Container,
+  Flex,
+  Grid,
+  GridItem,
+  Heading,
+  HStack,
+  Icon,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  Select,
+  Spinner,
+  Stack,
+  Text,
+  useToast,
+  VStack,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  LinkBox,
+  Badge,
+  Tag,
+  useColorModeValue,
+} from '@chakra-ui/react';
+import {
+  FiSearch, FiCalendar, FiEye, FiRefreshCw, FiChevronLeft, FiChevronRight, FiShuffle
+} from 'react-icons/fi';
+import Layout from '../components/Layout';
+import SimplePagination from '../components/SimplePagination';
+import { ALL_ARTICLES, Article } from '../data/articles';
+import ArticleSkeleton from '../components/ArticleSkeleton';
+import PageTransition from '../components/PageTransition';
+import { getAllMockArticles, getRandomArticles, paginateArticles, getTotalPages } from '../utils/articleUtils';
+
+// Number of articles per page - set to 5 for simpler pagination
+const ARTICLES_PER_PAGE = 5;
+
+// Before our component, define a type safety helper function
+function safeStringIncludes(text: any, searchTerm: string): boolean {
+  if (typeof text !== 'string') return false;
+  return text.toLowerCase().includes(searchTerm.toLowerCase());
+}
+
+// Articles page
+export default function ArticlesPage() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+  const [showRandom, setShowRandom] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [combinedArticles, setCombinedArticles] = useState<Article[]>([]);
+  const toast = useToast();
+  
+  // Hard limit to ensure we never show more than 10 articles per page
+  const STRICT_LIMIT = 10;
+  
+  // Image URLs for different article categories
+  const imageUrls: Record<string, string> = {
+    BIOLOGY: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    PHYSICS: 'https://images.unsplash.com/photo-1516321165247-4aa89a48be28?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    'COMPUTER SCIENCE': 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    MATHEMATICS: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80',
+    DEFAULT: 'https://images.unsplash.com/photo-1554475901-4538ddfbccc2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&h=200&q=80'
+  };
+  
+  // Combine all articles from both sources
+  const combinedArticlesMemo = useMemo(() => [...ALL_ARTICLES, ...getAllMockArticles()], []);
+  
+  // Get unique categories from all articles
+  const allCategories = useMemo(() => Array.from(
+    new Set(combinedArticlesMemo.flatMap(article => 
+      Array.isArray(article.categories) ? article.categories : [])
+    )
+  ).sort(), [combinedArticlesMemo]);
+  
+  // Load articles on mount - ensure this only runs once
+  useEffect(() => {
+    console.log('MOUNT EFFECT: Loading initial articles');
+    const timer = setTimeout(() => {
+      // Get random articles with a stable length
+      const randomArticles = getRandomArticles(combinedArticlesMemo, combinedArticlesMemo.length);
+      console.log('Setting initial articles, count:', randomArticles.length);
+      setCombinedArticles(randomArticles);
+      setIsLoading(false);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []); // Empty dependency array to ensure it only runs once
+  
+  // Handle showing random articles
+  const handleShowRandomArticles = useCallback(() => {
+    console.log('============= SHOW RANDOM ARTICLES =============');
+    setIsLoading(true);
+    
+    // First update the showRandom flag
+    setShowRandom(true);
+    
+    // Then reset pagination
+    setCurrentPage(1);
+    
+    // Simulate loading
+    setTimeout(() => {
+      setIsLoading(false);
+      console.log('============= END SHOW RANDOM ARTICLES =============');
+    }, 500);
+  }, []);
+
+  // 1. Filter and sort articles - single source of truth with stable memoization
+  // This should NOT include pagination - pagination happens in displayedArticles
+  const filteredSortedArticles = useMemo(() => {
+    console.log('============= FILTERING AND SORTING =============');
+    console.log('Filtering with:', { searchQuery, categoryFilter });
+    console.log('Sorting by:', sortBy);
+    console.log('Show random:', showRandom);
+    console.log('Total available articles:', combinedArticlesMemo.length);
+    
+    // Create a defensive copy to avoid mutating the original
+    const initialArticles = [...combinedArticlesMemo];
+    
+    // Apply filtering (search and category)
+    let result = initialArticles.filter(article => {
+      // Search query filter - case insensitive
+      let matchesSearch = true;
+      
+      if (searchQuery) {
+        // Default to false when a search query exists
+        matchesSearch = false;
+        
+        // Check title
+        if (article.title && safeStringIncludes(article.title, searchQuery)) {
+          matchesSearch = true;
+        }
+        
+        // Check abstract
+        if (!matchesSearch && article.abstract && safeStringIncludes(article.abstract, searchQuery)) {
+          matchesSearch = true;
+        }
+        
+        // Check authors
+        if (!matchesSearch && article.authors) {
+          if (typeof article.authors === 'string') {
+            if (safeStringIncludes(article.authors, searchQuery)) {
+              matchesSearch = true;
+            }
+          } else if (Array.isArray(article.authors)) {
+            for (const author of article.authors) {
+              if (author && typeof author === 'string' && safeStringIncludes(author, searchQuery)) {
+                matchesSearch = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Category filter
+      let matchesCategory = true;
+      if (categoryFilter && categoryFilter !== '') {
+        matchesCategory = article.categories && article.categories.includes(categoryFilter);
+      }
+      
+      return matchesSearch && matchesCategory;
+    });
+    
+    // Sort the filtered articles
+    if (!showRandom) {
+      if (sortBy === 'date') {
+        result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      } else if (sortBy === 'views') {
+        result.sort((a, b) => (b.views || 0) - (a.views || 0));
+      } else if (sortBy === 'title') {
+        result.sort((a, b) => a.title.localeCompare(b.title));
+      }
+    } else {
+      // If showRandom is true, shuffle the array using Fisher-Yates algorithm
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+    }
+    
+    // Check for duplicates
+    const ids = result.map(a => a.id);
+    const uniqueIds = Array.from(new Set(ids));
+    if (ids.length !== uniqueIds.length) {
+      console.error('DUPLICATE ARTICLES DETECTED!');
+      console.log('Original IDs count:', ids.length);
+      console.log('Unique IDs count:', uniqueIds.length);
+      
+      // Remove duplicates - using a safe approach
+      const seenIds = new Set<number>();
+      result = result.filter(article => {
+        if (seenIds.has(article.id)) {
+          return false;
+        }
+        seenIds.add(article.id);
+        return true;
+      });
+      
+      console.log('After removing duplicates:', result.length, 'articles');
+    }
+    
+    console.log('After filtering and sorting:', result.length, 'articles');
+    if (result.length > 0) {
+      console.log('First article:', result[0].id);
+      console.log('Last article:', result[result.length - 1].id);
+    }
+    
+    console.log('============= END FILTERING AND SORTING =============');
+    return result;
+  }, [searchQuery, categoryFilter, sortBy, showRandom, combinedArticlesMemo]);
+
+  // Reset current page when filtered articles change
+  useEffect(() => {
+    console.log('============= FILTERED ARTICLES CHANGED =============');
+    console.log('filteredSortedArticles.length:', filteredSortedArticles.length);
+    console.log('Current page before reset:', currentPage);
+    
+    // Always reset to page 1 when filtered articles change
+    if (currentPage !== 1) {
+      console.log('Resetting to page 1');
+      setCurrentPage(1);
+    } else {
+      console.log('Already on page 1, no reset needed');
+    }
+    
+    console.log('============= END FILTERED ARTICLES CHANGED =============');
+  }, [filteredSortedArticles.length, currentPage]); // Add currentPage to dependencies
+
+  // COMPLETELY SIMPLIFIED PAGINATION APPROACH
+  // Calculate total pages based on the total number of articles
+  const totalPages = useMemo(() => {
+    console.log('Recalculating total pages');
+    console.log('filteredSortedArticles.length:', filteredSortedArticles.length);
+    console.log('ARTICLES_PER_PAGE:', ARTICLES_PER_PAGE);
+    
+    if (!filteredSortedArticles.length) {
+      return 1;
+    }
+    
+    return Math.ceil(filteredSortedArticles.length / ARTICLES_PER_PAGE);
+  }, [filteredSortedArticles.length, ARTICLES_PER_PAGE]);
+
+  // Calculate displayed articles based on current page
+  const displayedArticles = useMemo(() => {
+    console.log('Calculating displayed articles');
+    console.log(`Current page: ${currentPage}, Total pages: ${totalPages}`);
+    
+    // Safety check for empty articles
+    if (filteredSortedArticles.length === 0) {
+      console.log('No articles to display');
+      return [];
+    }
+    
+    // Calculate start and end indices
+    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
+    const endIndex = startIndex + ARTICLES_PER_PAGE;
+    
+    console.log(`Start index: ${startIndex}, End index: ${endIndex}`);
+    
+    // Slice the array to get the current page's articles
+    const paginatedArticles = filteredSortedArticles.slice(startIndex, endIndex);
+    
+    console.log(`Displaying ${paginatedArticles.length} articles`);
+    
+    return paginatedArticles;
+  }, [filteredSortedArticles, currentPage, ARTICLES_PER_PAGE, totalPages]);
+
+  // Handle page change
+  const handlePageChange = useCallback((newPage: number) => {
+    console.log(`Changing to page ${newPage} (total pages: ${totalPages})`);
+    
+    // Validate page number
+    if (newPage < 1) {
+      console.log('Invalid page: less than 1');
+      return;
+    }
+    
+    if (newPage > totalPages) {
+      console.log('Invalid page: greater than total pages');
+      return;
+    }
+    
+    // Update state
+    setCurrentPage(newPage);
+    
+    // Scroll to top for better UX
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    console.log(`Page changed to ${newPage}`);
+  }, [totalPages]);
+
+  // Ensure current page is valid (between 1 and totalPages)
+  useEffect(() => {
+    // If there are no articles, reset to page 1
+    if (filteredSortedArticles.length === 0) {
+      if (currentPage !== 1) {
+        console.log('No articles, resetting to page 1');
+        setCurrentPage(1);
+      }
+      return;
+    }
+    
+    // If current page is greater than total pages, reset to page 1
+    if (currentPage > totalPages) {
+      console.log(`Current page (${currentPage}) is greater than total pages (${totalPages}), resetting to page 1`);
+      setCurrentPage(1);
+    }
+  }, [filteredSortedArticles.length, totalPages, currentPage]);
+
+  // Add a separate effect to log the current page whenever it changes
+  useEffect(() => {
+    console.log(`Current page changed to: ${currentPage}`);
+  }, [currentPage]);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('============= PAGINATION STATE CHANGED =============');
+    console.log('currentPage =', currentPage);
+    console.log('articlesPerPage =', ARTICLES_PER_PAGE);
+    console.log('totalArticles =', filteredSortedArticles.length);
+    console.log('displayedCount =', displayedArticles.length);
+    console.log('totalPages =', totalPages);
+    console.log('============= END PAGINATION STATE CHANGED =============');
+  }, [currentPage, filteredSortedArticles.length, displayedArticles.length, totalPages]);
+
+  // Color mode values
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const cardBorder = useColorModeValue('gray.200', 'gray.700');
+  const headingColor = useColorModeValue('blue.600', 'blue.300');
+  const textColor = useColorModeValue('gray.700', 'gray.300');
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+  const randomBadgeBg = useColorModeValue('purple.100', 'purple.800');
+  const randomBadgeColor = useColorModeValue('purple.800', 'purple.100');
+  const paginationActiveBg = useColorModeValue('blue.500', 'blue.300');
+  const paginationActiveColor = useColorModeValue('white', 'gray.800');
+  const paginationHoverBg = useColorModeValue('blue.100', 'blue.700');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  
+  return (
+    <Layout title="Articles | Researka" description="Browse academic articles on Researka" activePage="articles">
+      <PageTransition>
+        <Container maxW="container.xl" py={8}>
+          <Heading as="h1" size="xl" mb={6} color={headingColor}>
+            Research Articles
+          </Heading>
+          
+          <Grid templateColumns={{ base: "1fr", md: "250px 1fr" }} gap={8}>
+            {/* Filters sidebar */}
+            <GridItem>
+              <VStack spacing={6} align="stretch" position="sticky" top="100px">
+                <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBg} borderColor={cardBorder}>
+                  <Heading as="h3" size="md" mb={4} color={headingColor}>
+                    Search
+                  </Heading>
+                  <InputGroup>
+                    <InputLeftElement pointerEvents="none">
+                      <FiSearch color="gray.300" />
+                    </InputLeftElement>
+                    <Input 
+                      placeholder="Search articles..." 
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1); // Reset to first page on search
+                      }}
+                      bg={inputBg}
+                      borderColor={useColorModeValue('gray.300', 'gray.600')}
+                    />
+                  </InputGroup>
+                </Box>
+                
+                <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBg} borderColor={cardBorder}>
+                  <Heading as="h3" size="md" mb={4} color={headingColor}>
+                    Filter by Category
+                  </Heading>
+                  <Select 
+                    placeholder="All Categories" 
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value);
+                      setCurrentPage(1); // Reset to first page on filter change
+                    }}
+                    bg={inputBg}
+                    borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  >
+                    {allCategories.map(category => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </Select>
+                </Box>
+                
+                <Flex gap={4} alignItems="center" minWidth={{ base: '100%', md: 'auto' }}>
+                  {/* Sort Dropdown */}
+                  <Select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as 'date' | 'views' | 'title')}
+                    size="md"
+                    maxWidth="150px"
+                    bg={inputBg}
+                  >
+                    <option value="date">Newest First</option>
+                    <option value="views">Most Views</option>
+                    <option value="title">Alphabetical</option>
+                  </Select>
+                  
+                  {/* Random Articles Button */}
+                  <Button
+                    leftIcon={<FiShuffle />}
+                    colorScheme={showRandom ? 'purple' : 'gray'}
+                    variant={showRandom ? 'solid' : 'outline'}
+                    onClick={handleShowRandomArticles}
+                    isLoading={isLoading}
+                    size="md"
+                  >
+                    {showRandom ? "Random" : "Random"}
+                  </Button>
+                </Flex>
+              </VStack>
+            </GridItem>
+            
+            {/* Articles list */}
+            <GridItem>
+              <Flex justify="space-between" align="center" mb={4}>
+                <Text color={textColor} fontWeight="medium">
+                  {filteredSortedArticles.length} articles found
+                </Text>
+                {showRandom && (
+                  <Badge px={2} py={1} borderRadius="md" bg={randomBadgeBg} color={randomBadgeColor}>
+                    Showing Random Selection
+                  </Badge>
+                )}
+              </Flex>
+              
+              <VStack spacing={6} align="stretch" width="100%">
+                {/* Debug info */}
+                <Box 
+                  mb={4} 
+                  p={2} 
+                  borderRadius="md" 
+                  bg="blue.50" 
+                  color="blue.800"
+                >
+                  <Text fontFamily="monospace" fontSize="sm">
+                    <strong>Current Page: {currentPage}</strong> | Total Pages: {totalPages} | 
+                    Showing {displayedArticles.length} of {filteredSortedArticles.length} articles |
+                    Articles per page: {ARTICLES_PER_PAGE}
+                  </Text>
+                </Box>
+                
+                {isLoading ? (
+                  // Loading state
+                  [...Array(ARTICLES_PER_PAGE)].map((_, i) => (
+                    <ArticleSkeleton key={i} />
+                  ))
+                ) : displayedArticles.length > 0 ? (
+                  // Articles from the current page only - force update with key based on page
+                  <React.Fragment key={`articles-page-${currentPage}`}>
+                    {displayedArticles.map((article: Article, idx: number) => (
+                      <Box 
+                        key={`article-${article.id}-page-${currentPage}`}
+                        as="article"
+                        borderWidth="1px"
+                        borderRadius="lg"
+                        overflow="hidden"
+                        bg={cardBg}
+                        borderColor={cardBorder}
+                        transition="all 0.2s"
+                        _hover={{ transform: 'translateY(-4px)', shadow: 'md' }}
+                      >
+                        <Grid templateColumns={{ base: "1fr", md: "2fr 1fr" }} gap={4}>
+                          <GridItem>
+                            <Heading as="h2" size="md" mb={2} color={headingColor}>
+                              {article.title}
+                            </Heading>
+                            
+                            <Text fontSize="sm" color={mutedTextColor} mb={3}>
+                              {article.authors ? article.authors.join(', ') : 'Unknown Author'}
+                            </Text>
+                            
+                            <Text noOfLines={3} mb={4} color={textColor}>
+                              {article.abstract}
+                            </Text>
+                            
+                            <Flex flexWrap="wrap" gap={2}>
+                              {Array.isArray(article.categories) && article.categories.map((category: string) => (
+                                <Tag key={category} size="sm" colorScheme="blue" variant="subtle">
+                                  {category}
+                                </Tag>
+                              ))}
+                            </Flex>
+                            
+                            <Flex mt={4} gap={4} color={mutedTextColor} fontSize="sm">
+                              <Flex align="center">
+                                <FiCalendar style={{ marginRight: '5px' }} />
+                                {article.date}
+                              </Flex>
+                              <Flex align="center">
+                                <FiEye style={{ marginRight: '5px' }} />
+                                {article.views || 0} views
+                              </Flex>
+                            </Flex>
+                          </GridItem>
+                          
+                          <GridItem display={{ base: 'none', md: 'block' }}>
+                            <Box position="relative" width="100%" height="100px">
+                              <img
+                                src={article.imageUrl || imageUrls[article.categories?.[0]] || imageUrls.DEFAULT}
+                                alt={article.title}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  borderRadius: '4px'
+                                }}
+                              />
+                            </Box>
+                          </GridItem>
+                        </Grid>
+                      </Box>
+                    ))}
+                  </React.Fragment>
+                ) : (
+                  <Box p={5} textAlign="center" borderWidth="1px" borderRadius="lg" bg={cardBg}>
+                    <Text>No articles found matching your criteria. Try adjusting your filters.</Text>
+                  </Box>
+                )}
+              </VStack>
+              
+              {/* Pagination Controls */}
+              {filteredSortedArticles.length > 0 && (
+                <Box mt={8} display="flex" flexDirection="column" alignItems="center">
+                  {/* Pagination Debug Info */}
+                  <Box 
+                    className="pagination-debug" 
+                    mb={4} 
+                    p={2} 
+                    borderRadius="md" 
+                    bg="gray.50" 
+                    color="gray.700"
+                  >
+                    <Text fontSize="sm" fontWeight="medium">
+                      Page {currentPage} of {totalPages} | 
+                      Showing {displayedArticles.length} of {filteredSortedArticles.length} articles
+                    </Text>
+                  </Box>
+                  
+                  {/* Simple Pagination Component */}
+                  <SimplePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </Box>
+              )}
+            </GridItem>
+          </Grid>
+        </Container>
+      </PageTransition>
+    </Layout>
+  );
+};

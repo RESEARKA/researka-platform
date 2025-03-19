@@ -8,6 +8,8 @@ export interface Article {
   views: number;
   categories: string[];
   imageUrl?: string;
+  description?: string;
+  image?: string;
 }
 
 // Biology articles

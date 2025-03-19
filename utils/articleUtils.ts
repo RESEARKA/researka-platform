@@ -52,14 +52,57 @@ export function getAllMockArticles(): Article[] {
   return convertMockArticlesToArticleFormat(EXPANDED_MOCK_ARTICLES);
 }
 
-// Paginate articles
+// Paginate articles with improved error checking and defensive copying
 export function paginateArticles(articles: Article[], page: number, perPage: number): Article[] {
+  // Defensive copy to avoid modifying the original array
+  const articlesCopy = [...articles];
+  
+  // Validate inputs
+  if (!Array.isArray(articlesCopy)) {
+    console.error('paginateArticles: articles is not an array');
+    return [];
+  }
+  
+  if (typeof page !== 'number' || page < 1) {
+    console.error(`paginateArticles: invalid page number ${page}`);
+    return articlesCopy.slice(0, perPage); // Return first page as fallback
+  }
+  
+  if (typeof perPage !== 'number' || perPage < 1) {
+    console.error(`paginateArticles: invalid perPage ${perPage}`);
+    return articlesCopy.slice(0, 10); // Use default of 10 as fallback
+  }
+  
   const start = (page - 1) * perPage;
   const end = start + perPage;
-  return articles.slice(start, end);
+  
+  // Validate start index
+  if (start >= articlesCopy.length) {
+    console.error(`paginateArticles: start index ${start} is out of bounds for array of length ${articlesCopy.length}`);
+    // Return last page as fallback
+    const lastPageStart = Math.max(0, Math.floor((articlesCopy.length - 1) / perPage) * perPage);
+    return articlesCopy.slice(lastPageStart, lastPageStart + perPage);
+  }
+  
+  console.log(`Paginating: start=${start}, end=${end}, total=${articlesCopy.length}, perPage=${perPage}`);
+  const result = articlesCopy.slice(start, end);
+  console.log(`Paginated result length: ${result.length}`);
+  
+  return result;
 }
 
-// Get total number of pages
+// Get total number of pages with improved error checking
 export function getTotalPages(totalItems: number, perPage: number): number {
-  return Math.ceil(totalItems / perPage);
+  // Validate inputs
+  if (typeof totalItems !== 'number' || totalItems < 0) {
+    console.error(`getTotalPages: invalid totalItems ${totalItems}`);
+    return 1; // Return at least 1 page as fallback
+  }
+  
+  if (typeof perPage !== 'number' || perPage < 1) {
+    console.error(`getTotalPages: invalid perPage ${perPage}`);
+    return Math.ceil(totalItems / 10); // Use default of 10 as fallback
+  }
+  
+  return Math.max(1, Math.ceil(totalItems / perPage)); // Ensure at least 1 page
 }

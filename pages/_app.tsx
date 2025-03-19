@@ -9,6 +9,7 @@ import Head from 'next/head';
 import ErrorBoundary from '../components/ErrorBoundary';
 import * as Sentry from '@sentry/nextjs';
 import AnimatedPage from '../components/AnimatedPage';
+import '../styles/pagination.css'; // Import pagination styles
 
 // Create a client
 const queryClient = new QueryClient({
