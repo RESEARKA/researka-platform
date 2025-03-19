@@ -108,7 +108,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
           <VStack spacing={4} align="stretch">
             <Button 
               leftIcon={<FaEthereum />} 
-              colorScheme="blue" 
+              colorScheme="green" 
               onClick={handleWalletLogin}
               width="full"
             >
