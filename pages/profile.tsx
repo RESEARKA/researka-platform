@@ -271,6 +271,14 @@ const ProfilePage: React.FC = () => {
         try {
           const userProfile = JSON.parse(userProfileStr);
           setUser(userProfile);
+          
+          // If user profile exists and has required fields, consider profile complete
+          if (userProfile && userProfile.name && userProfile.institution) {
+            if (profileComplete !== 'true') {
+              localStorage.setItem('profileComplete', 'true');
+              setIsProfileComplete(true);
+            }
+          }
         } catch (e) {
           console.error('Error parsing user profile:', e);
           setError('Could not load user profile');

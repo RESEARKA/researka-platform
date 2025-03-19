@@ -54,6 +54,10 @@ const LoginPage: React.FC = () => {
     setTimeout(() => {
       // In a real app, you would call your authentication API here
       // For now, we'll just show a success message and redirect
+      
+      // Check if the user's profile is already complete
+      const profileComplete = localStorage.getItem('profileComplete');
+      
       toast({
         title: 'Login Successful',
         description: 'Welcome to Researka!',
@@ -63,7 +67,18 @@ const LoginPage: React.FC = () => {
       });
       
       setIsLoading(false);
-      router.push(redirectPath);
+      
+      // If the redirect path is the default '/' and the profile is complete, 
+      // redirect to the profile page instead
+      if (redirectPath === '/' && profileComplete === 'true') {
+        router.push('/profile');
+      } else if (redirectPath === '/' && profileComplete !== 'true') {
+        // If profile is not complete, redirect to profile completion
+        router.push('/profile');
+      } else {
+        // Otherwise, follow the requested redirect path
+        router.push(redirectPath);
+      }
     }, 1500);
   };
   
