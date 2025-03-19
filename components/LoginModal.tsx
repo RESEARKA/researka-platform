@@ -49,15 +49,28 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       // Set login state in localStorage
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('loginMethod', 'wallet');
-      localStorage.setItem('profileComplete', 'false'); // Mark profile as incomplete
-      localStorage.setItem('userProfile', JSON.stringify({
-        name: 'Wallet User',
-        role: 'Researcher',
-        institution: 'Decentralized University',
-        articles: 3,
-        reviews: 12,
-        reputation: 89
-      }));
+      
+      // If redirecting to submit or review, mark profile as complete to prevent redirect loop
+      if (redirectPath === '/submit' || redirectPath === '/review') {
+        localStorage.setItem('profileComplete', 'true');
+      } else {
+        // Check if a profile already exists
+        const existingProfile = localStorage.getItem('userProfile');
+        if (!existingProfile) {
+          // Only set profile as incomplete if no profile exists
+          localStorage.setItem('profileComplete', 'false');
+          
+          // Set default profile data only if no profile exists
+          localStorage.setItem('userProfile', JSON.stringify({
+            name: 'Wallet User',
+            role: 'Researcher',
+            institution: 'Decentralized University',
+            articles: 3,
+            reviews: 12,
+            reputation: 89
+          }));
+        }
+      }
       
       onClose();
       
@@ -82,15 +95,28 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       // Set login state in localStorage
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('loginMethod', 'email');
-      localStorage.setItem('profileComplete', 'false'); // Mark profile as incomplete
-      localStorage.setItem('userProfile', JSON.stringify({
-        name: 'Email User',
-        role: 'Researcher',
-        institution: 'Science Academy',
-        articles: 5,
-        reviews: 8,
-        reputation: 76
-      }));
+      
+      // If redirecting to submit or review, mark profile as complete to prevent redirect loop
+      if (redirectPath === '/submit' || redirectPath === '/review') {
+        localStorage.setItem('profileComplete', 'true');
+      } else {
+        // Check if a profile already exists
+        const existingProfile = localStorage.getItem('userProfile');
+        if (!existingProfile) {
+          // Only set profile as incomplete if no profile exists
+          localStorage.setItem('profileComplete', 'false');
+          
+          // Set default profile data only if no profile exists
+          localStorage.setItem('userProfile', JSON.stringify({
+            name: 'Email User',
+            role: 'Researcher',
+            institution: 'Science Academy',
+            articles: 5,
+            reviews: 8,
+            reputation: 76
+          }));
+        }
+      }
       
       onClose();
       
