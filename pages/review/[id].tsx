@@ -258,6 +258,29 @@ const ReviewArticlePage: React.FC = () => {
     'DEFAULT': 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400&q=80'
   };
 
+  // Check if user is logged in and profile is complete
+  React.useEffect(() => {
+    // Client-side only
+    if (typeof window !== 'undefined') {
+      const isLoggedIn = localStorage.getItem('isLoggedIn');
+      
+      if (isLoggedIn !== 'true') {
+        // Redirect to homepage if not logged in
+        router.push('/');
+        return;
+      }
+      
+      // Check if profile is complete
+      const profileComplete = localStorage.getItem('profileComplete');
+      
+      if (profileComplete !== 'true') {
+        // Redirect to profile page to complete profile
+        router.push('/profile');
+        return;
+      }
+    }
+  }, [router]);
+
   useEffect(() => {
     if (id) {
       setLoading(true);

@@ -87,7 +87,7 @@ const ReviewPage: React.FC = () => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   
-  // Check if user is logged in
+  // Check if user is logged in and profile is complete
   React.useEffect(() => {
     // Client-side only
     if (typeof window !== 'undefined') {
@@ -96,6 +96,15 @@ const ReviewPage: React.FC = () => {
       if (isLoggedIn !== 'true') {
         // Redirect to homepage if not logged in
         window.location.href = '/';
+        return;
+      }
+      
+      // Check if profile is complete
+      const profileComplete = localStorage.getItem('profileComplete');
+      
+      if (profileComplete !== 'true') {
+        // Redirect to profile page to complete profile
+        window.location.href = '/profile';
         return;
       }
     }

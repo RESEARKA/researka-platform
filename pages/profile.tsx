@@ -47,6 +47,7 @@ import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import ArticlesPanel from '../components/profile/ArticlesPanel';
 import ReviewsPanel from '../components/profile/ReviewsPanel';
 import SavedItemsPanel from '../components/profile/SavedItemsPanel';
+import ProfileCompletionForm from '../components/ProfileCompletionForm';
 
 // Dynamically import components that aren't needed for initial render
 const MobileNav = dynamic(() => import('../components/MobileNav'), {
@@ -213,6 +214,7 @@ const ProfilePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
   const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -230,6 +232,10 @@ const ProfilePage: React.FC = () => {
         return;
       }
       
+      // Check if profile is complete
+      const profileComplete = localStorage.getItem('profileComplete');
+      setIsProfileComplete(profileComplete === 'true');
+      
       // Get user profile from localStorage
       const userProfileStr = localStorage.getItem('userProfile');
       if (userProfileStr) {
@@ -243,6 +249,12 @@ const ProfilePage: React.FC = () => {
       }
     }
   }, []);
+  
+  // Handle profile completion
+  const handleProfileComplete = (profileData: any) => {
+    setUser(profileData);
+    setIsProfileComplete(true);
+  };
   
   // State for pagination
   const [articlesPage, setArticlesPage] = useState(1);
@@ -326,6 +338,17 @@ const ProfilePage: React.FC = () => {
               onRetry={handleRetry} 
             />
           </Container>
+        </Box>
+      </Layout>
+    );
+  }
+  
+  // If profile is not complete, show the profile completion form
+  if (!isProfileComplete) {
+    return (
+      <Layout title="Complete Profile | RESEARKA" description="Complete your Researka profile" activePage="profile">
+        <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
+          <ProfileCompletionForm onComplete={handleProfileComplete} />
         </Box>
       </Layout>
     );

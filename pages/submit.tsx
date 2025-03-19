@@ -50,20 +50,20 @@ const SubmitPage: React.FC = () => {
     count: steps.length,
   });
   
-  const [formData, setFormData] = useState({
-    title: '',
-    abstract: '',
-    category: '',
-    keywords: '',
-    content: '',
-    file: null,
-  });
-  
   const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   
-  // Check if user is logged in
+  // Form state
+  const [title, setTitle] = useState('');
+  const [abstract, setAbstract] = useState('');
+  const [category, setCategory] = useState('');
+  const [keywords, setKeywords] = useState('');
+  const [content, setContent] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Check if user is logged in and profile is complete
   React.useEffect(() => {
     // Client-side only
     if (typeof window !== 'undefined') {
@@ -74,12 +74,39 @@ const SubmitPage: React.FC = () => {
         window.location.href = '/';
         return;
       }
+      
+      // Check if profile is complete
+      const profileComplete = localStorage.getItem('profileComplete');
+      
+      if (profileComplete !== 'true') {
+        // Redirect to profile page to complete profile
+        window.location.href = '/profile';
+        return;
+      }
     }
   }, []);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    switch (name) {
+      case 'title':
+        setTitle(value);
+        break;
+      case 'abstract':
+        setAbstract(value);
+        break;
+      case 'category':
+        setCategory(value);
+        break;
+      case 'keywords':
+        setKeywords(value);
+        break;
+      case 'content':
+        setContent(value);
+        break;
+      default:
+        break;
+    }
   };
   
   const handleNext = () => {
@@ -101,14 +128,12 @@ const SubmitPage: React.FC = () => {
     });
     
     // Reset form and go back to first step
-    setFormData({
-      title: '',
-      abstract: '',
-      category: '',
-      keywords: '',
-      content: '',
-      file: null,
-    });
+    setTitle('');
+    setAbstract('');
+    setCategory('');
+    setKeywords('');
+    setContent('');
+    setFile(null);
     setActiveStep(0);
   };
   
@@ -163,7 +188,7 @@ const SubmitPage: React.FC = () => {
                     <Input 
                       id="article-title"
                       name="title" 
-                      value={formData.title} 
+                      value={title} 
                       onChange={handleInputChange} 
                       placeholder="Enter the title of your article"
                     />
@@ -174,7 +199,7 @@ const SubmitPage: React.FC = () => {
                     <Textarea 
                       id="article-abstract"
                       name="abstract" 
-                      value={formData.abstract} 
+                      value={abstract} 
                       onChange={handleInputChange} 
                       placeholder="Provide a brief summary of your article"
                       rows={5}
@@ -187,7 +212,7 @@ const SubmitPage: React.FC = () => {
                     <Select 
                       id="category-select"
                       name="category" 
-                      value={formData.category} 
+                      value={category} 
                       onChange={handleInputChange} 
                       placeholder="Select category"
                       aria-label="Select article category"
@@ -209,7 +234,7 @@ const SubmitPage: React.FC = () => {
                     <Input 
                       id="article-keywords"
                       name="keywords" 
-                      value={formData.keywords} 
+                      value={keywords} 
                       onChange={handleInputChange} 
                       placeholder="Enter keywords separated by commas"
                     />
@@ -251,7 +276,7 @@ const SubmitPage: React.FC = () => {
                     <Textarea 
                       id="article-content"
                       name="content" 
-                      value={formData.content} 
+                      value={content} 
                       onChange={handleInputChange} 
                       placeholder="Write or paste your article content here"
                       rows={12}
@@ -268,28 +293,28 @@ const SubmitPage: React.FC = () => {
                     <VStack align="stretch" spacing={4}>
                       <Flex justify="space-between">
                         <Text fontWeight="bold">Title:</Text>
-                        <Text>{formData.title || 'Not provided'}</Text>
+                        <Text>{title || 'Not provided'}</Text>
                       </Flex>
                       
                       <Flex justify="space-between">
                         <Text fontWeight="bold">Category:</Text>
-                        <Badge colorScheme="green">{formData.category || 'Not selected'}</Badge>
+                        <Badge colorScheme="green">{category || 'Not selected'}</Badge>
                       </Flex>
                       
                       <Divider />
                       
                       <Text fontWeight="bold">Abstract:</Text>
-                      <Text>{formData.abstract || 'Not provided'}</Text>
+                      <Text>{abstract || 'Not provided'}</Text>
                       
                       <Divider />
                       
                       <Text fontWeight="bold">Keywords:</Text>
-                      <Text>{formData.keywords || 'None'}</Text>
+                      <Text>{keywords || 'None'}</Text>
                       
                       <Divider />
                       
                       <Text fontWeight="bold">Content Preview:</Text>
-                      <Text noOfLines={3}>{formData.content || 'No content added'}</Text>
+                      <Text noOfLines={3}>{content || 'No content added'}</Text>
                     </VStack>
                   </Box>
                 </VStack>

@@ -49,6 +49,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       // Set login state in localStorage
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('loginMethod', 'wallet');
+      localStorage.setItem('profileComplete', 'false'); // Mark profile as incomplete
       localStorage.setItem('userProfile', JSON.stringify({
         name: 'Wallet User',
         role: 'Researcher',
@@ -81,6 +82,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       // Set login state in localStorage
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('loginMethod', 'email');
+      localStorage.setItem('profileComplete', 'false'); // Mark profile as incomplete
       localStorage.setItem('userProfile', JSON.stringify({
         name: 'Email User',
         role: 'Researcher',
