@@ -37,6 +37,7 @@ import {
 } from '@chakra-ui/react';
 import { FiCheck, FiInfo, FiPlus, FiUser, FiMail, FiBookOpen, FiHash, FiLink, FiGlobe, FiArrowLeft, FiX, FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
+import ResearchInterestSelector from './ResearchInterestSelector';
 
 // Mock data for institutions and departments
 const MOCK_INSTITUTIONS = [
@@ -155,7 +156,6 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [newInterest, setNewInterest] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Handle input changes
@@ -194,24 +194,6 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     setFormData({
       ...formData,
       [name]: checked,
-    });
-  };
-
-  // Handle research interests
-  const addResearchInterest = () => {
-    if (newInterest.trim() && !formData.researchInterests.includes(newInterest.trim())) {
-      setFormData({
-        ...formData,
-        researchInterests: [...formData.researchInterests, newInterest.trim()],
-      });
-      setNewInterest('');
-    }
-  };
-
-  const removeResearchInterest = (interest: string) => {
-    setFormData({
-      ...formData,
-      researchInterests: formData.researchInterests.filter(i => i !== interest),
     });
   };
 
@@ -615,32 +597,13 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   
                   <FormControl isRequired isInvalid={!!errors.researchInterests}>
                     <FormLabel>Research Interests / Keywords</FormLabel>
-                    <HStack>
-                      <Input 
-                        value={newInterest}
-                        onChange={(e) => setNewInterest(e.target.value)}
-                        placeholder="Add a research interest"
-                      />
-                      <Button 
-                        leftIcon={<FiPlus />} 
-                        onClick={addResearchInterest}
-                        isDisabled={!newInterest.trim()}
-                      >
-                        Add
-                      </Button>
-                    </HStack>
-                    <FormErrorMessage>{errors.researchInterests}</FormErrorMessage>
-                    
-                    <Box mt={2}>
-                      <Flex wrap="wrap" gap={2} mt={2}>
-                        {formData.researchInterests.map((interest) => (
-                          <Tag key={interest} size="md" colorScheme="blue" borderRadius="full">
-                            <TagLabel>{interest}</TagLabel>
-                            <TagCloseButton onClick={() => removeResearchInterest(interest)} />
-                          </Tag>
-                        ))}
-                      </Flex>
-                    </Box>
+                    <ResearchInterestSelector
+                      selectedInterests={formData.researchInterests}
+                      onChange={(interests) => setFormData({ ...formData, researchInterests: interests })}
+                      isRequired={true}
+                      error={errors.researchInterests}
+                      maxInterests={5}
+                    />
                   </FormControl>
                 </VStack>
               </TabPanel>

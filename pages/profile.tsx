@@ -42,6 +42,7 @@ import ResponsiveText from '../components/ResponsiveText';
 import { useArticles, Article, ArticlesResponse } from '../hooks/useArticles';
 import { useReviews, Review, ReviewsResponse } from '../hooks/useReviews';
 import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
+import RecommendedArticles from '../components/RecommendedArticles';
 
 // Import panel components directly instead of using lazy loading
 import ArticlesPanel from '../components/profile/ArticlesPanel';
@@ -76,6 +77,8 @@ interface User {
   articles: number;
   reviews: number;
   reputation: number;
+  walletAddress: string;
+  researchInterests: string[];
 }
 
 interface PaginationProps {
@@ -350,7 +353,9 @@ const ProfilePage: React.FC = () => {
     institution: "University of Science & Technology",
     articles: 5,
     reviews: 12,
-    reputation: 87
+    reputation: 87,
+    walletAddress: "",
+    researchInterests: []
   };
   
   // If there's an error, show error state
@@ -562,6 +567,15 @@ const ProfilePage: React.FC = () => {
                           </Suspense>
                         )}
                       </div>
+                    </TabPanel>
+                    
+                    {/* Recommended Articles Tab */}
+                    <TabPanel>
+                      <RecommendedArticles 
+                        userId={user?.walletAddress || "user1"} 
+                        userInterests={user?.researchInterests || []} 
+                        limit={4}
+                      />
                     </TabPanel>
                   </TabPanels>
                 </Tabs>

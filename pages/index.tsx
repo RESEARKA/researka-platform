@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useCallback, Suspense, lazy } from 'react';
 import {
   Box,
