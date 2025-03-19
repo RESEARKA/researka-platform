@@ -3,6 +3,7 @@ import type { AppProps } from 'next/app';
 import { ChakraProvider } from '@chakra-ui/react';
 import { WalletProvider } from '../frontend/src/contexts/WalletContext';
 import { ModalProvider } from '../contexts/ModalContext';
+import { AuthProvider } from '../contexts/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Head from 'next/head';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -35,18 +36,20 @@ function MyApp({ Component, pageProps }: AppProps) {
       </Head>
       <QueryClientProvider client={queryClient}>
         <ChakraProvider>
-          <WalletProvider>
-            <ModalProvider>
-              <ErrorBoundary onReset={() => {
-                // Optional: Reset any state or perform actions when error boundary resets
-                console.log('Error boundary reset');
-              }}>
-                <AnimatedPage>
-                  <Component {...pageProps} />
-                </AnimatedPage>
-              </ErrorBoundary>
-            </ModalProvider>
-          </WalletProvider>
+          <AuthProvider>
+            <WalletProvider>
+              <ModalProvider>
+                <ErrorBoundary onReset={() => {
+                  // Optional: Reset any state or perform actions when error boundary resets
+                  console.log('Error boundary reset');
+                }}>
+                  <AnimatedPage>
+                    <Component {...pageProps} />
+                  </AnimatedPage>
+                </ErrorBoundary>
+              </ModalProvider>
+            </WalletProvider>
+          </AuthProvider>
         </ChakraProvider>
       </QueryClientProvider>
     </>

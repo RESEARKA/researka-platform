@@ -116,7 +116,7 @@ const ResearchInterestSelector: React.FC<ResearchInterestSelectorProps> = ({
   
   return (
     <FormControl isRequired={isRequired} isInvalid={!!error}>
-      <FormLabel>Research Interests / Keywords</FormLabel>
+      {/* Removed the duplicate FormLabel */}
       
       <Box position="relative" ref={dropdownRef}>
         {/* Selected interests */}

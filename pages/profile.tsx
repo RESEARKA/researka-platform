@@ -43,6 +43,7 @@ import { useArticles, Article, ArticlesResponse } from '../hooks/useArticles';
 import { useReviews, Review, ReviewsResponse } from '../hooks/useReviews';
 import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import RecommendedArticles from '../components/RecommendedArticles';
+import { useAuth } from '../contexts/AuthContext';
 
 // Import panel components directly instead of using lazy loading
 import ArticlesPanel from '../components/profile/ArticlesPanel';
@@ -77,8 +78,13 @@ interface User {
   articles: number;
   reviews: number;
   reputation: number;
-  walletAddress: string;
+  walletAddress?: string;
   researchInterests: string[];
+  email?: string;
+  department?: string;
+  position?: string;
+  profileComplete?: boolean;
+  createdAt?: string;
 }
 
 interface PaginationProps {
@@ -92,19 +98,19 @@ const mockSaved: SavedItem[] = [
   {
     id: 1,
     title: "Decentralized Science: The Future of Research",
-    abstract: "An exploration of how decentralized technologies are reshaping scientific research, funding, and collaboration.",
+    abstract: "This article discusses the potential of decentralized science to revolutionize the way we conduct research.",
     date: "March 12, 2025"
   },
   {
     id: 2,
     title: "Web3 Publishing Platforms: A Comparative Analysis",
-    abstract: "Comparing various Web3 publishing platforms and their impact on academic dissemination.",
+    abstract: "This article provides a comparative analysis of different Web3 publishing platforms.",
     date: "March 10, 2025"
   },
   {
     id: 3,
     title: "Tokenized Citation Impact: Beyond Traditional Metrics",
-    abstract: "Exploring how token-based citation systems can provide more nuanced measures of research impact.",
+    abstract: "This article explores the concept of tokenized citation impact and its potential to revolutionize the way we measure research impact.",
     date: "March 8, 2025"
   }
 ];
@@ -223,6 +229,7 @@ const ProfilePage: React.FC = () => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
+  const { currentUser, getUserProfile, updateUserData } = useAuth();
   
   // Function to toggle edit mode
   const handleEditProfile = () => {
@@ -235,62 +242,188 @@ const ProfilePage: React.FC = () => {
   };
   
   // Function to save profile edits
-  const handleSaveProfile = (updatedProfile: any) => {
-    setUser({...user, ...updatedProfile});
-    localStorage.setItem('userProfile', JSON.stringify({...user, ...updatedProfile}));
-    localStorage.setItem('profileComplete', 'true');
-    setIsEditMode(false);
-    toast({
-      title: "Profile updated",
-      description: "Your profile has been successfully updated",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+  const handleSaveProfile = async (updatedProfile: any) => {
+    try {
+      // Update user state
+      const updatedUser = {...user, ...updatedProfile, profileComplete: true};
+      setUser(updatedUser);
+      
+      // Save to Firestore
+      await updateUserData(updatedUser);
+      
+      setIsEditMode(false);
+      setIsProfileComplete(true);
+      
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been successfully updated",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
   };
   
   // Check if user is logged in
   React.useEffect(() => {
-    // Client-side only
-    if (typeof window !== 'undefined') {
-      const isLoggedIn = localStorage.getItem('isLoggedIn');
-      
-      if (isLoggedIn !== 'true') {
-        // Redirect to homepage if not logged in
-        window.location.href = '/';
-        return;
-      }
-      
-      // Check if profile is complete
-      const profileComplete = localStorage.getItem('profileComplete');
-      setIsProfileComplete(profileComplete === 'true');
-      
-      // Get user profile from localStorage
-      const userProfileStr = localStorage.getItem('userProfile');
-      if (userProfileStr) {
-        try {
-          const userProfile = JSON.parse(userProfileStr);
+    // Check if user is authenticated with Firebase
+    if (!currentUser) {
+      // Redirect to homepage if not logged in
+      window.location.href = '/';
+      return;
+    }
+    
+    // Load user profile data
+    const loadUserProfile = async () => {
+      try {
+        // Try to get user profile from Firestore
+        const userProfile = await getUserProfile();
+        
+        if (userProfile) {
           setUser(userProfile);
+          setIsProfileComplete(!!userProfile.profileComplete);
+        } else {
+          // Create a default profile if none exists
+          const defaultProfile: User = {
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            role: 'Researcher',
+            institution: '',
+            department: '',
+            position: '',
+            researchInterests: [],
+            articles: 0,
+            reviews: 0,
+            reputation: 0,
+            profileComplete: false,
+            createdAt: new Date().toISOString()
+          };
           
-          // If user profile exists and has required fields, consider profile complete
-          if (userProfile && userProfile.name && userProfile.institution) {
-            if (profileComplete !== 'true') {
-              localStorage.setItem('profileComplete', 'true');
-              setIsProfileComplete(true);
+          try {
+            // Save the default profile to Firestore
+            const updateSuccess = await updateUserData(defaultProfile);
+            setUser(defaultProfile);
+            setIsProfileComplete(false);
+            setIsEditMode(true);
+            
+            if (!updateSuccess) {
+              // Show a toast notification only once
+              if (!toast.isActive('profile-update-error')) {
+                toast({
+                  id: 'profile-update-error',
+                  title: 'Warning',
+                  description: 'Could not save profile to database. Changes may not persist.',
+                  status: 'warning',
+                  duration: 5000,
+                  isClosable: true,
+                  position: 'top-right'
+                });
+              }
+            }
+          } catch (updateError) {
+            console.error('Error creating default profile:', updateError);
+            
+            // If we can't save to Firestore, at least set the local state
+            setUser(defaultProfile);
+            setIsProfileComplete(false);
+            setIsEditMode(true);
+            
+            // Show a toast notification only once
+            if (!toast.isActive('profile-update-error')) {
+              toast({
+                id: 'profile-update-error',
+                title: 'Warning',
+                description: 'Could not save profile to database. Changes may not persist.',
+                status: 'warning',
+                duration: 5000,
+                isClosable: true,
+                position: 'top-right'
+              });
             }
           }
-        } catch (e) {
-          console.error('Error parsing user profile:', e);
-          setError('Could not load user profile');
         }
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+        
+        // Only show error toast once
+        if (!toast.isActive('profile-load-error')) {
+          toast({
+            id: 'profile-load-error',
+            title: 'Error',
+            description: 'Failed to load user profile',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+            position: 'top-right'
+          });
+        }
+        
+        // Create a default profile in memory even if we can't load from Firestore
+        const fallbackProfile: User = {
+          name: currentUser.displayName || '',
+          email: currentUser.email || '',
+          role: 'Researcher',
+          institution: '',
+          department: '',
+          position: '',
+          researchInterests: [],
+          articles: 0,
+          reviews: 0,
+          reputation: 0,
+          profileComplete: false
+        };
+        
+        setUser(fallbackProfile);
+        setIsProfileComplete(false);
+        setIsEditMode(true);
       }
-    }
-  }, []);
+    };
+    
+    // Add a small delay to ensure Firebase auth is fully initialized
+    const timer = setTimeout(() => {
+      loadUserProfile();
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [currentUser, getUserProfile, updateUserData, toast]);
   
   // Handle profile completion
-  const handleProfileComplete = (profileData: any) => {
-    setUser(profileData);
-    setIsProfileComplete(true);
+  const handleProfileComplete = async (profileData: any) => {
+    try {
+      // Update user state with profile data and mark as complete
+      const updatedProfile = {...profileData, profileComplete: true};
+      setUser(updatedProfile);
+      setIsProfileComplete(true);
+      
+      // Save to Firestore
+      await updateUserData(updatedProfile);
+      
+      toast({
+        title: "Profile completed",
+        description: "Your profile has been successfully set up",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error completing profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete profile. Please try again.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
   };
   
   // State for pagination

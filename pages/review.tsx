@@ -29,11 +29,14 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  useToast,
 } from '@chakra-ui/react';
 import { FiSearch, FiFilter, FiStar, FiClock, FiCalendar, FiUser, FiBookmark, FiChevronDown } from 'react-icons/fi';
 import Head from 'next/head';
 import Link from 'next/link';
 import Layout from '../components/Layout';
+import { useAuth } from '../contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 // Mock data for articles awaiting review
 const mockArticles = [
@@ -86,29 +89,99 @@ const ReviewPage: React.FC = () => {
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  
+  const toast = useToast();
+  const router = useRouter();
+  const { currentUser, getUserProfile, updateUserData } = useAuth();
+  const [userProfile, setUserProfile] = useState<any>(null);
+
   // Check if user is logged in and profile is complete
   React.useEffect(() => {
-    // Client-side only
-    if (typeof window !== 'undefined') {
-      const isLoggedIn = localStorage.getItem('isLoggedIn');
-      
-      if (isLoggedIn !== 'true') {
+    const checkAuth = async () => {
+      if (!currentUser) {
         // Redirect to homepage if not logged in
-        window.location.href = '/';
+        router.push('/');
         return;
       }
       
-      // Check if profile is complete
-      const profileComplete = localStorage.getItem('profileComplete');
-      
-      if (profileComplete !== 'true') {
-        // Redirect to profile page to complete profile
-        window.location.href = '/profile';
-        return;
+      try {
+        // Get user profile from Firestore
+        const profile = await getUserProfile();
+        
+        // If profile exists, set it
+        if (profile) {
+          setUserProfile(profile);
+          
+          // Check if profile is complete
+          if (!profile.profileComplete) {
+            // Redirect to profile page to complete profile
+            router.push('/profile');
+          }
+        } else {
+          // If no profile exists, create a default one
+          const defaultProfile = {
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            role: 'Researcher',
+            institution: '',
+            department: '',
+            position: '',
+            researchInterests: [],
+            articles: 0,
+            reviews: 0,
+            reputation: 0,
+            profileComplete: false,
+            createdAt: new Date().toISOString()
+          };
+          
+          // Update user profile in Firestore
+          const updateSuccess = await updateUserData(defaultProfile);
+          setUserProfile(defaultProfile);
+          
+          // Show warning if update failed
+          if (!updateSuccess) {
+            if (!toast.isActive('profile-update-error')) {
+              toast({
+                id: 'profile-update-error',
+                title: 'Warning',
+                description: 'Could not save profile to database. Changes may not persist.',
+                status: 'warning',
+                duration: 5000,
+                isClosable: true,
+                position: 'top-right'
+              });
+            }
+          }
+          
+          // Redirect to profile page to complete profile
+          router.push('/profile');
+        }
+      } catch (error) {
+        console.error('Error checking user profile:', error);
+        // Only show toast once to avoid multiple popups
+        if (!toast.isActive('profile-error')) {
+          toast({
+            id: 'profile-error',
+            title: 'Error',
+            description: 'Failed to load user profile',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+            position: 'top-right'
+          });
+        }
       }
+    };
+    
+    // Only run if currentUser is available and after a short delay
+    // to ensure Firebase auth is fully initialized
+    if (currentUser) {
+      const timer = setTimeout(() => {
+        checkAuth();
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [currentUser, getUserProfile, updateUserData, router, toast]);
   
   // Filter and sort articles based on user selections
   const filteredArticles = mockArticles

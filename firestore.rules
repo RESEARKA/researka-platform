@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to read/write only their own user document
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && isOwner(userId);
+    }
+    
+    // Public test collection for development and testing
+    match /public_test/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+    
+    // Articles collection - allow all authenticated users to read
+    // but only owners can write
+    match /articles/{articleId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner(resource.data.authorId);
+    }
+    
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

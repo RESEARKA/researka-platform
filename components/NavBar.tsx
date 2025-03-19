@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Box, 
   Flex, 
@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { FiChevronDown } from 'react-icons/fi';
 import Link from 'next/link';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavBarProps {
   activePage?: string;
@@ -29,40 +30,56 @@ const NavBar: React.FC<NavBarProps> = ({
   // Convert activePage to lowercase for comparison
   const activePageLower = activePage.toLowerCase();
   
-  // Check if user is logged in from localStorage (client-side only)
-  const [isLoggedIn, setIsLoggedIn] = React.useState(propIsLoggedIn);
-  const [username, setUsername] = React.useState<string | null>(null);
+  // Use Firebase authentication
+  const { currentUser, logout, getUserProfile } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(propIsLoggedIn);
+  const [username, setUsername] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   
-  React.useEffect(() => {
-    // Check localStorage for login status (client-side only)
-    if (typeof window !== 'undefined') {
-      const storedLoginStatus = localStorage.getItem('isLoggedIn');
-      if (storedLoginStatus === 'true') {
-        setIsLoggedIn(true);
-        
-        // Try to get username
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-          try {
-            const userData = JSON.parse(userStr);
-            setUsername(userData.username || userData.name || 'User');
-          } catch (e) {
-            console.error('Failed to parse user data:', e);
+  useEffect(() => {
+    // Check if user is logged in with Firebase
+    if (currentUser) {
+      setIsLoggedIn(true);
+      
+      // Set username from Firebase user
+      setUsername(currentUser.displayName || currentUser.email?.split('@')[0] || 'User');
+      
+      // Get user profile from Firestore
+      const getUserData = async () => {
+        try {
+          const profile = await getUserProfile();
+          if (profile) {
+            setUserProfile(profile);
+            if (profile.name) {
+              setUsername(profile.name);
+            }
+            
+            // Check if user is admin
+            const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com'];
+            setIsAdmin(adminEmails.includes(currentUser.email || ''));
           }
+        } catch (error) {
+          console.error('Failed to get user profile:', error);
         }
-      }
-    }
-  }, []);
-  
-  const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('isLoggedIn');
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
+      };
+      
+      getUserData();
+    } else {
       setIsLoggedIn(false);
       setUsername(null);
-      window.location.href = '/';
+      setUserProfile(null);
+      setIsAdmin(false);
     }
+  }, [currentUser, getUserProfile]);
+  
+  const handleLogout = () => {
+    logout();
+    setIsLoggedIn(false);
+    setUsername(null);
+    setUserProfile(null);
+    setIsAdmin(false);
+    window.location.href = '/';
   };
   
   return (
@@ -175,6 +192,14 @@ const NavBar: React.FC<NavBarProps> = ({
                 REVIEW
               </Button>
             )}
+            
+            {isLoggedIn && isAdmin ? (
+              <NavItem 
+                href="/admin" 
+                label="ADMIN" 
+                isActive={activePageLower === 'admin'} 
+              />
+            ) : null}
             
             {isLoggedIn ? (
               <Menu>

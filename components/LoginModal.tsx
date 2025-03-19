@@ -15,10 +15,18 @@ import {
   Text,
   Flex,
   Divider,
-  useToast
+  useToast,
+  InputGroup,
+  InputRightElement,
+  FormErrorMessage,
+  Alert,
+  AlertIcon,
+  Link
 } from '@chakra-ui/react';
 import { FaEthereum } from 'react-icons/fa';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { useRouter } from 'next/router';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -27,17 +35,43 @@ interface LoginModalProps {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/profile' }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const toast = useToast();
   const router = useRouter();
+  const { login, signInAnonymousUser, updateUserData } = useAuth();
   
   // Debug: Log the redirectPath value when component mounts or redirectPath changes
   React.useEffect(() => {
     console.log('LoginModal received redirectPath:', redirectPath);
   }, [redirectPath]);
 
-  const handleWalletLogin = () => {
-    // Simulate wallet connection
-    setTimeout(() => {
+  const handleWalletLogin = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      // Use Firebase anonymous authentication for wallet users
+      // In a real app, you would integrate with MetaMask and create a custom token
+      
+      // Sign in anonymously
+      const result = await signInAnonymousUser();
+      
+      // Update the anonymous user's profile with wallet-specific data
+      await updateUserData({
+        name: 'Wallet User',
+        role: 'Researcher',
+        institution: 'Decentralized University',
+        walletConnected: true,
+        articles: 0,
+        reviews: 0,
+        reputation: 0,
+        profileComplete: redirectPath === '/submit' || redirectPath === '/review'
+      });
+      
       toast({
         title: "Wallet connected",
         description: "You've been successfully logged in",
@@ -46,44 +80,35 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         isClosable: true,
       });
       
-      // Set login state in localStorage
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('loginMethod', 'wallet');
-      
-      // If redirecting to submit or review, mark profile as complete to prevent redirect loop
-      if (redirectPath === '/submit' || redirectPath === '/review') {
-        localStorage.setItem('profileComplete', 'true');
-      } else {
-        // Check if a profile already exists
-        const existingProfile = localStorage.getItem('userProfile');
-        if (!existingProfile) {
-          // Only set profile as incomplete if no profile exists
-          localStorage.setItem('profileComplete', 'false');
-          
-          // Set default profile data only if no profile exists
-          localStorage.setItem('userProfile', JSON.stringify({
-            name: 'Wallet User',
-            role: 'Researcher',
-            institution: 'Decentralized University',
-            articles: 3,
-            reviews: 12,
-            reputation: 89
-          }));
-        }
-      }
-      
       onClose();
       
       // Use Next.js router for redirection
       console.log('Redirecting to:', redirectPath);
       router.push(redirectPath);
-    }, 1000);
+    } catch (err) {
+      console.error('Wallet login error:', err);
+      setError('Failed to connect wallet. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate email login
-    setTimeout(() => {
+    
+    // Validate inputs
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      // Authenticate with Firebase
+      await login(email, password);
+      
       toast({
         title: "Login successful",
         description: "You've been logged in via email",
@@ -92,38 +117,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         isClosable: true,
       });
       
-      // Set login state in localStorage
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('loginMethod', 'email');
-      
-      // If redirecting to submit or review, mark profile as complete to prevent redirect loop
-      if (redirectPath === '/submit' || redirectPath === '/review') {
-        localStorage.setItem('profileComplete', 'true');
-      } else {
-        // Check if a profile already exists
-        const existingProfile = localStorage.getItem('userProfile');
-        if (!existingProfile) {
-          // Only set profile as incomplete if no profile exists
-          localStorage.setItem('profileComplete', 'false');
-          
-          // Set default profile data only if no profile exists
-          localStorage.setItem('userProfile', JSON.stringify({
-            name: 'Email User',
-            role: 'Researcher',
-            institution: 'Science Academy',
-            articles: 5,
-            reviews: 8,
-            reputation: 76
-          }));
-        }
-      }
-      
       onClose();
       
       // Use Next.js router for redirection
       console.log('Redirecting to:', redirectPath);
       router.push(redirectPath);
-    }, 1000);
+    } catch (err: any) {
+      console.error('Email login error:', err);
+      
+      // Handle specific Firebase auth errors
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Invalid email or password');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Too many failed login attempts. Please try again later.');
+      } else {
+        setError('Failed to login. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -133,67 +145,93 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         <ModalHeader color="gray.800">Login to Researka</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
+          {error && (
+            <Alert status="error" mb={4} borderRadius="md">
+              <AlertIcon />
+              {error}
+            </Alert>
+          )}
+          
           <VStack spacing={4} align="stretch">
             <Button 
               leftIcon={<FaEthereum />} 
               colorScheme="green" 
               onClick={handleWalletLogin}
               width="full"
+              isLoading={isLoading && !email}
+              loadingText="Connecting..."
             >
               Connect Wallet
             </Button>
             
             <Flex align="center" my={2}>
               <Divider flex="1" />
-              <Text mx={4} color="gray.500" fontSize="sm">OR</Text>
+              <Text px={3} color="gray.500" fontSize="sm">OR</Text>
               <Divider flex="1" />
             </Flex>
             
             <form onSubmit={handleEmailLogin}>
               <VStack spacing={4}>
-                <FormControl>
-                  <FormLabel color="gray.700">Email Address</FormLabel>
+                <FormControl isRequired isInvalid={!!error && !email}>
+                  <FormLabel htmlFor="email" color="gray.700">Email Address</FormLabel>
                   <Input 
+                    id="email"
                     type="email" 
                     placeholder="your@email.com" 
-                    required 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     bg="white"
-                    borderColor="gray.300"
-                    _hover={{ borderColor: "gray.400" }}
+                    color="gray.800"
                   />
                 </FormControl>
                 
-                <FormControl>
-                  <FormLabel color="gray.700">Password</FormLabel>
-                  <Input 
-                    type="password" 
-                    placeholder="********" 
-                    required 
-                    bg="white"
-                    borderColor="gray.300"
-                    _hover={{ borderColor: "gray.400" }}
-                  />
+                <FormControl isRequired isInvalid={!!error && !password}>
+                  <FormLabel htmlFor="password" color="gray.700">Password</FormLabel>
+                  <InputGroup>
+                    <Input 
+                      id="password"
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="********" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      bg="white"
+                      color="gray.800"
+                    />
+                    <InputRightElement width="3rem">
+                      <Button 
+                        h="1.5rem" 
+                        size="sm" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        variant="ghost"
+                      >
+                        {showPassword ? <FiEyeOff /> : <FiEye />}
+                      </Button>
+                    </InputRightElement>
+                  </InputGroup>
                 </FormControl>
                 
                 <Button 
                   type="submit" 
                   colorScheme="blue" 
-                  variant="outline" 
                   width="full"
-                  mt={2}
+                  isLoading={isLoading && !!email}
+                  loadingText="Logging in..."
                 >
                   Login with Email
                 </Button>
               </VStack>
             </form>
+            
+            <Flex justify="space-between" fontSize="sm" mt={2}>
+              <Link color="blue.500" href="/forgot-password">
+                Forgot Password?
+              </Link>
+              <Link color="blue.500" href="/signup">
+                Don't have an account? Sign Up
+              </Link>
+            </Flex>
           </VStack>
         </ModalBody>
-        
-        <ModalFooter justifyContent="center">
-          <Text fontSize="sm" color="gray.500">
-            Don't have an account? <Button variant="link" colorScheme="blue" size="sm">Sign Up</Button>
-          </Text>
-        </ModalFooter>
       </ModalContent>
     </Modal>
   );

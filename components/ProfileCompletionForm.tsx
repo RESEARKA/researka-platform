@@ -210,7 +210,8 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
       return true;
     }
     
-    return /\S+@\S+\.(edu|ac\.\w{2,})$/.test(email);
+    // Allow .edu domains, .ac domains, and .ac.xx domains
+    return /\S+@\S+\.(edu|ac(\.\w{2})?)$/.test(email);
   };
 
   // Validate form for current step

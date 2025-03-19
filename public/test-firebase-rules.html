@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Rules Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .collection-input {
+      display: flex;
+      margin-bottom: 20px;
+    }
+    input {
+      flex-grow: 1;
+      padding: 8px;
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    .log-container {
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 20px;
+      height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+      border-bottom: 1px solid #eee;
+    }
+    .success {
+      color: #0d904f;
+    }
+    .error {
+      color: #d32f2f;
+    }
+    .info {
+      color: #1976d2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Firebase Rules Test</h1>
+  <p>This page tests different Firestore collections to find one that works with the current rules.</p>
+  
+  <div class="collection-input">
+    <input type="text" id="collectionInput" placeholder="Collection name (e.g., public_test, test, users)" value="public_test">
+    <button id="testCollectionButton">Test Collection</button>
+  </div>
+  
+  <div>
+    <button id="testInitButton">1. Initialize Firebase</button>
+    <button id="testAuthButton">2. Sign In Anonymously</button>
+    <button id="testAllCollectionsButton">3. Test All Common Collections</button>
+  </div>
+  
+  <div class="log-container" id="logContainer"></div>
+  
+  <!-- Firebase SDK -->
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBm1xnqw87ho4mXEEMVVvqNKismySpQOsU",
+      authDomain: "researka.firebaseapp.com",
+      projectId: "researka",
+      storageBucket: "researka.appspot.com",
+      messagingSenderId: "13219500485",
+      appId: "1:13219500485:web:19c4dbdd41c2db5f813bac",
+      measurementId: "G-1GK8GGNXXQ"
+    };
+    
+    // DOM elements
+    const testInitButton = document.getElementById('testInitButton');
+    const testAuthButton = document.getElementById('testAuthButton');
+    const testCollectionButton = document.getElementById('testCollectionButton');
+    const testAllCollectionsButton = document.getElementById('testAllCollectionsButton');
+    const collectionInput = document.getElementById('collectionInput');
+    const logContainer = document.getElementById('logContainer');
+    
+    // Variables to store Firebase instances
+    let app;
+    let auth;
+    let db;
+    let currentUser;
+    
+    // Common collection names to test
+    const commonCollections = [
+      'public_test',
+      'test',
+      'users',
+      'connection_test',
+      'articles',
+      'reviews',
+      'profiles',
+      'data'
+    ];
+    
+    // Logging function
+    function log(message, type = 'info') {
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry ${type}`;
+      logEntry.textContent = `${new Date().toISOString().split('T')[1].split('.')[0]} - ${message}`;
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+      console.log(message);
+    }
+    
+    // Initialize Firebase
+    testInitButton.addEventListener('click', async () => {
+      try {
+        log('Initializing Firebase...', 'info');
+        
+        // Initialize Firebase
+        app = initializeApp(firebaseConfig);
+        log('Firebase app initialized successfully', 'success');
+        
+        // Initialize Auth
+        auth = getAuth(app);
+        log('Firebase Auth initialized', 'success');
+        
+        // Initialize Firestore
+        db = getFirestore(app);
+        log('Firebase Firestore initialized', 'success');
+        
+        // Set up auth state listener
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            log(`Auth state changed: User signed in (${user.uid})`, 'info');
+            currentUser = user;
+          } else {
+            log('Auth state changed: User signed out', 'info');
+            currentUser = null;
+          }
+        });
+        
+        // Enable other buttons
+        testAuthButton.disabled = false;
+        testCollectionButton.disabled = false;
+        testAllCollectionsButton.disabled = false;
+      } catch (error) {
+        log(`Firebase initialization failed: ${error.message}`, 'error');
+        console.error(error);
+      }
+    });
+    
+    // Sign in anonymously
+    testAuthButton.addEventListener('click', async () => {
+      try {
+        log('Testing anonymous sign in...', 'info');
+        
+        if (!auth) {
+          throw new Error('Firebase Auth not initialized. Run Step 1 first.');
+        }
+        
+        const userCredential = await signInAnonymously(auth);
+        log(`Anonymous sign in successful: ${userCredential.user.uid}`, 'success');
+        currentUser = userCredential.user;
+      } catch (error) {
+        log(`Anonymous sign in failed: ${error.message}`, 'error');
+        console.error(error);
+      }
+    });
+    
+    // Test a specific collection
+    testCollectionButton.addEventListener('click', async () => {
+      try {
+        const collectionName = collectionInput.value.trim();
+        
+        if (!collectionName) {
+          throw new Error('Please enter a collection name');
+        }
+        
+        if (!db) {
+          throw new Error('Firestore not initialized. Run Step 1 first.');
+        }
+        
+        if (!currentUser) {
+          throw new Error('User not signed in. Run Step 2 first.');
+        }
+        
+        log(`Testing collection: ${collectionName}`, 'info');
+        
+        // Test write
+        const testData = {
+          timestamp: new Date().toISOString(),
+          message: `Test data for ${collectionName}`,
+          userId: currentUser.uid
+        };
+        
+        const docRef = doc(db, collectionName, currentUser.uid);
+        await setDoc(docRef, testData);
+        log(`✅ Write to ${collectionName}/${currentUser.uid} successful`, 'success');
+        
+        // Test read
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          log(`✅ Read from ${collectionName}/${currentUser.uid} successful`, 'success');
+        } else {
+          log(`❌ Document does not exist after writing`, 'error');
+        }
+      } catch (error) {
+        log(`❌ Test failed for collection: ${error.message}`, 'error');
+        console.error(error);
+      }
+    });
+    
+    // Test all common collections
+    testAllCollectionsButton.addEventListener('click', async () => {
+      try {
+        if (!db) {
+          throw new Error('Firestore not initialized. Run Step 1 first.');
+        }
+        
+        if (!currentUser) {
+          throw new Error('User not signed in. Run Step 2 first.');
+        }
+        
+        log('Testing all common collections...', 'info');
+        
+        for (const collectionName of commonCollections) {
+          try {
+            // Test write
+            const testData = {
+              timestamp: new Date().toISOString(),
+              message: `Test data for ${collectionName}`,
+              userId: currentUser.uid
+            };
+            
+            const docRef = doc(db, collectionName, currentUser.uid);
+            await setDoc(docRef, testData);
+            log(`✅ Write to ${collectionName}/${currentUser.uid} successful`, 'success');
+            
+            // Test read
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              log(`✅ Read from ${collectionName}/${currentUser.uid} successful`, 'success');
+            } else {
+              log(`❌ Read from ${collectionName}/${currentUser.uid} failed: Document does not exist`, 'error');
+            }
+          } catch (error) {
+            log(`❌ Test failed for collection ${collectionName}: ${error.message}`, 'error');
+          }
+        }
+        
+        log('Finished testing all collections', 'info');
+      } catch (error) {
+        log(`Test all collections failed: ${error.message}`, 'error');
+        console.error(error);
+      }
+    });
+    
+    // Disable buttons initially
+    testAuthButton.disabled = true;
+    testCollectionButton.disabled = true;
+    testAllCollectionsButton.disabled = true;
+    
+    // Log page loaded
+    log('Firebase rules test page loaded. Click "Initialize Firebase" to begin.', 'info');
+  </script>
+</body>
+</html>
