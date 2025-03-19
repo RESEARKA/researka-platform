@@ -215,10 +215,36 @@ const ProfilePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
+  
+  // Function to toggle edit mode
+  const handleEditProfile = () => {
+    setIsEditMode(true);
+  };
+  
+  // Function to cancel edit mode
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+  };
+  
+  // Function to save profile edits
+  const handleSaveProfile = (updatedProfile: any) => {
+    setUser({...user, ...updatedProfile});
+    localStorage.setItem('userProfile', JSON.stringify({...user, ...updatedProfile}));
+    localStorage.setItem('profileComplete', 'true');
+    setIsEditMode(false);
+    toast({
+      title: "Profile updated",
+      description: "Your profile has been successfully updated",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
   
   // Check if user is logged in
   React.useEffect(() => {
@@ -343,12 +369,19 @@ const ProfilePage: React.FC = () => {
     );
   }
   
-  // If profile is not complete, show the profile completion form
-  if (!isProfileComplete) {
+  // If profile is not complete or in edit mode, show the profile completion/edit form
+  if (!isProfileComplete || isEditMode) {
     return (
-      <Layout title="Complete Profile | RESEARKA" description="Complete your Researka profile" activePage="profile">
+      <Layout title={isEditMode ? "Edit Profile | RESEARKA" : "Complete Profile | RESEARKA"} 
+              description={isEditMode ? "Edit your Researka profile" : "Complete your Researka profile"} 
+              activePage="profile">
         <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
-          <ProfileCompletionForm onComplete={handleProfileComplete} />
+          <ProfileCompletionForm 
+            onComplete={isEditMode ? handleSaveProfile : handleProfileComplete} 
+            initialData={isEditMode ? user : undefined}
+            isEditMode={isEditMode}
+            onCancel={isEditMode ? handleCancelEdit : undefined}
+          />
         </Box>
       </Layout>
     );
@@ -412,12 +445,18 @@ const ProfilePage: React.FC = () => {
                   <Divider />
                   
                   <VStack width="100%" align="stretch" spacing={3}>
-                    <Button leftIcon={<FiEdit />} size="sm" variant="outline">
+                    <Button 
+                      leftIcon={<FiEdit />} 
+                      size="sm" 
+                      variant="outline"
+                      onClick={handleEditProfile}
+                    >
                       Edit Profile
                     </Button>
-                    <Button leftIcon={<FiSettings />} size="sm" variant="outline">
+                    {/* Account Settings button - Commenting out as it's not needed for now */}
+                    {/* <Button leftIcon={<FiSettings />} size="sm" variant="outline">
                       Account Settings
-                    </Button>
+                    </Button> */}
                     <Button
                       as={Link}
                       href="/review"

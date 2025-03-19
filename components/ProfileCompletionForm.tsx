@@ -33,8 +33,9 @@ import {
   Badge,
   Icon,
   Tooltip,
+  SimpleGrid,
 } from '@chakra-ui/react';
-import { FiCheck, FiInfo, FiPlus, FiUser, FiMail, FiBookOpen, FiHash, FiLink, FiGlobe } from 'react-icons/fi';
+import { FiCheck, FiInfo, FiPlus, FiUser, FiMail, FiBookOpen, FiHash, FiLink, FiGlobe, FiArrowLeft, FiX, FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 
 // Mock data for institutions and departments
@@ -99,41 +100,57 @@ interface ProfileFormData {
 
 interface ProfileCompletionFormProps {
   onComplete: (profileData: any) => void;
+  initialData?: any;
+  isEditMode?: boolean;
+  onCancel?: () => void;
 }
 
-const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplete }) => {
+const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ 
+  onComplete, 
+  initialData, 
+  isEditMode = false, 
+  onCancel 
+}) => {
   const router = useRouter();
   const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
+  // Define steps for the form
+  const steps = [
+    { title: 'Basic Identity & Contact', description: 'Your personal information' },
+    { title: 'Institutional Affiliation', description: 'Your academic institution' },
+    { title: 'Academic & Professional Details', description: 'Your research profile' },
+    { title: 'Platform Roles & Optional Details', description: 'Additional information' }
+  ];
+
   // Form state
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<ProfileFormData>({
     // Basic Identity & Contact
-    firstName: '',
-    lastName: '',
-    email: '',
-    secondaryEmail: '',
-    emailVerified: false,
+    firstName: initialData?.firstName || '',
+    lastName: initialData?.lastName || '',
+    email: initialData?.email || '',
+    secondaryEmail: initialData?.secondaryEmail || '',
+    emailVerified: initialData?.emailVerified || false,
     
     // Institutional Affiliation
-    institution: '',
-    department: '',
-    position: '',
+    institution: initialData?.institution || '',
+    department: initialData?.department || '',
+    position: initialData?.position || '',
     
     // Academic & Professional Details
-    orcidId: '',
-    researchInterests: [] as string[],
+    orcidId: initialData?.orcidId || '',
+    researchInterests: initialData?.researchInterests || [] as string[],
     
     // Platform Roles & Activity
-    wantsToBeEditor: false,
+    wantsToBeEditor: initialData?.wantsToBeEditor || false,
     
     // Optional Extras
-    personalWebsite: '',
+    personalWebsite: initialData?.personalWebsite || '',
     socialMedia: {
-      twitter: '',
-      linkedin: '',
+      twitter: initialData?.socialMedia?.twitter || '',
+      linkedin: initialData?.socialMedia?.linkedin || '',
     },
   });
 
@@ -214,74 +231,95 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
     return /\S+@\S+\.(edu|ac\.\w{2,})$/.test(email);
   };
 
-  // Validate ORCID format
-  const isValidOrcid = (orcid: string) => {
-    return /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(orcid) || orcid === '';
-  };
-
   // Validate form for current step
-  const validateCurrentStep = () => {
+  const validateStep = (step: number) => {
+    let isValid = true;
     const newErrors: Record<string, string> = {};
     
-    if (currentStep === 0) {
-      // Validate Basic Identity & Contact
-      if (!formData.firstName.trim()) {
-        newErrors.firstName = 'First name is required';
+    // Validate based on current step
+    if (step === 0) {
+      // Basic Identity & Contact validation
+      if (!isEditMode) {
+        // Only validate first name, last name, and email if not in edit mode
+        if (!formData.firstName) {
+          newErrors.firstName = 'First name is required';
+          isValid = false;
+        }
+        
+        if (!formData.lastName) {
+          newErrors.lastName = 'Last name is required';
+          isValid = false;
+        }
+        
+        if (!formData.email) {
+          newErrors.email = 'Email is required';
+          isValid = false;
+        } else if (!isValidEmail(formData.email)) {
+          newErrors.email = 'Please enter a valid email address';
+          isValid = false;
+        } else if (!isValidAcademicEmail(formData.email)) {
+          newErrors.email = 'Please use an academic email (.edu or .ac.xx domain)';
+          isValid = false;
+        }
       }
       
-      if (!formData.lastName.trim()) {
-        newErrors.lastName = 'Last name is required';
-      }
-      
-      if (!formData.email.trim()) {
-        newErrors.email = 'Email is required';
-      } else if (!isValidEmail(formData.email)) {
-        newErrors.email = 'Invalid email format';
-      } else if (!isValidAcademicEmail(formData.email)) {
-        newErrors.email = 'Must be an academic email (.edu or .ac.xx domain)';
-      }
-      
+      // Always validate secondary email if provided
       if (formData.secondaryEmail && !isValidEmail(formData.secondaryEmail)) {
-        newErrors.secondaryEmail = 'Invalid email format';
+        newErrors.secondaryEmail = 'Please enter a valid email address';
+        isValid = false;
       }
-    } else if (currentStep === 1) {
-      // Validate Institutional Affiliation
-      if (!formData.institution.trim()) {
-        newErrors.institution = 'Institution is required';
+    } else if (step === 1) {
+      // Institutional Affiliation validation
+      if (!isEditMode) {
+        // Only validate institution if not in edit mode
+        if (!formData.institution) {
+          newErrors.institution = 'Institution is required';
+          isValid = false;
+        }
       }
       
-      if (!formData.department.trim()) {
+      // Always validate department and position
+      if (!formData.department) {
         newErrors.department = 'Department is required';
+        isValid = false;
       }
       
       if (!formData.position) {
         newErrors.position = 'Position is required';
+        isValid = false;
       }
-    } else if (currentStep === 2) {
-      // Validate Academic & Professional Details
-      if (formData.orcidId && !isValidOrcid(formData.orcidId)) {
-        newErrors.orcidId = 'Invalid ORCID format (e.g., 0000-0002-1825-0097)';
+    } else if (step === 2) {
+      // Academic & Professional Details validation
+      if (!formData.orcidId) {
+        newErrors.orcidId = 'ORCID ID is required';
+        isValid = false;
+      } else if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formData.orcidId)) {
+        newErrors.orcidId = 'Please enter a valid ORCID ID (format: 0000-0000-0000-0000)';
+        isValid = false;
       }
       
       if (formData.researchInterests.length === 0) {
         newErrors.researchInterests = 'At least one research interest is required';
+        isValid = false;
       }
     }
     
+    // Update errors state
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    
+    return isValid;
   };
 
   // Move to next step
-  const handleNextStep = () => {
-    if (validateCurrentStep()) {
+  const handleNext = () => {
+    if (validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
     } else {
       toast({
-        title: 'Validation Error',
-        description: 'Please fix the errors before proceeding.',
-        status: 'error',
-        duration: 5000,
+        title: "Validation Error",
+        description: "Please fix the errors before proceeding",
+        status: "error",
+        duration: 3000,
         isClosable: true,
       });
     }
@@ -295,7 +333,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
   // Submit form
   const handleSubmit = () => {
     // Validate all steps
-    const allValid = validateCurrentStep();
+    const allValid = validateStep(currentStep);
     
     if (allValid) {
       setIsSubmitting(true);
@@ -352,7 +390,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
   };
 
   // Calculate progress percentage
-  const progressPercentage = ((currentStep + 1) / 4) * 100;
+  const progressPercentage = ((currentStep + 1) / steps.length) * 100;
 
   return (
     <Container maxW="container.md" py={8}>
@@ -366,11 +404,12 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
       >
         <VStack spacing={6} align="stretch">
           <Heading as="h1" size="lg" textAlign="center">
-            Complete Your Profile
+            {isEditMode ? 'Edit Your Profile' : 'Complete Your Profile'}
           </Heading>
-          
           <Text textAlign="center" color="gray.600">
-            Please provide the following information to complete your profile. This information is required before you can submit or review articles.
+            {isEditMode 
+              ? 'Update your profile information below' 
+              : 'Please complete your profile to access all features of the Researka platform'}
           </Text>
           
           <Progress 
@@ -383,76 +422,76 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
           
           <Tabs index={currentStep} variant="enclosed" onChange={setCurrentStep}>
             <TabList>
-              <Tab isDisabled={currentStep !== 0}>
-                <Flex align="center">
-                  <Icon as={FiUser} mr={2} />
-                  <Text>Basic Info</Text>
-                </Flex>
-              </Tab>
-              <Tab isDisabled={currentStep !== 1}>
-                <Flex align="center">
-                  <Icon as={FiBookOpen} mr={2} />
-                  <Text>Affiliation</Text>
-                </Flex>
-              </Tab>
-              <Tab isDisabled={currentStep !== 2}>
-                <Flex align="center">
-                  <Icon as={FiHash} mr={2} />
-                  <Text>Academic</Text>
-                </Flex>
-              </Tab>
-              <Tab isDisabled={currentStep !== 3}>
-                <Flex align="center">
-                  <Icon as={FiGlobe} mr={2} />
-                  <Text>Extras</Text>
-                </Flex>
-              </Tab>
+              {steps.map((step, index) => (
+                <Tab key={index} isDisabled={currentStep !== index}>
+                  <Flex align="center">
+                    {index === 0 && <Icon as={FiUser} mr={2} />}
+                    {index === 1 && <Icon as={FiBookOpen} mr={2} />}
+                    {index === 2 && <Icon as={FiHash} mr={2} />}
+                    {index === 3 && <Icon as={FiGlobe} mr={2} />}
+                    <Text>{step.title}</Text>
+                  </Flex>
+                </Tab>
+              ))}
             </TabList>
             
             <TabPanels>
               {/* Step 1: Basic Identity & Contact */}
               <TabPanel>
                 <VStack spacing={4} align="stretch">
-                  <Heading as="h2" size="md">
-                    Basic Identity & Contact
-                  </Heading>
-                  
-                  <HStack spacing={4}>
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl isRequired isInvalid={!!errors.firstName}>
                       <FormLabel>First Name</FormLabel>
                       <Input 
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleChange}
+                        name="firstName" 
+                        value={formData.firstName} 
+                        onChange={handleChange} 
                         placeholder="Enter your first name"
+                        isReadOnly={isEditMode} 
+                        bg={isEditMode ? "gray.100" : undefined}
                       />
+                      {isEditMode && (
+                        <FormHelperText>
+                          First name cannot be changed after profile creation
+                        </FormHelperText>
+                      )}
                       <FormErrorMessage>{errors.firstName}</FormErrorMessage>
                     </FormControl>
                     
                     <FormControl isRequired isInvalid={!!errors.lastName}>
                       <FormLabel>Last Name</FormLabel>
                       <Input 
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleChange}
+                        name="lastName" 
+                        value={formData.lastName} 
+                        onChange={handleChange} 
                         placeholder="Enter your last name"
+                        isReadOnly={isEditMode} 
+                        bg={isEditMode ? "gray.100" : undefined}
                       />
+                      {isEditMode && (
+                        <FormHelperText>
+                          Last name cannot be changed after profile creation
+                        </FormHelperText>
+                      )}
                       <FormErrorMessage>{errors.lastName}</FormErrorMessage>
                     </FormControl>
-                  </HStack>
+                  </SimpleGrid>
                   
                   <FormControl isRequired isInvalid={!!errors.email}>
                     <FormLabel>Academic Email Address</FormLabel>
                     <Input 
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder="your.name@university.edu"
+                      name="email" 
+                      value={formData.email} 
+                      onChange={handleChange} 
+                      placeholder="Enter your academic email (.edu or .ac.xx domain)"
+                      isReadOnly={isEditMode} 
+                      bg={isEditMode ? "gray.100" : undefined}
                     />
-                    <FormHelperText>
-                      Must be a .edu or .ac.xx domain to verify academic affiliation
-                    </FormHelperText>
+                    {isEditMode && (
+                      <FormHelperText>
+                        Email address cannot be changed after profile creation
+                      </FormHelperText>
+                    )}
                     <FormErrorMessage>{errors.email}</FormErrorMessage>
                   </FormControl>
                   
@@ -490,20 +529,27 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
                   </Heading>
                   
                   <FormControl isRequired isInvalid={!!errors.institution}>
-                    <FormLabel>University Name</FormLabel>
+                    <FormLabel>University / Institution</FormLabel>
                     <Select
                       name="institution"
                       value={formData.institution}
                       onChange={handleChange}
                       placeholder="Select your institution"
+                      isReadOnly={isEditMode}
+                      isDisabled={isEditMode}
+                      bg={isEditMode ? "gray.100" : undefined}
                     >
-                      {MOCK_INSTITUTIONS.map((inst) => (
-                        <option key={inst} value={inst}>{inst}</option>
+                      {MOCK_INSTITUTIONS.map((institution, index) => (
+                        <option key={index} value={institution}>
+                          {institution}
+                        </option>
                       ))}
                     </Select>
-                    <FormHelperText>
-                      If your institution is not listed, please select "Other" and contact support
-                    </FormHelperText>
+                    {isEditMode && (
+                      <FormHelperText>
+                        Institution cannot be changed after profile creation
+                      </FormHelperText>
+                    )}
                     <FormErrorMessage>{errors.institution}</FormErrorMessage>
                   </FormControl>
                   
@@ -675,30 +721,44 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ onComplet
           
           <Divider my={2} />
           
-          <Flex justify="space-between">
-            <Button
-              onClick={handlePrevStep}
-              isDisabled={currentStep === 0}
-              variant="outline"
-            >
-              Previous
-            </Button>
+          <Flex justify="space-between" mt={6}>
+            {currentStep > 0 ? (
+              <Button 
+                leftIcon={<FiArrowLeft />} 
+                onClick={() => setCurrentStep(currentStep - 1)}
+                variant="outline"
+              >
+                Previous
+              </Button>
+            ) : (
+              isEditMode && onCancel ? (
+                <Button 
+                  leftIcon={<FiX />} 
+                  onClick={onCancel}
+                  variant="outline"
+                  colorScheme="red"
+                >
+                  Cancel
+                </Button>
+              ) : <Box />
+            )}
             
-            {currentStep < 3 ? (
-              <Button
-                onClick={handleNextStep}
+            {currentStep < steps.length - 1 ? (
+              <Button 
+                rightIcon={<FiArrowRight />} 
+                onClick={handleNext}
                 colorScheme="blue"
               >
                 Next
               </Button>
             ) : (
-              <Button
+              <Button 
+                rightIcon={<FiCheck />} 
                 onClick={handleSubmit}
                 colorScheme="green"
                 isLoading={isSubmitting}
-                loadingText="Submitting"
               >
-                Complete Profile
+                {isEditMode ? 'Save Changes' : 'Complete Profile'}
               </Button>
             )}
           </Flex>
