@@ -1,4 +1,4 @@
-import React, { useState, useRef, lazy, Suspense } from 'react';
+import React, { useState, useRef, lazy, Suspense, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -44,6 +44,7 @@ import { useReviews, Review, ReviewsResponse } from '../hooks/useReviews';
 import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import RecommendedArticles from '../components/RecommendedArticles';
 import { useAuth } from '../contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 // Import panel components directly instead of using lazy loading
 import ArticlesPanel from '../components/profile/ArticlesPanel';
@@ -230,6 +231,16 @@ const ProfilePage: React.FC = () => {
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
   const { currentUser, getUserProfile, updateUserData } = useAuth();
+  const router = useRouter();
+  
+  // State to track if a profile update toast has been shown in this session
+  const [profileToastShown, setProfileToastShown] = useState<{
+    complete: boolean;
+    update: boolean;
+  }>({
+    complete: false,
+    update: false
+  });
   
   // Function to toggle edit mode
   const handleEditProfile = () => {
@@ -244,6 +255,12 @@ const ProfilePage: React.FC = () => {
   // Function to save profile edits
   const handleSaveProfile = async (updatedProfile: any) => {
     try {
+      // Check if we've already shown a toast in this session
+      if (profileToastShown.update) {
+        console.log('Profile: Skipping duplicate update toast');
+        return;
+      }
+      
       // Update user state
       const updatedUser = {...user, ...updatedProfile, profileComplete: true};
       setUser(updatedUser);
@@ -254,7 +271,11 @@ const ProfilePage: React.FC = () => {
       setIsEditMode(false);
       setIsProfileComplete(true);
       
+      // Mark that we've shown the toast
+      setProfileToastShown(prev => ({...prev, update: true}));
+      
       toast({
+        id: 'profile-updated',
         title: "Profile updated",
         description: "Your profile has been successfully updated",
         status: "success",
@@ -275,23 +296,31 @@ const ProfilePage: React.FC = () => {
   
   // Check if user is logged in
   React.useEffect(() => {
-    // Check if user is authenticated with Firebase
-    if (!currentUser) {
-      // Redirect to homepage if not logged in
-      window.location.href = '/';
-      return;
-    }
-    
-    // Load user profile data
-    const loadUserProfile = async () => {
+    const checkAuth = async () => {
       try {
-        // Try to get user profile from Firestore
+        if (!currentUser) {
+          console.log('Profile: No user is logged in, redirecting to homepage');
+          // Redirect to homepage if not logged in
+          router.push('/');
+          return;
+        }
+        
+        // Load user profile data
+        console.log('Profile: Loading user profile data for user:', currentUser.uid);
         const userProfile = await getUserProfile();
         
         if (userProfile) {
+          console.log('Profile: User profile found:', userProfile);
           setUser(userProfile);
           setIsProfileComplete(!!userProfile.profileComplete);
+          
+          // If profile is not complete, show edit mode
+          if (!userProfile.profileComplete) {
+            console.log('Profile: Profile not complete, showing edit form');
+            setIsEditMode(true);
+          }
         } else {
+          console.log('Profile: No user profile found, creating default profile');
           // Create a default profile if none exists
           const defaultProfile: User = {
             name: currentUser.displayName || '',
@@ -310,12 +339,14 @@ const ProfilePage: React.FC = () => {
           
           try {
             // Save the default profile to Firestore
+            console.log('Profile: Saving default profile to Firestore');
             const updateSuccess = await updateUserData(defaultProfile);
             setUser(defaultProfile);
             setIsProfileComplete(false);
             setIsEditMode(true);
             
             if (!updateSuccess) {
+              console.warn('Profile: Failed to save default profile to Firestore');
               // Show a toast notification only once
               if (!toast.isActive('profile-update-error')) {
                 toast({
@@ -330,7 +361,7 @@ const ProfilePage: React.FC = () => {
               }
             }
           } catch (updateError) {
-            console.error('Error creating default profile:', updateError);
+            console.error('Profile: Error creating default profile:', updateError);
             
             // If we can't save to Firestore, at least set the local state
             setUser(defaultProfile);
@@ -352,53 +383,35 @@ const ProfilePage: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error('Error loading user profile:', error);
-        
-        // Only show error toast once
-        if (!toast.isActive('profile-load-error')) {
-          toast({
-            id: 'profile-load-error',
-            title: 'Error',
-            description: 'Failed to load user profile',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-            position: 'top-right'
-          });
-        }
-        
-        // Create a default profile in memory even if we can't load from Firestore
-        const fallbackProfile: User = {
-          name: currentUser.displayName || '',
-          email: currentUser.email || '',
-          role: 'Researcher',
-          institution: '',
-          department: '',
-          position: '',
-          researchInterests: [],
-          articles: 0,
-          reviews: 0,
-          reputation: 0,
-          profileComplete: false
-        };
-        
-        setUser(fallbackProfile);
-        setIsProfileComplete(false);
-        setIsEditMode(true);
+        console.error('Profile: Error checking authentication:', error);
+        // Show error toast
+        toast({
+          title: 'Authentication Error',
+          description: 'There was a problem with your account. Please try logging in again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
       }
     };
     
     // Add a small delay to ensure Firebase auth is fully initialized
     const timer = setTimeout(() => {
-      loadUserProfile();
+      checkAuth();
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [currentUser, getUserProfile, updateUserData, toast]);
+  }, [currentUser, getUserProfile, updateUserData, toast, router]);
   
   // Handle profile completion
   const handleProfileComplete = async (profileData: any) => {
     try {
+      // Check if we've already shown a toast in this session
+      if (profileToastShown.complete) {
+        console.log('Profile: Skipping duplicate completion toast');
+        return;
+      }
+      
       // Update user state with profile data and mark as complete
       const updatedProfile = {...profileData, profileComplete: true};
       setUser(updatedProfile);
@@ -407,7 +420,11 @@ const ProfilePage: React.FC = () => {
       // Save to Firestore
       await updateUserData(updatedProfile);
       
+      // Mark that we've shown the toast
+      setProfileToastShown(prev => ({...prev, complete: true}));
+      
       toast({
+        id: 'profile-complete',
         title: "Profile completed",
         description: "Your profile has been successfully set up",
         status: "success",

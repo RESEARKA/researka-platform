@@ -1,0 +1,1 @@
+if (typeof window !== "undefined") { console.log("User submissions:", localStorage.getItem("userSubmissions")); }

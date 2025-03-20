@@ -114,10 +114,22 @@ const SubmitPage: React.FC = () => {
           
           // Check if profile is complete
           if (!profile.profileComplete) {
+            console.log('Submit: Profile is not complete, redirecting to profile page');
+            toast({
+              title: 'Complete your profile',
+              description: 'Please complete your profile to submit articles',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+            });
+            
             // Redirect to profile page to complete profile
             router.push('/profile');
+          } else {
+            console.log('Submit: Profile is complete, proceeding to submit page');
           }
         } else {
+          console.log('Submit: No profile found, creating default profile');
           // If no profile exists, create a default one
           const defaultProfile = {
             name: currentUser.displayName || '',
@@ -248,76 +260,117 @@ const SubmitPage: React.FC = () => {
     setActiveStep(activeStep - 1);
   };
   
-  const handleSubmit = () => {
-    // Create article object
-    const newArticle = {
-      id: Date.now(), // Use timestamp as a simple unique ID
-      title,
-      abstract,
-      category,
-      keywords: keywords.split(',').map(k => k.trim()),
-      author: userProfile?.name || currentUser?.displayName || 'Anonymous',
-      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      compensation: '50 RKA TOKENS',
-      status: 'pending_review'
-    };
+  const handleSubmit = async () => {
+    console.log('Starting article submission process with Firebase');
     
-    // Save to localStorage
+    // Check if user is authenticated
+    if (!currentUser) {
+      console.error('Submit: User not authenticated');
+      toast({
+        title: 'Authentication Error',
+        description: 'You must be logged in to submit an article. Please log in and try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      router.push('/');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     try {
-      // Get existing submissions or initialize empty array
-      const existingSubmissions = JSON.parse(localStorage.getItem('userSubmissions') || '[]');
+      // Create article object
+      const newArticle = {
+        title,
+        abstract,
+        category,
+        keywords: keywords.split(',').map(k => k.trim()),
+        author: userProfile?.name || currentUser?.displayName || 'Anonymous',
+        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        compensation: '50 RKA TOKENS',
+        status: 'pending_review',
+        // Include full article content
+        content: `# ${title}
+
+## Abstract
+${abstract}
+
+## Introduction
+${introduction}
+
+## Methods
+${methods}
+
+## Results
+${results}
+
+## Discussion
+${discussion}
+
+## References
+${references}
+
+## Funding
+${funding}
+
+## Ethical Approvals
+${ethicalApprovals}
+
+## Data Availability
+${dataAvailability}
+
+## Conflicts of Interest
+${conflictsOfInterest}
+
+## License
+${license}`,
+        // Store individual sections for easier access
+        introduction: introduction,
+        methods: methods,
+        results: results,
+        discussion: discussion,
+        references: references,
+        funding: funding,
+        ethicalApprovals: ethicalApprovals,
+        dataAvailability: dataAvailability,
+        conflictsOfInterest: conflictsOfInterest,
+        license: license
+      };
       
-      // Add new submission
-      existingSubmissions.push(newArticle);
+      console.log('Created new article object:', newArticle);
       
-      // Save back to localStorage
-      localStorage.setItem('userSubmissions', JSON.stringify(existingSubmissions));
+      // Import the article service
+      const { submitArticle } = await import('../services/articleService');
       
-      console.log('Article saved to localStorage:', newArticle);
+      // Save to Firebase
+      const savedArticle = await submitArticle(newArticle);
+      console.log('Article saved to Firebase:', savedArticle);
       
       // Show success message
       toast({
-        title: 'Submission successful!',
-        description: 'Your article has been submitted for review. You can view it on the Review page.',
+        title: 'Article Submitted',
+        description: 'Your article has been submitted successfully and is pending review.',
         status: 'success',
         duration: 5000,
         isClosable: true,
       });
       
-      // Reset form and go back to first step
-      setTitle('');
-      setAbstract('');
-      setCategory('');
-      setKeywords('');
-      setOrcidId('');
-      setIsCorrespondingAuthor(true);
-      setCoAuthors([]);
-      setIntroduction('');
-      setMethods('');
-      setResults('');
-      setDiscussion('');
-      setReferences('');
-      setSupplementaryMaterials([]);
-      setFunding('');
-      setEthicalApprovals('');
-      setDataAvailability('');
-      setConflictsOfInterest('');
-      setLicense('CC BY');
-      setActiveStep(0);
-      
-      // Redirect to review page after short delay
-      setTimeout(() => {
-        router.push('/review');
-      }, 2000);
+      // Redirect to review page
+      router.push('/review');
     } catch (error) {
-      console.error('Error saving submission:', error);
+      console.error('Error submitting article:', error);
+      
+      // Show error message
       toast({
-        title: 'Submission error',
-        description: 'There was an error saving your submission. Please try again.',
+        title: 'Submission Error',
+        description: 'There was an error submitting your article. Please try again.',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   

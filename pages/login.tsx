@@ -54,8 +54,12 @@ const LoginPage: React.FC = () => {
     setError('');
     
     try {
+      console.log('Login page: Starting login process...');
+      
       // Authenticate with Firebase
       await login(email, password);
+      
+      console.log('Login page: Login successful, redirecting...');
       
       toast({
         title: 'Login Successful',
@@ -65,14 +69,18 @@ const LoginPage: React.FC = () => {
         isClosable: true,
       });
       
-      // If the redirect path is the default '/' and the profile is complete, 
-      // redirect to the profile page instead
-      if (redirectPath === '/') {
-        router.push('/profile');
-      } else {
-        // Otherwise, follow the requested redirect path
-        router.push(redirectPath);
-      }
+      // Add a small delay before redirecting
+      setTimeout(() => {
+        console.log('Login page: Redirecting to profile page...');
+        // If the redirect path is the default '/' and the profile is complete, 
+        // redirect to the profile page instead
+        if (redirectPath === '/') {
+          router.replace('/profile');
+        } else {
+          // Otherwise, follow the requested redirect path
+          router.replace(redirectPath);
+        }
+      }, 500);
     } catch (err: any) {
       console.error('Login error:', err);
       

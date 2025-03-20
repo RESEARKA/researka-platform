@@ -40,178 +40,153 @@ import { useRouter } from 'next/router';
 
 // Define interface for review articles
 interface ReviewArticle {
-  id: number | string;
+  id?: string | number;
   title: string;
   abstract: string;
-  author: string;
   category: string;
-  date: string;
   keywords: string[];
+  author: string;
+  date: string;
   compensation: string;
+  status: string;
+  createdAt?: any; // For Firebase Timestamp
 }
 
-// Mock data for articles awaiting review
-const mockArticles: ReviewArticle[] = [
-  {
-    id: 1,
-    title: 'Blockchain-Based Framework for Academic Credential Verification',
-    abstract: 'This paper proposes a novel blockchain-based framework for verifying academic credentials, addressing issues of fraud and inefficiency in traditional verification systems.',
-    author: 'Sarah Chen',
-    category: 'Blockchain',
-    date: 'March 15, 2025',
-    keywords: ['blockchain', 'academic credentials', 'verification'],
-    compensation: '50 RKA TOKENS',
-  },
-  {
-    id: 2,
-    title: 'Decentralized Peer Review: A New Paradigm for Scientific Publishing',
-    abstract: 'We present a decentralized approach to peer review that leverages blockchain technology to create transparent, immutable records of the review process.',
-    author: 'Michael Rodriguez',
-    category: 'Academic Publishing',
-    date: 'March 14, 2025',
-    keywords: ['peer review', 'decentralization', 'scientific publishing'],
-    compensation: '50 RKA TOKENS',
-  },
-  {
-    id: 3,
-    title: 'Smart Contracts for Research Funding Distribution',
-    abstract: 'This study examines how smart contracts can automate and improve the distribution of research funding, ensuring transparency and reducing administrative overhead.',
-    author: 'Emma Johnson',
-    category: 'Research Funding',
-    date: 'March 12, 2025',
-    keywords: ['smart contracts', 'research funding', 'automation'],
-    compensation: '50 RKA TOKENS',
-  },
-  {
-    id: 4,
-    title: 'Tokenized Citation Impact: A New Metric for Academic Influence',
-    abstract: 'We propose a tokenized citation impact system that quantifies academic influence through a combination of traditional citation metrics and token-based incentives.',
-    author: 'David Kim',
-    category: 'Bibliometrics',
-    date: 'March 10, 2025',
-    keywords: ['citation impact', 'tokenization', 'academic metrics'],
-    compensation: '50 RKA TOKENS',
-  },
-];
-
 const ReviewPage: React.FC = () => {
+  const router = useRouter();
+  const toast = useToast();
+  const [userSubmissions, setUserSubmissions] = useState<ReviewArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
-  const [userSubmissions, setUserSubmissions] = useState<ReviewArticle[]>([]);
-  
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const toast = useToast();
-  const router = useRouter();
   const { currentUser, getUserProfile, updateUserData } = useAuth();
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Load user submissions from localStorage
+  // Load user submissions from Firebase
   useEffect(() => {
-    try {
-      const savedSubmissions = localStorage.getItem('userSubmissions');
-      if (savedSubmissions) {
-        const parsedSubmissions = JSON.parse(savedSubmissions);
-        console.log('Loaded user submissions:', parsedSubmissions);
-        setUserSubmissions(parsedSubmissions);
-      }
-    } catch (error) {
-      console.error('Error loading user submissions:', error);
-    }
-  }, []);
-
-  // Check if user is logged in and profile is complete
-  React.useEffect(() => {
-    const checkAuth = async () => {
-      if (!currentUser) {
-        // Redirect to homepage if not logged in
-        router.push('/');
-        return;
-      }
-      
+    console.log('Loading articles from Firebase');
+    
+    const loadArticlesFromFirebase = async () => {
+      setLoading(true);
       try {
-        // Get user profile from Firestore
-        const profile = await getUserProfile();
+        // Import the article service
+        const { getArticlesForReview } = await import('../services/articleService');
         
-        // If profile exists, set it
-        if (profile) {
-          setUserProfile(profile);
-          
-          // Check if profile is complete
-          if (!profile.profileComplete) {
-            // Redirect to profile page to complete profile
-            router.push('/profile');
-          }
-        } else {
-          // If no profile exists, create a default one
-          const defaultProfile = {
-            name: currentUser.displayName || '',
-            email: currentUser.email || '',
-            role: 'Researcher',
-            institution: '',
-            department: '',
-            position: '',
-            researchInterests: [],
-            articles: 0,
-            reviews: 0,
-            reputation: 0,
-            profileComplete: false,
-            createdAt: new Date().toISOString()
-          };
-          
-          // Update user profile in Firestore
-          const updateSuccess = await updateUserData(defaultProfile);
-          setUserProfile(defaultProfile);
-          
-          // Show warning if update failed
-          if (!updateSuccess) {
-            if (!toast.isActive('profile-update-error')) {
-              toast({
-                id: 'profile-update-error',
-                title: 'Warning',
-                description: 'Could not save profile to database. Changes may not persist.',
-                status: 'warning',
-                duration: 5000,
-                isClosable: true,
-                position: 'top-right'
-              });
-            }
-          }
-          
-          // Redirect to profile page to complete profile
-          router.push('/profile');
-        }
+        // Get articles from Firebase
+        const articles = await getArticlesForReview();
+        console.log('Articles loaded from Firebase:', articles);
+        
+        setUserSubmissions(articles);
+        setError(null);
       } catch (error) {
-        console.error('Error checking user profile:', error);
-        // Only show toast once to avoid multiple popups
-        if (!toast.isActive('profile-error')) {
+        console.error('Error loading articles from Firebase:', error);
+        setError('Failed to load submitted articles');
+        
+        // Only show toast once for the error
+        if (!toast.isActive('article-load-error')) {
           toast({
-            id: 'profile-error',
+            id: 'article-load-error',
             title: 'Error',
-            description: 'Failed to load user profile',
+            description: 'Failed to load submitted articles',
             status: 'error',
             duration: 5000,
             isClosable: true,
-            position: 'top-right'
           });
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (router.isReady) {
+      loadArticlesFromFirebase();
+    }
+  }, [router.isReady, toast]);
+
+  // Check if user is logged in and profile is complete
+  React.useEffect(() => {
+    const checkUserProfile = async () => {
+      if (currentUser) {
+        try {
+          console.log('Review: Checking user profile...');
+          const profile = await getUserProfile();
+          setUserProfile(profile);
+          
+          // Check if profile is complete using the profileComplete flag
+          if (!profile || profile.profileComplete !== true) {
+            console.log('Review: Profile is not complete, showing toast and redirecting');
+            toast({
+              title: 'Complete your profile',
+              description: 'Please complete your profile to submit articles for review',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+            });
+            
+            // Redirect to profile page
+            router.push('/profile');
+          } else {
+            console.log('Review: Profile is complete, proceeding to review page');
+          }
+        } catch (error) {
+          console.error('Error checking user profile:', error);
         }
       }
     };
     
-    // Only run if currentUser is available and after a short delay
-    // to ensure Firebase auth is fully initialized
     if (currentUser) {
-      const timer = setTimeout(() => {
-        checkAuth();
-      }, 500);
-      
-      return () => clearTimeout(timer);
+      checkUserProfile();
     }
   }, [currentUser, getUserProfile, updateUserData, router, toast]);
   
+  // Function to manually refresh user submissions from Firebase
+  const refreshUserSubmissions = async () => {
+    setLoading(true);
+    try {
+      // Import the article service
+      const { getArticlesForReview } = await import('../services/articleService');
+      
+      // Get articles from Firebase
+      const articles = await getArticlesForReview();
+      console.log('Refreshed articles from Firebase:', articles);
+      
+      setUserSubmissions(articles);
+      setError(null);
+      
+      toast({
+        title: 'Refreshed',
+        description: `Loaded ${articles.length} articles for review`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error refreshing articles from Firebase:', error);
+      setError('Failed to load submitted articles');
+      
+      // Only show toast once for the error
+      if (!toast.isActive('article-refresh-error')) {
+        toast({
+          id: 'article-refresh-error',
+          title: 'Error',
+          description: 'Failed to refresh articles',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+
   // Filter and sort articles based on user selections
-  const filteredArticles = [...mockArticles, ...userSubmissions]
+  const filteredArticles = userSubmissions
     .filter(article => {
       // Apply search filter
       if (searchQuery) {
@@ -243,19 +218,31 @@ const ReviewPage: React.FC = () => {
           return 0;
       }
     });
-  
+
   return (
     <Layout title="Review Articles | Researka" description="Review academic articles on Researka" activePage="review">
       <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
         <Container maxW="container.xl">
           <VStack spacing={8} align="stretch">
             <Box>
-              <Heading as="h1" size="xl">Review Articles</Heading>
+              <Heading as="h1" size="xl" mb={6}>
+                Review Articles
+              </Heading>
               <Text color="gray.600" mt={2}>
                 Contribute to academic quality by reviewing articles in your area of expertise.
                 Earn tokens and reputation for each completed review.
               </Text>
             </Box>
+            
+            {/* Debug button - temporary */}
+            <Button 
+              size="sm" 
+              colorScheme="gray" 
+              mb={4} 
+              onClick={refreshUserSubmissions}
+            >
+              Refresh Articles
+            </Button>
             
             {/* Search and Filter Section */}
             <Flex 
@@ -305,7 +292,31 @@ const ReviewPage: React.FC = () => {
             </Flex>
             
             {/* Articles Grid */}
-            {filteredArticles.length > 0 ? (
+            {loading ? (
+              <Box 
+                textAlign="center" 
+                py={10} 
+                bg={bgColor}
+                borderRadius="lg"
+                boxShadow="sm"
+                borderWidth="1px"
+                borderColor={borderColor}
+              >
+                <Text fontSize="lg">Loading articles...</Text>
+              </Box>
+            ) : error ? (
+              <Box 
+                textAlign="center" 
+                py={10} 
+                bg={bgColor}
+                borderRadius="lg"
+                boxShadow="sm"
+                borderWidth="1px"
+                borderColor={borderColor}
+              >
+                <Text fontSize="lg">{error}</Text>
+              </Box>
+            ) : filteredArticles.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
                 {filteredArticles.map(article => (
                   <Card 

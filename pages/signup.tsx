@@ -108,9 +108,11 @@ const SignupPage: React.FC = () => {
       });
       
       // Redirect to profile page after a short delay
+      // Use router.replace instead of push to avoid history issues
       setTimeout(() => {
-        router.push('/profile');
-      }, 2000);
+        console.log('Signup page: Redirecting to profile page...');
+        router.replace('/profile');
+      }, 1500);
       
     } catch (err: any) {
       console.error('Signup page: Error during signup:', err);

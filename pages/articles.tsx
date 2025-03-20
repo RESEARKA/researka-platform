@@ -25,10 +25,10 @@ import {
   FiSearch, FiCalendar, FiEye, FiRefreshCw, FiChevronLeft, FiChevronRight, FiShuffle
 } from 'react-icons/fi';
 import Layout from '../components/Layout';
-import { ALL_ARTICLES, Article } from '../data/articles';
 import ArticleSkeleton from '../components/ArticleSkeleton';
 import PageTransition from '../components/PageTransition';
 import SimplePagination from '../components/SimplePagination';
+import { PageArticle, convertToPageArticles } from '../utils/articleAdapter';
 
 export default function ArticlesPage() {
   // State
@@ -38,29 +38,93 @@ export default function ArticlesPage() {
   const [showRandom, setShowRandom] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [combinedArticles, setCombinedArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<PageArticle[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
   
   // Hard limit to ensure we never show more than 10 articles per page
   const ARTICLES_PER_PAGE = 5;
 
-  // Load articles
+  // Load articles from Firebase
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setCombinedArticles(ALL_ARTICLES);
-      setIsLoading(false);
-    }, 1000);
+    const loadArticles = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Import the article service
+        const { getAllArticles } = await import('../services/articleService');
+        
+        // Get articles from Firebase
+        const firebaseArticles = await getAllArticles();
+        console.log('Articles loaded from Firebase:', firebaseArticles);
+        
+        // Convert to the format expected by the articles page
+        const convertedArticles = convertToPageArticles(firebaseArticles);
+        setArticles(convertedArticles);
+      } catch (error) {
+        console.error('Error loading articles from Firebase:', error);
+        setError('Failed to load articles');
+        toast({
+          title: 'Error',
+          description: 'Failed to load articles',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    return () => clearTimeout(timer);
-  }, []);
+    loadArticles();
+  }, [toast]);
+
+  // Function to refresh articles
+  const refreshArticles = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Import the article service
+      const { getAllArticles } = await import('../services/articleService');
+      
+      // Get articles from Firebase
+      const firebaseArticles = await getAllArticles();
+      console.log('Refreshed articles from Firebase:', firebaseArticles);
+      
+      // Convert to the format expected by the articles page
+      const convertedArticles = convertToPageArticles(firebaseArticles);
+      setArticles(convertedArticles);
+      
+      toast({
+        title: 'Refreshed',
+        description: `Loaded ${firebaseArticles.length} articles`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error refreshing articles from Firebase:', error);
+      setError('Failed to load articles');
+      toast({
+        title: 'Error',
+        description: 'Failed to refresh articles',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Filter and sort articles
   const filteredSortedArticles = useMemo(() => {
     console.log('Filtering and sorting articles');
     
     // Start with all articles
-    let result = [...combinedArticles];
+    let result = [...articles];
     
     // Apply search filter
     if (searchQuery.trim()) {
@@ -97,7 +161,7 @@ export default function ArticlesPage() {
     
     console.log(`Found ${result.length} articles after filtering`);
     return result;
-  }, [searchQuery, categoryFilter, sortBy, showRandom, combinedArticles]);
+  }, [searchQuery, categoryFilter, sortBy, showRandom, articles]);
 
   // Calculate total pages
   const totalPages = useMemo(() => {
@@ -217,13 +281,13 @@ export default function ArticlesPage() {
   // Get unique categories from all articles
   const allCategories = useMemo(() => {
     const categories = new Set<string>();
-    combinedArticles.forEach(article => {
+    articles.forEach(article => {
       article.categories.forEach(category => {
         categories.add(category.toLowerCase());
       });
     });
     return Array.from(categories).sort();
-  }, [combinedArticles]);
+  }, [articles]);
 
   // Colors
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -278,6 +342,18 @@ export default function ArticlesPage() {
                     <option value="alphabetical">Alphabetical</option>
                   </Select>
                 </Box>
+                
+                <Button 
+                  leftIcon={<FiRefreshCw />} 
+                  size="sm" 
+                  colorScheme="blue" 
+                  variant="ghost"
+                  isLoading={isLoading}
+                  onClick={refreshArticles}
+                  aria-label="Refresh articles"
+                >
+                  Refresh
+                </Button>
                 
                 <Button 
                   leftIcon={showRandom ? <FiRefreshCw /> : <FiShuffle />} 

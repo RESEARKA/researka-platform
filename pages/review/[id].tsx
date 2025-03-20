@@ -42,179 +42,36 @@ import { FiArrowLeft, FiCalendar, FiStar, FiCheck, FiInfo, FiSave } from 'react-
 import Layout from '../../components/Layout';
 import { useWallet } from '../../frontend/src/contexts/WalletContext';
 
-// Mock data for articles awaiting review (same as in review.tsx)
-const mockArticles = [
-  {
-    id: 1,
-    title: 'Blockchain-Based Framework for Academic Credential Verification',
-    abstract: 'This paper proposes a novel blockchain-based framework for verifying academic credentials, addressing issues of fraud and inefficiency in traditional verification systems.',
-    author: 'Sarah Chen',
-    category: 'Blockchain',
-    date: 'March 15, 2025',
-    keywords: ['blockchain', 'academic credentials', 'verification'],
-    compensation: '50 RKA TOKENS',
-    content: `
-      # Introduction
-      
-      Academic credential verification is a critical process that ensures the authenticity of educational qualifications. Traditional methods of verification are often time-consuming, inefficient, and susceptible to fraud. This paper proposes a blockchain-based framework that addresses these challenges by providing a secure, transparent, and efficient system for verifying academic credentials.
-      
-      # Background
-      
-      The current academic credential verification process typically involves contacting the issuing institution directly, which can be time-consuming and resource-intensive. Additionally, the process is vulnerable to fraud through document forgery or misrepresentation. Blockchain technology, with its immutable and distributed nature, offers a promising solution to these challenges.
-      
-      # Proposed Framework
-      
-      Our proposed framework leverages blockchain technology to create a secure and transparent system for academic credential verification. The framework consists of the following components:
-      
-      1. **Credential Issuance**: Academic institutions issue digital credentials and store their hash on the blockchain.
-      2. **Verification Portal**: Employers and other stakeholders can verify credentials through a user-friendly portal.
-      3. **Smart Contracts**: Automate the verification process and ensure compliance with predefined rules.
-      4. **Identity Management**: Secure identity verification for all participants in the system.
-      
-      # Implementation
-      
-      We implemented a prototype of the proposed framework using Ethereum blockchain and smart contracts written in Solidity. The system was tested with a sample dataset of academic credentials from various institutions.
-      
-      # Results
-      
-      Our evaluation shows that the proposed framework significantly reduces the time and resources required for credential verification while enhancing security and transparency. The blockchain-based approach successfully prevented various types of fraud attempts in our controlled experiments.
-      
-      # Conclusion
-      
-      The blockchain-based framework for academic credential verification offers a promising solution to the challenges faced by traditional verification methods. By leveraging blockchain technology, we can create a more secure, efficient, and transparent system for verifying academic credentials.
-    `
-  },
-  {
-    id: 2,
-    title: 'Decentralized Peer Review: A New Paradigm for Scientific Publishing',
-    abstract: 'We present a decentralized approach to peer review that leverages blockchain technology to create transparent, immutable records of the review process.',
-    author: 'Michael Rodriguez',
-    category: 'Academic Publishing',
-    date: 'March 14, 2025',
-    keywords: ['peer review', 'decentralization', 'scientific publishing'],
-    compensation: '50 RKA TOKENS',
-    content: `
-      # Introduction
-      
-      The peer review process is fundamental to scientific publishing, ensuring the quality and validity of research before publication. However, traditional peer review systems face challenges such as lack of transparency, potential bias, and limited recognition for reviewers. This paper presents a decentralized approach to peer review that addresses these challenges through blockchain technology.
-      
-      # Background
-      
-      Traditional peer review typically involves a small number of reviewers selected by journal editors, with the review process often being opaque and the reviewers receiving little recognition for their contributions. Blockchain technology offers potential solutions through its transparency, immutability, and tokenization capabilities.
-      
-      # Proposed Approach
-      
-      Our decentralized peer review system leverages blockchain technology to create a transparent and immutable record of the review process. Key features include:
-      
-      1. **Open Participation**: Any qualified researcher can participate as a reviewer.
-      2. **Transparent Process**: All review comments and decisions are recorded on the blockchain.
-      3. **Reviewer Recognition**: Reviewers receive tokens as recognition for their contributions.
-      4. **Quality Control**: A reputation system ensures the quality of reviews.
-      
-      # Implementation
-      
-      We implemented a prototype of the decentralized peer review system using a combination of blockchain technology and a web-based interface. The system was tested with a sample of research papers from various disciplines.
-      
-      # Results
-      
-      Our evaluation shows that the decentralized approach increases transparency, reduces potential bias, and provides better recognition for reviewers compared to traditional systems. The quality of reviews was maintained through the reputation system.
-      
-      # Conclusion
-      
-      The decentralized peer review system represents a new paradigm for scientific publishing that addresses many of the challenges faced by traditional peer review. By leveraging blockchain technology, we can create a more transparent, fair, and rewarding review process.
-    `
-  },
-  {
-    id: 3,
-    title: 'Smart Contracts for Research Funding Distribution',
-    abstract: 'This study examines how smart contracts can automate and improve the distribution of research funding, ensuring transparency and reducing administrative overhead.',
-    author: 'Emma Johnson',
-    category: 'Research Funding',
-    date: 'March 12, 2025',
-    keywords: ['smart contracts', 'research funding', 'automation'],
-    compensation: '50 RKA TOKENS',
-    content: `
-      # Introduction
-      
-      Research funding distribution is often hampered by administrative overhead, lack of transparency, and delays in fund disbursement. This study examines how smart contracts can automate and improve the distribution of research funding, addressing these challenges.
-      
-      # Background
-      
-      Traditional research funding processes involve multiple stakeholders, complex application procedures, and manual fund disbursement. Smart contracts, self-executing contracts with the terms directly written into code, offer potential solutions through automation and transparency.
-      
-      # Methodology
-      
-      We designed a smart contract-based system for research funding distribution and evaluated it through a case study involving a simulated research grant program. The system was implemented on the Ethereum blockchain using Solidity for smart contract development.
-      
-      # Smart Contract Design
-      
-      Our system includes the following components:
-      
-      1. **Funding Pool Contract**: Manages the allocation of funds to different research projects.
-      2. **Milestone Contract**: Releases funds based on the achievement of predefined research milestones.
-      3. **Evaluation Contract**: Facilitates the evaluation of research outputs by reviewers.
-      4. **Reporting Contract**: Automates the generation of financial reports for transparency.
-      
-      # Results
-      
-      The smart contract-based system demonstrated significant improvements over traditional funding distribution methods:
-      
-      - 60% reduction in administrative overhead
-      - 75% faster fund disbursement
-      - 100% transparency in fund allocation and usage
-      - Automated compliance with funding requirements
-      
-      # Conclusion
-      
-      Smart contracts offer a promising approach to improving research funding distribution by automating processes, ensuring transparency, and reducing administrative overhead. The implementation of such systems could significantly enhance the efficiency and effectiveness of research funding programs.
-    `
-  },
-  {
-    id: 4,
-    title: 'Tokenized Citation Impact: A New Metric for Academic Influence',
-    abstract: 'We propose a tokenized citation impact system that quantifies academic influence through a combination of traditional citation metrics and token-based incentives.',
-    author: 'David Kim',
-    category: 'Bibliometrics',
-    date: 'March 10, 2025',
-    keywords: ['citation impact', 'tokenization', 'academic metrics'],
-    compensation: '50 RKA TOKENS',
-    content: `
-      # Introduction
-      
-      Citation metrics are widely used to evaluate academic influence but have limitations in capturing the full impact of research. This paper proposes a tokenized citation impact system that combines traditional citation metrics with token-based incentives to provide a more comprehensive measure of academic influence.
-      
-      # Background
-      
-      Traditional citation metrics such as h-index and impact factor have been criticized for their limitations, including field-specific biases and inability to capture diverse forms of impact. Tokenization, enabled by blockchain technology, offers new possibilities for quantifying and incentivizing academic contributions.
-      
-      # Proposed System
-      
-      Our tokenized citation impact system includes the following components:
-      
-      1. **Citation Tokens**: Researchers receive tokens when their work is cited.
-      2. **Impact Weighting**: Citations are weighted based on the citing paper's own impact.
-      3. **Token Utility**: Tokens can be used within the academic ecosystem for various purposes.
-      4. **Cross-disciplinary Normalization**: Adjustments for field-specific citation patterns.
-      
-      # Implementation
-      
-      We implemented a prototype of the tokenized citation impact system using a private blockchain and integrated it with a bibliometric database. The system was tested with a dataset of publications from multiple disciplines.
-      
-      # Results
-      
-      Our evaluation shows that the tokenized citation impact system provides a more nuanced and comprehensive measure of academic influence compared to traditional metrics. The system successfully incentivized valuable academic contributions and reduced field-specific biases.
-      
-      # Conclusion
-      
-      The tokenized citation impact system represents a novel approach to measuring academic influence that addresses many of the limitations of traditional citation metrics. By leveraging blockchain technology and tokenization, we can create a more fair, comprehensive, and incentive-aligned system for evaluating research impact.
-    `
-  }
-];
+// Article interface
+interface Article {
+  id?: string | number;
+  title: string;
+  abstract: string;
+  category: string;
+  keywords: string[];
+  author: string;
+  date: string;
+  compensation: string;
+  status: string;
+  createdAt?: any; // For Firebase Timestamp
+  // Additional fields for the full article view
+  introduction?: string;
+  methods?: string;
+  results?: string;
+  discussion?: string;
+  references?: string;
+  funding?: string;
+  ethicalApprovals?: string;
+  dataAvailability?: string;
+  conflicts?: string;
+  license?: string;
+  content?: string;
+}
 
 const ReviewArticlePage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const [article, setArticle] = useState<any>(null);
+  const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -284,18 +141,28 @@ const ReviewArticlePage: React.FC = () => {
   useEffect(() => {
     if (id) {
       setLoading(true);
-      // Find the article with the matching ID
-      const articleId = parseInt(id as string, 10);
-      const foundArticle = mockArticles.find(article => article.id === articleId);
       
-      if (foundArticle) {
-        setArticle(foundArticle);
-        setError(null);
-      } else {
-        setError('Article not found');
-      }
+      const loadArticle = async () => {
+        try {
+          // Get article from Firebase
+          const { getArticleById } = await import('../../services/articleService');
+          const firebaseArticle = await getArticleById(id as string);
+          
+          if (firebaseArticle) {
+            setArticle(firebaseArticle);
+            setError(null);
+          } else {
+            setError('Article not found');
+          }
+        } catch (error) {
+          console.error('Error loading article:', error);
+          setError('Error loading article');
+        } finally {
+          setLoading(false);
+        }
+      };
       
-      setLoading(false);
+      loadArticle();
     }
   }, [id]);
 
@@ -397,7 +264,7 @@ const ReviewArticlePage: React.FC = () => {
     setTimeout(() => {
       toast({
         title: 'Review submitted',
-        description: `You've earned ${article.compensation} for your contribution!`,
+        description: `You've earned ${article?.compensation} for your contribution!`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -481,8 +348,8 @@ const ReviewArticlePage: React.FC = () => {
           overflow="hidden"
         >
           <Image 
-            src={imageUrls[article.category as keyof typeof imageUrls] || imageUrls.DEFAULT} 
-            alt={article.title} 
+            src={imageUrls[article?.category as keyof typeof imageUrls] || imageUrls.DEFAULT} 
+            alt={article?.title} 
             objectFit="cover" 
             width="100%" 
             height="100%" 
@@ -496,13 +363,13 @@ const ReviewArticlePage: React.FC = () => {
             p={6}
           >
             <Heading as="h1" size="xl" color="white">
-              {article.title}
+              {article?.title}
             </Heading>
             <HStack mt={2} spacing={4}>
-              <Text color="white">{article.author}</Text>
+              <Text color="white">{article?.author}</Text>
               <Flex align="center">
                 <FiCalendar color="white" style={{ marginRight: '4px' }} />
-                <Text color="white">{article.date}</Text>
+                <Text color="white">{article?.date}</Text>
               </Flex>
             </HStack>
           </Box>
@@ -522,7 +389,7 @@ const ReviewArticlePage: React.FC = () => {
             <Text fontSize="lg" fontWeight="bold" mb={4}>
               Abstract
             </Text>
-            <Text mb={6}>{article.abstract}</Text>
+            <Text mb={6}>{article?.abstract}</Text>
             
             <Divider my={6} />
             
@@ -530,7 +397,6 @@ const ReviewArticlePage: React.FC = () => {
               Full Paper
             </Text>
             <Box 
-              className="markdown-content" 
               sx={{
                 'h1': { fontSize: '2xl', fontWeight: 'bold', my: 4 },
                 'h2': { fontSize: 'xl', fontWeight: 'bold', my: 3 },
@@ -539,15 +405,19 @@ const ReviewArticlePage: React.FC = () => {
                 'li': { my: 1 },
               }}
             >
-              {article.content.split('\n').map((line: string, index: number) => (
-                <Text key={index} whiteSpace="pre-wrap">
-                  {line}
-                </Text>
-              ))}
+              {article?.content ? (
+                article.content.split('\n').map((line: string, index: number) => (
+                  <Text key={index} whiteSpace="pre-wrap">
+                    {line}
+                  </Text>
+                ))
+              ) : (
+                <Text>No content available for this article.</Text>
+              )}
             </Box>
             
             <Flex mt={6} gap={2} flexWrap="wrap">
-              {article.keywords.map((keyword: string, index: number) => (
+              {article?.keywords.map((keyword: string, index: number) => (
                 <Tag key={index} size="md" colorScheme="green" variant="subtle">
                   {keyword}
                 </Tag>
@@ -862,7 +732,7 @@ const ReviewArticlePage: React.FC = () => {
                     <FiStar size="24px" color="green" />
                   </Box>
                   <VStack align="start" spacing={0}>
-                    <Text fontSize="xl" fontWeight="bold">{article.compensation}</Text>
+                    <Text fontSize="xl" fontWeight="bold">{article?.compensation}</Text>
                     <Text fontSize="sm" color="gray.600">will be awarded upon acceptance</Text>
                   </VStack>
                 </HStack>
@@ -880,7 +750,7 @@ const ReviewArticlePage: React.FC = () => {
                 </Text>
                 
                 {Object.keys(formErrors).length > 0 && (
-                  <Box mb={4} p={3} bg="red.50" borderRadius="md" borderWidth="1px" borderColor="red.200">
+                  <Box mb={4} p={3} bg="red.50" color="red.500" borderRadius="md" borderWidth="1px" borderColor="red.200">
                     <Heading as="h4" size="sm" color="red.600" mb={2}>
                       Please correct the following errors:
                     </Heading>
