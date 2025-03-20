@@ -249,35 +249,76 @@ const SubmitPage: React.FC = () => {
   };
   
   const handleSubmit = () => {
-    // In a real app, you would send the data to your API
-    toast({
-      title: 'Submission successful!',
-      description: 'Your article has been submitted for review.',
-      status: 'success',
-      duration: 5000,
-      isClosable: true,
-    });
+    // Create article object
+    const newArticle = {
+      id: Date.now(), // Use timestamp as a simple unique ID
+      title,
+      abstract,
+      category,
+      keywords: keywords.split(',').map(k => k.trim()),
+      author: userProfile?.name || currentUser?.displayName || 'Anonymous',
+      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      compensation: '50 RKA TOKENS',
+      status: 'pending_review'
+    };
     
-    // Reset form and go back to first step
-    setTitle('');
-    setAbstract('');
-    setCategory('');
-    setKeywords('');
-    setOrcidId('');
-    setIsCorrespondingAuthor(true);
-    setCoAuthors([]);
-    setIntroduction('');
-    setMethods('');
-    setResults('');
-    setDiscussion('');
-    setReferences('');
-    setSupplementaryMaterials([]);
-    setFunding('');
-    setEthicalApprovals('');
-    setDataAvailability('');
-    setConflictsOfInterest('');
-    setLicense('CC BY');
-    setActiveStep(0);
+    // Save to localStorage
+    try {
+      // Get existing submissions or initialize empty array
+      const existingSubmissions = JSON.parse(localStorage.getItem('userSubmissions') || '[]');
+      
+      // Add new submission
+      existingSubmissions.push(newArticle);
+      
+      // Save back to localStorage
+      localStorage.setItem('userSubmissions', JSON.stringify(existingSubmissions));
+      
+      console.log('Article saved to localStorage:', newArticle);
+      
+      // Show success message
+      toast({
+        title: 'Submission successful!',
+        description: 'Your article has been submitted for review. You can view it on the Review page.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      // Reset form and go back to first step
+      setTitle('');
+      setAbstract('');
+      setCategory('');
+      setKeywords('');
+      setOrcidId('');
+      setIsCorrespondingAuthor(true);
+      setCoAuthors([]);
+      setIntroduction('');
+      setMethods('');
+      setResults('');
+      setDiscussion('');
+      setReferences('');
+      setSupplementaryMaterials([]);
+      setFunding('');
+      setEthicalApprovals('');
+      setDataAvailability('');
+      setConflictsOfInterest('');
+      setLicense('CC BY');
+      setActiveStep(0);
+      
+      // Redirect to review page after short delay
+      setTimeout(() => {
+        router.push('/review');
+      }, 2000);
+    } catch (error) {
+      console.error('Error saving submission:', error);
+      toast({
+        title: 'Submission error',
+        description: 'There was an error saving your submission. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
   
   return (

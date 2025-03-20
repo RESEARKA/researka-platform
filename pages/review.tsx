@@ -38,8 +38,20 @@ import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 
+// Define interface for review articles
+interface ReviewArticle {
+  id: number | string;
+  title: string;
+  abstract: string;
+  author: string;
+  category: string;
+  date: string;
+  keywords: string[];
+  compensation: string;
+}
+
 // Mock data for articles awaiting review
-const mockArticles = [
+const mockArticles: ReviewArticle[] = [
   {
     id: 1,
     title: 'Blockchain-Based Framework for Academic Credential Verification',
@@ -86,6 +98,7 @@ const ReviewPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
+  const [userSubmissions, setUserSubmissions] = useState<ReviewArticle[]>([]);
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -93,6 +106,20 @@ const ReviewPage: React.FC = () => {
   const router = useRouter();
   const { currentUser, getUserProfile, updateUserData } = useAuth();
   const [userProfile, setUserProfile] = useState<any>(null);
+
+  // Load user submissions from localStorage
+  useEffect(() => {
+    try {
+      const savedSubmissions = localStorage.getItem('userSubmissions');
+      if (savedSubmissions) {
+        const parsedSubmissions = JSON.parse(savedSubmissions);
+        console.log('Loaded user submissions:', parsedSubmissions);
+        setUserSubmissions(parsedSubmissions);
+      }
+    } catch (error) {
+      console.error('Error loading user submissions:', error);
+    }
+  }, []);
 
   // Check if user is logged in and profile is complete
   React.useEffect(() => {
@@ -184,7 +211,7 @@ const ReviewPage: React.FC = () => {
   }, [currentUser, getUserProfile, updateUserData, router, toast]);
   
   // Filter and sort articles based on user selections
-  const filteredArticles = mockArticles
+  const filteredArticles = [...mockArticles, ...userSubmissions]
     .filter(article => {
       // Apply search filter
       if (searchQuery) {
