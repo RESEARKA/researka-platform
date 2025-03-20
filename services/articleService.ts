@@ -45,34 +45,47 @@ const articlesCollection = 'articles';
  */
 export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt'>): Promise<Article> => {
   try {
+    console.log('ArticleService: Starting submitArticle');
+    
     // Add timestamp and get current user ID from auth
     const { getAuth } = await import('firebase/auth');
     const auth = getAuth();
     const currentUser = auth.currentUser;
     
     if (!currentUser) {
+      console.error('ArticleService: User not authenticated');
       throw new Error('User not authenticated');
     }
     
+    if (!db) {
+      console.error('ArticleService: Firestore not initialized');
+      throw new Error('Firestore not initialized');
+    }
+    
+    // Ensure status is set to pending_review
     const articleWithTimestamp = {
       ...articleData,
       authorId: currentUser.uid,
+      status: 'pending_review', // Ensure status is explicitly set
       createdAt: Timestamp.now()
     };
+    
+    console.log('ArticleService: Article prepared for submission:', articleWithTimestamp);
     
     // Add to Firestore
     const docRef = await addDoc(collection(db, articlesCollection), articleWithTimestamp);
     
-    console.log('Article submitted with ID:', docRef.id);
+    console.log('ArticleService: Article submitted with ID:', docRef.id);
     
     // Return the article with the generated ID
     return {
       id: docRef.id,
       ...articleData,
+      status: 'pending_review', // Ensure status is set in the returned object
       authorId: currentUser.uid
     };
   } catch (error) {
-    console.error('Error submitting article:', error);
+    console.error('ArticleService: Error submitting article:', error);
     throw new Error('Failed to submit article');
   }
 };
@@ -82,20 +95,33 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
  */
 export const getArticlesForReview = async (): Promise<Article[]> => {
   try {
-    // Create query for pending review articles
+    console.log('ArticleService: Starting getArticlesForReview');
+    
+    if (!db) {
+      console.error('ArticleService: Firestore not initialized');
+      throw new Error('Firestore not initialized');
+    }
+    
+    // Create query for all articles, ordered by creation date
+    // Temporarily removing the status filter to see all articles
     const q = query(
       collection(db, articlesCollection),
-      where('status', '==', 'pending_review'),
       orderBy('createdAt', 'desc')
     );
     
+    console.log('ArticleService: Query created for all articles, executing...');
+    
     // Execute query
     const querySnapshot = await getDocs(q);
+    
+    console.log(`ArticleService: Query executed, found ${querySnapshot.size} documents`);
     
     // Convert to array of articles
     const articles: Article[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      console.log(`ArticleService: Processing document ${doc.id}, title: ${data.title}, status: ${data.status}`);
+      
       articles.push({
         id: doc.id,
         title: data.title,
@@ -122,9 +148,10 @@ export const getArticlesForReview = async (): Promise<Article[]> => {
       });
     });
     
+    console.log(`ArticleService: Returning ${articles.length} articles`);
     return articles;
   } catch (error) {
-    console.error('Error getting articles for review:', error);
+    console.error('ArticleService: Error getting articles for review:', error);
     throw new Error('Failed to get articles for review');
   }
 };

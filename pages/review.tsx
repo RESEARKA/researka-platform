@@ -66,7 +66,7 @@ const ReviewPage: React.FC = () => {
 
   // Load user submissions from Firebase
   useEffect(() => {
-    console.log('Loading articles from Firebase');
+    console.log('Review: Loading articles from Firebase');
     
     const loadArticlesFromFirebase = async () => {
       setLoading(true);
@@ -76,20 +76,36 @@ const ReviewPage: React.FC = () => {
         
         // Get articles from Firebase
         const articles = await getArticlesForReview();
-        console.log('Articles loaded from Firebase:', articles);
+        console.log('Review: Articles loaded from Firebase:', articles);
         
         setUserSubmissions(articles);
         setError(null);
+        
+        if (articles.length === 0) {
+          console.log('Review: No articles found for review');
+          // Only show toast once for the warning
+          if (!toast.isActive('no-articles-warning')) {
+            toast({
+              id: 'no-articles-warning',
+              title: 'No Articles',
+              description: 'No articles are currently available for review',
+              status: 'info',
+              duration: 5000,
+              isClosable: true,
+            });
+          }
+        }
       } catch (error) {
-        console.error('Error loading articles from Firebase:', error);
-        setError('Failed to load submitted articles');
+        console.error('Review: Error loading articles from Firebase:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load submitted articles';
+        setError(errorMessage);
         
         // Only show toast once for the error
         if (!toast.isActive('article-load-error')) {
           toast({
             id: 'article-load-error',
             title: 'Error',
-            description: 'Failed to load submitted articles',
+            description: errorMessage,
             status: 'error',
             duration: 5000,
             isClosable: true,
@@ -145,33 +161,47 @@ const ReviewPage: React.FC = () => {
   const refreshUserSubmissions = async () => {
     setLoading(true);
     try {
+      console.log('Review: Manually refreshing articles from Firebase');
+      
       // Import the article service
       const { getArticlesForReview } = await import('../services/articleService');
       
       // Get articles from Firebase
       const articles = await getArticlesForReview();
-      console.log('Refreshed articles from Firebase:', articles);
+      console.log('Review: Refreshed articles from Firebase:', articles);
       
       setUserSubmissions(articles);
       setError(null);
       
-      toast({
-        title: 'Refreshed',
-        description: `Loaded ${articles.length} articles for review`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
+      if (articles.length === 0) {
+        console.log('Review: No articles found after refresh');
+        toast({
+          title: 'No Articles',
+          description: 'No articles are currently available for review',
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Refreshed',
+          description: `Loaded ${articles.length} articles for review`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
     } catch (error) {
-      console.error('Error refreshing articles from Firebase:', error);
-      setError('Failed to load submitted articles');
+      console.error('Review: Error refreshing articles from Firebase:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load submitted articles';
+      setError(errorMessage);
       
       // Only show toast once for the error
       if (!toast.isActive('article-refresh-error')) {
         toast({
           id: 'article-refresh-error',
           title: 'Error',
-          description: 'Failed to refresh articles',
+          description: errorMessage,
           status: 'error',
           duration: 3000,
           isClosable: true,
