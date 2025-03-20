@@ -36,7 +36,11 @@ import {
   GridItem,
   FormHelperText,
   UnorderedList,
-  ListItem
+  ListItem,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription
 } from '@chakra-ui/react';
 import { FiArrowLeft, FiCalendar, FiStar, FiCheck, FiInfo, FiSave } from 'react-icons/fi';
 import Layout from '../../components/Layout';
@@ -194,8 +198,7 @@ const ReviewArticlePage: React.FC = () => {
     }
   }, [id, router.isReady, toast]);
 
-  const handleSubmitReview = () => {
-    // Validate all required fields
+  const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     const missingFields: string[] = [];
     
@@ -254,18 +257,18 @@ const ReviewArticlePage: React.FC = () => {
     // Update form errors state regardless of wallet connection
     setFormErrors(errors);
     
-    // Check if wallet is connected
-    if (!account) {
-      // Show wallet connection error along with any form errors
-      toast({
-        title: 'Authentication required',
-        description: 'Please connect your wallet to submit a review. Also ensure all required fields are completed.',
-        status: 'warning',
-        duration: 7000,
-        isClosable: true,
-      });
-      return;
-    }
+    // Temporarily disable wallet check
+    // if (!account) {
+    //   // Show wallet connection error along with any form errors
+    //   toast({
+    //     title: 'Authentication required',
+    //     description: 'Please connect your wallet to submit a review. Also ensure all required fields are completed.',
+    //     status: 'warning',
+    //     duration: 7000,
+    //     isClosable: true,
+    //   });
+    //   return false;
+    // }
     
     // If there are errors, show them and stop submission
     if (Object.keys(errors).length > 0) {
@@ -281,25 +284,31 @@ const ReviewArticlePage: React.FC = () => {
         duration: 7000,
         isClosable: true,
       });
-      return;
+      return false;
     }
     
     // Clear any previous errors
     setFormErrors({});
-    setIsSubmitting(true);
+    return true;
+  };
 
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: 'Review submitted',
-        description: `You've earned ${article?.compensation} for your contribution!`,
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      setIsSubmitting(false);
-      router.push('/review');
-    }, 2000);
+  const handleSubmitReview = () => {
+    if (validateForm()) {
+      setIsSubmitting(true);
+
+      // Simulate API call
+      setTimeout(() => {
+        toast({
+          title: 'Review submitted',
+          description: `You've earned ${article?.compensation} for your contribution!`,
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+        setIsSubmitting(false);
+        router.push('/review');
+      }, 2000);
+    }
   };
 
   const handleSaveDraft = () => {
@@ -710,7 +719,7 @@ const ReviewArticlePage: React.FC = () => {
                 </Heading>
                 
                 <Text mb={4}>
-                  Reviewed by: {account ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}` : 'Anonymous'}
+                  Reviewed by: {account ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}` : 'Anonymous (Wallet connection optional)'}
                 </Text>
                 
                 <FormControl isInvalid={!!formErrors.openIdentity} isRequired mb={4}>
@@ -764,6 +773,17 @@ const ReviewArticlePage: React.FC = () => {
                     <Text fontSize="sm" color="gray.600">will be awarded upon acceptance</Text>
                   </VStack>
                 </HStack>
+                {!account && (
+                  <Alert status="info" mt={3} borderRadius="md" fontSize="sm">
+                    <AlertIcon />
+                    <Box>
+                      <AlertTitle>Wallet connection will be required in the future</AlertTitle>
+                      <AlertDescription>
+                        To receive RESKA tokens, you'll need to connect a wallet in the future. This requirement is temporarily disabled during development.
+                      </AlertDescription>
+                    </Box>
+                  </Alert>
+                )}
               </Box>
               
               {/* 6. Save Draft / Submit */}
@@ -783,9 +803,6 @@ const ReviewArticlePage: React.FC = () => {
                       Please correct the following errors:
                     </Heading>
                     <UnorderedList color="red.600" pl={4}>
-                      {!account && (
-                        <ListItem fontWeight="bold">Please connect your wallet</ListItem>
-                      )}
                       {formErrors.overallRecommendation && (
                         <ListItem>Overall recommendation is required</ListItem>
                       )}
