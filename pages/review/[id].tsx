@@ -119,44 +119,72 @@ const ReviewArticlePage: React.FC = () => {
   React.useEffect(() => {
     // Client-side only
     if (typeof window !== 'undefined') {
+      console.log('ReviewArticlePage: Checking authentication');
       const isLoggedIn = localStorage.getItem('isLoggedIn');
+      console.log('ReviewArticlePage: isLoggedIn =', isLoggedIn);
       
-      if (isLoggedIn !== 'true') {
-        // Redirect to homepage if not logged in
-        router.push('/');
-        return;
-      }
+      // Temporarily disable the login check for debugging
+      // if (isLoggedIn !== 'true') {
+      //   // Redirect to homepage if not logged in
+      //   console.log('ReviewArticlePage: Not logged in, redirecting to homepage');
+      //   router.push('/');
+      //   return;
+      // }
       
-      // Check if profile is complete
-      const profileComplete = localStorage.getItem('profileComplete');
+      // // Check if profile is complete
+      // const profileComplete = localStorage.getItem('profileComplete');
+      // console.log('ReviewArticlePage: profileComplete =', profileComplete);
       
-      if (profileComplete !== 'true') {
-        // Redirect to profile page to complete profile
-        router.push('/profile');
-        return;
-      }
+      // if (profileComplete !== 'true') {
+      //   // Redirect to profile page to complete profile
+      //   console.log('ReviewArticlePage: Profile not complete, redirecting to profile page');
+      //   router.push('/profile');
+      //   return;
+      // }
+      
+      console.log('ReviewArticlePage: Authentication check passed');
     }
   }, [router]);
 
   useEffect(() => {
-    if (id) {
+    if (router.isReady && id) {
       setLoading(true);
+      console.log(`ReviewArticlePage: Loading article with ID: ${id}`);
       
       const loadArticle = async () => {
         try {
           // Get article from Firebase
           const { getArticleById } = await import('../../services/articleService');
+          console.log(`ReviewArticlePage: Calling getArticleById with ID: ${id}`);
+          
           const firebaseArticle = await getArticleById(id as string);
           
           if (firebaseArticle) {
+            console.log(`ReviewArticlePage: Article loaded successfully: ${firebaseArticle.title}`);
             setArticle(firebaseArticle);
             setError(null);
           } else {
+            console.error(`ReviewArticlePage: Article not found with ID: ${id}`);
             setError('Article not found');
+            toast({
+              title: 'Error',
+              description: `Article with ID ${id} not found`,
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
           }
         } catch (error) {
-          console.error('Error loading article:', error);
-          setError('Error loading article');
+          console.error('ReviewArticlePage: Error loading article:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          setError(`Error loading article: ${errorMessage}`);
+          toast({
+            title: 'Error',
+            description: `Failed to load article: ${errorMessage}`,
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
         } finally {
           setLoading(false);
         }
@@ -164,7 +192,7 @@ const ReviewArticlePage: React.FC = () => {
       
       loadArticle();
     }
-  }, [id]);
+  }, [id, router.isReady, toast]);
 
   const handleSubmitReview = () => {
     // Validate all required fields

@@ -413,8 +413,10 @@ const ReviewPage: React.FC = () => {
                           leftIcon={<FiStar />} 
                           size="sm" 
                           width="100%"
-                          as={Link}
-                          href={`/review/${article.id}`}
+                          onClick={() => {
+                            console.log(`Navigating to article review page: /review/${article.id}`);
+                            router.push(`/review/${article.id}`);
+                          }}
                         >
                           Review This Article
                         </Button>

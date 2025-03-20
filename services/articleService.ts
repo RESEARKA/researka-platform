@@ -161,22 +161,46 @@ export const getArticlesForReview = async (): Promise<Article[]> => {
  */
 export const getArticleById = async (articleId: string): Promise<Article | null> => {
   try {
+    console.log(`ArticleService: Getting article by ID: ${articleId}`);
+    
+    if (!db) {
+      console.error('ArticleService: Firestore not initialized');
+      throw new Error('Firestore not initialized');
+    }
+    
+    if (!articleId) {
+      console.error('ArticleService: Article ID is undefined or empty');
+      throw new Error('Article ID is required');
+    }
+    
     // Create query for the specific article
     const q = query(
       collection(db, articlesCollection),
       where('__name__', '==', articleId)
     );
     
+    console.log(`ArticleService: Query created for article ID: ${articleId}`);
+    
     // Execute query
     const querySnapshot = await getDocs(q);
     
+    console.log(`ArticleService: Query executed, found ${querySnapshot.size} documents`);
+    
     if (querySnapshot.empty) {
+      console.log(`ArticleService: No article found with ID: ${articleId}`);
       return null;
     }
     
     // Get the first (and only) document
     const doc = querySnapshot.docs[0];
     const data = doc.data();
+    
+    console.log(`ArticleService: Found article with title: ${data.title}`);
+    
+    // Check if all required fields are present
+    if (!data.title || !data.abstract || !data.category) {
+      console.warn(`ArticleService: Article ${articleId} is missing required fields`);
+    }
     
     return {
       id: doc.id,
@@ -203,8 +227,8 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
       license: data.license
     };
   } catch (error) {
-    console.error('Error getting article by ID:', error);
-    throw new Error('Failed to get article');
+    console.error(`ArticleService: Error getting article by ID ${articleId}:`, error);
+    throw new Error(`Failed to get article: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
