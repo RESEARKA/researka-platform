@@ -29,6 +29,7 @@ import {
   Divider,
   useColorModeValue,
   Badge,
+  Checkbox,
 } from '@chakra-ui/react';
 import { FiUpload, FiArrowRight, FiArrowLeft, FiCheck } from 'react-icons/fi';
 import Layout from '../components/Layout';
@@ -41,9 +42,10 @@ import { useRouter } from 'next/router';
 // Define the steps for the submission process
 const steps = [
   { title: 'Basic Info', description: 'Article details' },
-  { title: 'Content', description: 'Write or upload' },
+  { title: 'Authors', description: 'Author information' },
+  { title: 'Content', description: 'Manuscript content' },
+  { title: 'Metadata', description: 'Additional information' },
   { title: 'Review', description: 'Check your submission' },
-  { title: 'Submit', description: 'Finalize submission' },
 ];
 
 const SubmitPage: React.FC = () => {
@@ -58,15 +60,40 @@ const SubmitPage: React.FC = () => {
   const router = useRouter();
   const { currentUser, getUserProfile, updateUserData } = useAuth();
   
-  // Form state
+  // Basic information state
   const [title, setTitle] = useState('');
   const [abstract, setAbstract] = useState('');
   const [category, setCategory] = useState('');
   const [keywords, setKeywords] = useState('');
-  const [content, setContent] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  
+  // Author details state
+  const [orcidId, setOrcidId] = useState('');
+  const [isCorrespondingAuthor, setIsCorrespondingAuthor] = useState(true);
+  const [coAuthors, setCoAuthors] = useState<Array<{name: string, affiliation: string, email: string, orcid: string}>>([]);
+  
+  // Manuscript content state
+  const [introduction, setIntroduction] = useState('');
+  const [methods, setMethods] = useState('');
+  const [results, setResults] = useState('');
+  const [discussion, setDiscussion] = useState('');
+  const [references, setReferences] = useState('');
+  const [supplementaryMaterials, setSupplementaryMaterials] = useState<File[]>([]);
+  
+  // Additional metadata state
+  const [funding, setFunding] = useState('');
+  const [ethicalApprovals, setEthicalApprovals] = useState('');
+  const [dataAvailability, setDataAvailability] = useState('');
+  const [conflictsOfInterest, setConflictsOfInterest] = useState('');
+  const [license, setLicense] = useState('CC BY');
+  
+  // Form state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [authorDeclarations, setAuthorDeclarations] = useState({
+    isOriginal: false,
+    allAuthorsApproved: false,
+    agreeToTerms: false
+  });
   
   // Check if user is logged in and profile is complete
   useEffect(() => {
@@ -172,8 +199,41 @@ const SubmitPage: React.FC = () => {
       case 'keywords':
         setKeywords(value);
         break;
-      case 'content':
-        setContent(value);
+      case 'orcidId':
+        setOrcidId(value);
+        break;
+      case 'isCorrespondingAuthor':
+        setIsCorrespondingAuthor(value === 'true');
+        break;
+      case 'introduction':
+        setIntroduction(value);
+        break;
+      case 'methods':
+        setMethods(value);
+        break;
+      case 'results':
+        setResults(value);
+        break;
+      case 'discussion':
+        setDiscussion(value);
+        break;
+      case 'references':
+        setReferences(value);
+        break;
+      case 'funding':
+        setFunding(value);
+        break;
+      case 'ethicalApprovals':
+        setEthicalApprovals(value);
+        break;
+      case 'dataAvailability':
+        setDataAvailability(value);
+        break;
+      case 'conflictsOfInterest':
+        setConflictsOfInterest(value);
+        break;
+      case 'license':
+        setLicense(value);
         break;
       default:
         break;
@@ -203,8 +263,20 @@ const SubmitPage: React.FC = () => {
     setAbstract('');
     setCategory('');
     setKeywords('');
-    setContent('');
-    setFile(null);
+    setOrcidId('');
+    setIsCorrespondingAuthor(true);
+    setCoAuthors([]);
+    setIntroduction('');
+    setMethods('');
+    setResults('');
+    setDiscussion('');
+    setReferences('');
+    setSupplementaryMaterials([]);
+    setFunding('');
+    setEthicalApprovals('');
+    setDataAvailability('');
+    setConflictsOfInterest('');
+    setLicense('CC BY');
     setActiveStep(0);
   };
   
@@ -316,47 +388,183 @@ const SubmitPage: React.FC = () => {
               
               {activeStep === 1 && (
                 <VStack spacing={6} align="stretch">
-                  <Heading size="md">Article Content</Heading>
+                  <Heading size="md">Authors</Heading>
                   
-                  <Flex direction={{ base: 'column', md: 'row' }} gap={4}>
-                    <Button 
-                      leftIcon={<FiFileText />} 
-                      colorScheme="green" 
-                      variant="outline" 
-                      flex="1"
-                      py={8}
-                    >
-                      Write in Editor
-                    </Button>
-                    
-                    <Button 
-                      leftIcon={<FiUpload />} 
-                      colorScheme="green" 
-                      variant="outline" 
-                      flex="1"
-                      py={8}
-                    >
-                      Upload Document
-                    </Button>
-                  </Flex>
-                  
-                  <Divider my={4} />
+                  <FormControl isRequired>
+                    <FormLabel htmlFor="orcid-id">ORCID ID</FormLabel>
+                    <Input 
+                      id="orcid-id"
+                      name="orcidId" 
+                      value={orcidId} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter your ORCID ID"
+                    />
+                  </FormControl>
                   
                   <FormControl>
-                    <FormLabel htmlFor="article-content">Article Content</FormLabel>
-                    <Textarea 
-                      id="article-content"
-                      name="content" 
-                      value={content} 
+                    <FormLabel htmlFor="is-corresponding-author">Corresponding Author</FormLabel>
+                    <Select 
+                      id="is-corresponding-author"
+                      name="isCorrespondingAuthor" 
+                      value={isCorrespondingAuthor ? 'true' : 'false'} 
                       onChange={handleInputChange} 
-                      placeholder="Write or paste your article content here"
-                      rows={12}
+                      placeholder="Select"
+                      aria-label="Select corresponding author"
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </Select>
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel htmlFor="co-authors">Co-Authors</FormLabel>
+                    <Textarea 
+                      id="co-authors"
+                      name="coAuthors" 
+                      value={JSON.stringify(coAuthors)} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter co-authors in JSON format"
+                      rows={5}
                     />
+                    <FormHelperText>{`Example: [{"name": "John Doe", "affiliation": "University of Example", "email": "john@example.com", "orcid": "1234-5678-9012-3456"}]`}</FormHelperText>
                   </FormControl>
                 </VStack>
               )}
               
               {activeStep === 2 && (
+                <VStack spacing={6} align="stretch">
+                  <Heading size="md">Manuscript Content</Heading>
+                  
+                  <FormControl isRequired>
+                    <FormLabel htmlFor="introduction">Introduction</FormLabel>
+                    <Textarea 
+                      id="introduction"
+                      name="introduction" 
+                      value={introduction} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter the introduction of your article"
+                      rows={5}
+                    />
+                  </FormControl>
+                  
+                  <FormControl isRequired>
+                    <FormLabel htmlFor="methods">Methods</FormLabel>
+                    <Textarea 
+                      id="methods"
+                      name="methods" 
+                      value={methods} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter the methods of your article"
+                      rows={5}
+                    />
+                  </FormControl>
+                  
+                  <FormControl isRequired>
+                    <FormLabel htmlFor="results">Results</FormLabel>
+                    <Textarea 
+                      id="results"
+                      name="results" 
+                      value={results} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter the results of your article"
+                      rows={5}
+                    />
+                  </FormControl>
+                  
+                  <FormControl isRequired>
+                    <FormLabel htmlFor="discussion">Discussion</FormLabel>
+                    <Textarea 
+                      id="discussion"
+                      name="discussion" 
+                      value={discussion} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter the discussion of your article"
+                      rows={5}
+                    />
+                  </FormControl>
+                  
+                  <FormControl isRequired>
+                    <FormLabel htmlFor="references">References</FormLabel>
+                    <Textarea 
+                      id="references"
+                      name="references" 
+                      value={references} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter the references of your article"
+                      rows={5}
+                    />
+                  </FormControl>
+                </VStack>
+              )}
+              
+              {activeStep === 3 && (
+                <VStack spacing={6} align="stretch">
+                  <Heading size="md">Metadata</Heading>
+                  
+                  <FormControl>
+                    <FormLabel htmlFor="funding">Funding</FormLabel>
+                    <Input 
+                      id="funding"
+                      name="funding" 
+                      value={funding} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter funding information"
+                    />
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel htmlFor="ethical-approvals">Ethical Approvals</FormLabel>
+                    <Input 
+                      id="ethical-approvals"
+                      name="ethicalApprovals" 
+                      value={ethicalApprovals} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter ethical approvals"
+                    />
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel htmlFor="data-availability">Data Availability</FormLabel>
+                    <Input 
+                      id="data-availability"
+                      name="dataAvailability" 
+                      value={dataAvailability} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter data availability"
+                    />
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel htmlFor="conflicts-of-interest">Conflicts of Interest</FormLabel>
+                    <Input 
+                      id="conflicts-of-interest"
+                      name="conflictsOfInterest" 
+                      value={conflictsOfInterest} 
+                      onChange={handleInputChange} 
+                      placeholder="Enter conflicts of interest"
+                    />
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel htmlFor="license">License</FormLabel>
+                    <Select 
+                      id="license"
+                      name="license" 
+                      value={license} 
+                      onChange={handleInputChange} 
+                      placeholder="Select license"
+                      aria-label="Select license"
+                    >
+                      <option value="CC BY">CC BY</option>
+                      <option value="CC BY-SA">CC BY-SA</option>
+                      <option value="CC BY-NC">CC BY-NC</option>
+                      <option value="CC BY-NC-SA">CC BY-NC-SA</option>
+                    </Select>
+                  </FormControl>
+                </VStack>
+              )}
+              
+              {activeStep === 4 && (
                 <VStack spacing={6} align="stretch">
                   <Heading size="md">Review Your Submission</Heading>
                   
@@ -384,16 +592,118 @@ const SubmitPage: React.FC = () => {
                       
                       <Divider />
                       
-                      <Text fontWeight="bold">Content Preview:</Text>
-                      <Text noOfLines={3}>{content || 'No content added'}</Text>
+                      <Text fontWeight="bold">ORCID ID:</Text>
+                      <Text>{orcidId || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Corresponding Author:</Text>
+                      <Text>{isCorrespondingAuthor ? 'Yes' : 'No'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Co-Authors:</Text>
+                      <Text>{JSON.stringify(coAuthors) || 'None'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Introduction:</Text>
+                      <Text noOfLines={3}>{introduction || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Methods:</Text>
+                      <Text noOfLines={3}>{methods || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Results:</Text>
+                      <Text noOfLines={3}>{results || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Discussion:</Text>
+                      <Text noOfLines={3}>{discussion || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">References:</Text>
+                      <Text noOfLines={3}>{references || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Funding:</Text>
+                      <Text>{funding || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Ethical Approvals:</Text>
+                      <Text>{ethicalApprovals || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Data Availability:</Text>
+                      <Text>{dataAvailability || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">Conflicts of Interest:</Text>
+                      <Text>{conflictsOfInterest || 'Not provided'}</Text>
+                      
+                      <Divider />
+                      
+                      <Text fontWeight="bold">License:</Text>
+                      <Text>{license}</Text>
                     </VStack>
                   </Box>
-                </VStack>
-              )}
-              
-              {activeStep === 3 && (
-                <VStack spacing={6} align="center">
-                  <Heading size="md">Ready to Submit</Heading>
+                  
+                  <Divider my={4} />
+                  
+                  <Heading size="sm" mb={4}>Author Declarations</Heading>
+                  
+                  <VStack align="start" spacing={3}>
+                    <FormControl isRequired>
+                      <Flex>
+                        <Checkbox 
+                          id="is-original" 
+                          isChecked={authorDeclarations.isOriginal}
+                          onChange={(e) => setAuthorDeclarations({...authorDeclarations, isOriginal: e.target.checked})}
+                          mr={2}
+                        />
+                        <FormLabel htmlFor="is-original" mb={0}>
+                          This work is original and not under review elsewhere.
+                        </FormLabel>
+                      </Flex>
+                    </FormControl>
+                    
+                    <FormControl isRequired>
+                      <Flex>
+                        <Checkbox 
+                          id="all-authors-approved" 
+                          isChecked={authorDeclarations.allAuthorsApproved}
+                          onChange={(e) => setAuthorDeclarations({...authorDeclarations, allAuthorsApproved: e.target.checked})}
+                          mr={2}
+                        />
+                        <FormLabel htmlFor="all-authors-approved" mb={0}>
+                          All authors have approved the final manuscript.
+                        </FormLabel>
+                      </Flex>
+                    </FormControl>
+                    
+                    <FormControl isRequired>
+                      <Flex>
+                        <Checkbox 
+                          id="agree-to-terms" 
+                          isChecked={authorDeclarations.agreeToTerms}
+                          onChange={(e) => setAuthorDeclarations({...authorDeclarations, agreeToTerms: e.target.checked})}
+                          mr={2}
+                        />
+                        <FormLabel htmlFor="agree-to-terms" mb={0}>
+                          I agree to the platform's terms and policies.
+                        </FormLabel>
+                      </Flex>
+                    </FormControl>
+                  </VStack>
                   
                   <Box 
                     p={6} 
@@ -402,6 +712,7 @@ const SubmitPage: React.FC = () => {
                     borderWidth="1px" 
                     borderColor="green.200"
                     width="100%"
+                    mt={6}
                   >
                     <VStack spacing={4}>
                       <FiCheck size={48} color="var(--chakra-colors-green-500)" />
@@ -414,15 +725,17 @@ const SubmitPage: React.FC = () => {
                     </VStack>
                   </Box>
                   
-                  <Button 
-                    colorScheme="green" 
-                    size="lg" 
-                    leftIcon={<FiUpload />}
-                    onClick={handleSubmit}
-                    mt={4}
-                  >
-                    Submit Article
-                  </Button>
+                  <Flex justify="center" mt={6}>
+                    <Button 
+                      colorScheme="green" 
+                      size="lg" 
+                      leftIcon={<FiUpload />}
+                      onClick={handleSubmit}
+                      isDisabled={!authorDeclarations.isOriginal || !authorDeclarations.allAuthorsApproved || !authorDeclarations.agreeToTerms}
+                    >
+                      Submit Article
+                    </Button>
+                  </Flex>
                 </VStack>
               )}
               
@@ -436,7 +749,7 @@ const SubmitPage: React.FC = () => {
                   Previous
                 </Button>
                 
-                {activeStep < 3 ? (
+                {activeStep < 4 ? (
                   <Button 
                     rightIcon={<FiArrowRight />} 
                     onClick={handleNext}
