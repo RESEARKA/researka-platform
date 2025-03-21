@@ -20,10 +20,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     
-    // Articles collection - allow all authenticated users to read and create
-    // but only owners can update/delete
+    // Articles collection - allow all users to read, but only authenticated users to create
+    // and only owners can update/delete
     match /articles/{articleId} {
-      allow read: if isSignedIn();
+      allow read: if true;  // Allow public read access
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && isOwner(resource.data.authorId);
     }
