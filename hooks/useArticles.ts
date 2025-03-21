@@ -1,112 +1,111 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 // Types
 export interface Article {
-  id: number;
+  id: string;
   title: string;
   abstract: string;
   status: string;
   date: string;
+  authorId: string;
+  createdAt: any;
 }
 
 export interface ArticlesResponse {
   articles: Article[];
   totalPages: number;
+  lastVisible: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
 }
 
-// Mock data function (replace with actual API call later)
-const fetchArticles = async (page = 1): Promise<ArticlesResponse> => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  // Mock data
-  const allArticles: Article[] = [
-    {
-      id: 1,
-      title: "Quantum Computing Applications in Cryptography",
-      abstract: "This paper explores the potential applications of quantum computing in modern cryptographic systems...",
-      status: "published",
-      date: "2025-02-15"
-    },
-    {
-      id: 2,
-      title: "Neural Networks for Climate Prediction",
-      abstract: "We present a novel approach to climate prediction using deep neural networks...",
-      status: "published",
-      date: "2025-01-28"
-    },
-    {
-      id: 3,
-      title: "Blockchain Solutions for Academic Publishing",
-      abstract: "This research proposes a blockchain-based framework for academic publishing...",
-      status: "published",
-      date: "2025-01-10"
-    },
-    {
-      id: 4,
-      title: "Advancements in CRISPR Gene Editing",
-      abstract: "Recent advancements in CRISPR-Cas9 technology have revolutionized genetic engineering...",
-      status: "published",
-      date: "2024-12-05"
-    },
-    {
-      id: 5,
-      title: "Machine Learning in Healthcare Diagnostics",
-      abstract: "This study examines the application of machine learning algorithms in medical diagnostics...",
-      status: "published",
-      date: "2024-11-22"
-    },
-    {
-      id: 6,
-      title: "Sustainable Energy Storage Solutions",
-      abstract: "We review recent developments in sustainable energy storage technologies...",
-      status: "published",
-      date: "2024-10-18"
-    },
-    {
-      id: 7,
-      title: "Artificial Intelligence Ethics Framework",
-      abstract: "This paper proposes a comprehensive ethical framework for AI development and deployment...",
-      status: "published",
-      date: "2024-09-30"
-    },
-    {
-      id: 8,
-      title: "Quantum Entanglement in Quantum Networks",
-      abstract: "We investigate the role of quantum entanglement in the development of quantum networks...",
-      status: "published",
-      date: "2024-09-12"
-    },
-    {
-      id: 9,
-      title: "Neuromorphic Computing Architectures",
-      abstract: "This research explores novel neuromorphic computing architectures inspired by the human brain...",
-      status: "published",
-      date: "2024-08-25"
+// Fetch articles from Firestore
+const fetchArticles = async (
+  userId: string | undefined,
+  page = 1,
+  itemsPerPage = 5,
+  lastVisible: QueryDocumentSnapshot<DocumentData> | null = null
+): Promise<ArticlesResponse> => {
+  // Return empty response if no userId
+  if (!userId) {
+    return {
+      articles: [],
+      totalPages: 0,
+      lastVisible: null,
+      hasMore: false
+    };
+  }
+
+  try {
+    const articlesCollection = 'articles';
+    let articlesQuery;
+
+    // First page query
+    if (page === 1 || !lastVisible) {
+      articlesQuery = query(
+        collection(db, articlesCollection),
+        where('authorId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(itemsPerPage)
+      );
+    } else {
+      // Pagination query with startAfter
+      articlesQuery = query(
+        collection(db, articlesCollection),
+        where('authorId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastVisible),
+        limit(itemsPerPage)
+      );
     }
-  ];
-  
-  // Items per page
-  const itemsPerPage = 3;
-  const totalPages = Math.ceil(allArticles.length / itemsPerPage);
-  
-  // Paginate
-  const startIndex = (page - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedArticles = allArticles.slice(startIndex, endIndex);
-  
-  // Simulate random error for testing (uncomment to test error handling)
-  // if (Math.random() < 0.2) throw new Error("Failed to fetch articles");
-  
-  return { articles: paginatedArticles, totalPages };
+
+    const articlesSnapshot = await getDocs(articlesQuery);
+    const lastVisibleDoc = articlesSnapshot.docs[articlesSnapshot.docs.length - 1] || null;
+    const hasMore = articlesSnapshot.docs.length === itemsPerPage;
+
+    // Convert Firestore documents to Article objects
+    const articles = articlesSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title || 'Untitled Article',
+        abstract: data.abstract || 'No abstract provided',
+        status: data.status || 'draft',
+        date: data.createdAt?.toDate?.() 
+          ? new Date(data.createdAt.toDate()).toLocaleDateString() 
+          : new Date().toLocaleDateString(),
+        authorId: data.authorId || '',
+        createdAt: data.createdAt
+      };
+    });
+
+    return {
+      articles,
+      totalPages: hasMore ? page + 1 : page,
+      lastVisible: lastVisibleDoc,
+      hasMore
+    };
+  } catch (error) {
+    console.error('Error fetching articles:', error);
+    throw error;
+  }
 };
 
 // React Query hook
-export function useArticles(page = 1): UseQueryResult<ArticlesResponse, Error> {
+export const useArticles = (
+  page = 1,
+  itemsPerPage = 5
+): UseQueryResult<ArticlesResponse, Error> => {
+  const { currentUser } = useAuth();
+  const userId = currentUser?.uid;
+
   return useQuery({
-    queryKey: ['articles', page],
-    queryFn: () => fetchArticles(page),
-    placeholderData: (previousData) => previousData, 
+    queryKey: ['articles', userId, page, itemsPerPage],
+    queryFn: () => fetchArticles(userId, page, itemsPerPage),
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false
   });
-}
+};

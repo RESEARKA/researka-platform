@@ -1,81 +1,111 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 // Types
 export interface Review {
-  id: number;
+  id: string;
   title: string;
   content: string;
   date: string;
+  reviewerId: string;
+  articleId: string;
+  createdAt: any;
 }
 
 export interface ReviewsResponse {
   reviews: Review[];
   totalPages: number;
+  lastVisible: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
 }
 
-// Mock data function (replace with actual API call later)
-const fetchReviews = async (page = 1): Promise<ReviewsResponse> => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 600));
-  
-  // Mock data
-  const allReviews: Review[] = [
-    {
-      id: 1,
-      title: "Comprehensive Analysis of Quantum Computing Applications",
-      content: "This paper provides an excellent overview of quantum computing applications in cryptography...",
-      date: "2025-02-20"
-    },
-    {
-      id: 2,
-      title: "Innovative Approach to Climate Prediction",
-      content: "The authors present a novel neural network architecture for climate prediction...",
-      date: "2025-02-05"
-    },
-    {
-      id: 3,
-      title: "Blockchain in Academic Publishing",
-      content: "This research effectively demonstrates how blockchain technology can transform academic publishing...",
-      date: "2025-01-18"
-    },
-    {
-      id: 4,
-      title: "CRISPR Technology Review",
-      content: "A thorough examination of recent advancements in CRISPR gene editing techniques...",
-      date: "2024-12-12"
-    },
-    {
-      id: 5,
-      title: "Machine Learning for Medical Diagnostics",
-      content: "The application of machine learning in healthcare diagnostics is well-presented in this study...",
-      date: "2024-11-30"
-    },
-    {
-      id: 6,
-      title: "Energy Storage Technologies",
-      content: "A comprehensive review of sustainable energy storage solutions with practical applications...",
-      date: "2024-10-25"
+// Fetch reviews from Firestore
+const fetchReviews = async (
+  userId: string | undefined,
+  page = 1,
+  itemsPerPage = 5,
+  lastVisible: QueryDocumentSnapshot<DocumentData> | null = null
+): Promise<ReviewsResponse> => {
+  // Return empty response if no userId
+  if (!userId) {
+    return {
+      reviews: [],
+      totalPages: 0,
+      lastVisible: null,
+      hasMore: false
+    };
+  }
+
+  try {
+    const reviewsCollection = 'reviews';
+    let reviewsQuery;
+
+    // First page query
+    if (page === 1 || !lastVisible) {
+      reviewsQuery = query(
+        collection(db, reviewsCollection),
+        where('reviewerId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(itemsPerPage)
+      );
+    } else {
+      // Pagination query with startAfter
+      reviewsQuery = query(
+        collection(db, reviewsCollection),
+        where('reviewerId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastVisible),
+        limit(itemsPerPage)
+      );
     }
-  ];
-  
-  // Items per page
-  const itemsPerPage = 3;
-  const totalPages = Math.ceil(allReviews.length / itemsPerPage);
-  
-  // Paginate
-  const startIndex = (page - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedReviews = allReviews.slice(startIndex, endIndex);
-  
-  return { reviews: paginatedReviews, totalPages };
+
+    const reviewsSnapshot = await getDocs(reviewsQuery);
+    const lastVisibleDoc = reviewsSnapshot.docs[reviewsSnapshot.docs.length - 1] || null;
+    const hasMore = reviewsSnapshot.docs.length === itemsPerPage;
+
+    // Convert Firestore documents to Review objects
+    const reviews = reviewsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.articleTitle || 'Review of Article',
+        content: data.content || 'No review content provided',
+        date: data.createdAt?.toDate?.() 
+          ? new Date(data.createdAt.toDate()).toLocaleDateString() 
+          : new Date().toLocaleDateString(),
+        reviewerId: data.reviewerId || '',
+        articleId: data.articleId || '',
+        createdAt: data.createdAt
+      };
+    });
+
+    return {
+      reviews,
+      totalPages: hasMore ? page + 1 : page,
+      lastVisible: lastVisibleDoc,
+      hasMore
+    };
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    throw error;
+  }
 };
 
 // React Query hook
-export function useReviews(page = 1): UseQueryResult<ReviewsResponse, Error> {
+export const useReviews = (
+  page = 1,
+  itemsPerPage = 5
+): UseQueryResult<ReviewsResponse, Error> => {
+  const { currentUser } = useAuth();
+  const userId = currentUser?.uid;
+
   return useQuery({
-    queryKey: ['reviews', page],
-    queryFn: () => fetchReviews(page),
-    placeholderData: (previousData) => previousData, // Replacement for keepPreviousData
+    queryKey: ['reviews', userId, page, itemsPerPage],
+    queryFn: () => fetchReviews(userId, page, itemsPerPage),
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false
   });
-}
+};

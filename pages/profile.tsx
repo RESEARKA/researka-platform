@@ -448,7 +448,7 @@ const ProfilePage: React.FC = () => {
   const [reviewsPage, setReviewsPage] = useState(1);
   const [savedPage, setSavedPage] = useState(1);
   
-  const itemsPerPage = 3;
+  const itemsPerPage = 5;
   
   // Use React Query hooks for data fetching
   const { 
