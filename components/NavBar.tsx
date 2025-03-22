@@ -37,35 +37,72 @@ const NavBar: React.FC<NavBarProps> = ({
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
+  // Debug logging for initial render
+  console.log('NavBar: Initial render with props:', { 
+    propIsLoggedIn, 
+    activePage,
+    currentUserExists: !!currentUser,
+    initialUsername: username
+  });
+  
   useEffect(() => {
+    // Debug logging for useEffect
+    console.log('NavBar: useEffect triggered with currentUser:', currentUser ? {
+      uid: currentUser.uid,
+      email: currentUser.email,
+      displayName: currentUser.displayName,
+      isAnonymous: currentUser.isAnonymous
+    } : 'null');
+    
     // Check if user is logged in with Firebase
     if (currentUser) {
       setIsLoggedIn(true);
       
-      // Set username from Firebase user
-      setUsername(currentUser.displayName || currentUser.email?.split('@')[0] || 'User');
+      // Set username from Firebase user with better fallback handling
+      console.log('NavBar: Current user data:', { 
+        displayName: currentUser.displayName, 
+        email: currentUser.email,
+        uid: currentUser.uid 
+      });
+      
+      // More robust username setting with fallbacks
+      const defaultUsername = currentUser.email 
+        ? currentUser.email.split('@')[0] 
+        : `User-${currentUser.uid.substring(0, 5)}`;
+      
+      setUsername(currentUser.displayName || defaultUsername);
+      console.log('NavBar: Setting username to:', currentUser.displayName || defaultUsername);
       
       // Get user profile from Firestore
       const getUserData = async () => {
         try {
+          console.log('NavBar: Fetching user profile data...');
           const profile = await getUserProfile();
+          console.log('NavBar: User profile data received:', profile);
+          
           if (profile) {
             setUserProfile(profile);
             if (profile.name) {
+              console.log('NavBar: Setting username from profile:', profile.name);
               setUsername(profile.name);
+            } else {
+              console.log('NavBar: Profile has no name property');
             }
             
             // Check if user is admin
             const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com'];
             setIsAdmin(adminEmails.includes(currentUser.email || ''));
+          } else {
+            console.log('NavBar: No profile found, using default username');
           }
         } catch (error) {
-          console.error('Failed to get user profile:', error);
+          console.error('NavBar: Failed to get user profile:', error);
         }
       };
       
       getUserData();
     } else {
+      console.log('NavBar: No current user, setting logged out state');
       setIsLoggedIn(false);
       setUsername(null);
       setUserProfile(null);
@@ -206,19 +243,23 @@ const NavBar: React.FC<NavBarProps> = ({
                 <MenuButton
                   as={Button}
                   rightIcon={<FiChevronDown />}
-                  variant="ghost"
+                  variant="solid"
+                  colorScheme="blue"
                   size="sm"
+                  minW="120px"
                   px={3}
                   py={1}
                   height="auto"
                   fontWeight="500"
-                  color="blue.700"
                   borderRadius="md"
                   mx={1}
-                  _hover={{ bg: "gray.100" }}
-                  _active={{ bg: "gray.200" }}
+                  _hover={{ bg: "blue.600" }}
+                  _active={{ bg: "blue.700" }}
+                  data-testid="user-menu-button"
                 >
-                  {username || 'User'}
+                  <Box as="span" display="inline-block" textAlign="left" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    {username ? username : 'User'}
+                  </Box>
                 </MenuButton>
                 <MenuList minWidth="180px" fontSize="sm" bg="white" borderColor="gray.200">
                   <Link href="/profile" passHref legacyBehavior>

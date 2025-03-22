@@ -434,7 +434,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, 5000); // 5 second timeout
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('AuthContext: Auth state changed, user:', user ? user.uid : 'null');
+      console.log('AuthContext: Auth state changed, user:', user ? {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        isAnonymous: user.isAnonymous,
+        providerData: user.providerData.map(p => ({
+          providerId: p.providerId,
+          uid: p.uid,
+          displayName: p.displayName,
+          email: p.email
+        }))
+      } : 'null');
       
       if (user) {
         // Verify the token is valid
@@ -451,6 +462,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Force token refresh
             await user.getIdToken(true);
             console.log('AuthContext: User token refreshed');
+          }
+          
+          // Check if displayName exists and log it
+          if (!user.displayName) {
+            console.warn('AuthContext: User has no displayName, attempting to retrieve from Firestore');
+            try {
+              if (db) {
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  console.log('AuthContext: Retrieved user data from Firestore:', userData);
+                  
+                  if (userData.name && !user.displayName) {
+                    console.log('AuthContext: Updating user displayName from Firestore name:', userData.name);
+                    try {
+                      await updateProfile(user, {
+                        displayName: userData.name
+                      });
+                      console.log('AuthContext: Successfully updated displayName');
+                    } catch (updateError) {
+                      console.error('AuthContext: Failed to update displayName:', updateError);
+                    }
+                  }
+                } else {
+                  console.warn('AuthContext: User document not found in Firestore');
+                }
+              }
+            } catch (firestoreError) {
+              console.error('AuthContext: Error retrieving user data from Firestore:', firestoreError);
+            }
           }
         } catch (tokenError) {
           console.error('AuthContext: Error verifying user token:', tokenError);
