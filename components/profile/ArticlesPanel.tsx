@@ -89,7 +89,7 @@ const ArticlesPanel: React.FC<ArticlesPanelProps> = ({
                   
                   <Button
                     as={Link}
-                    href={`/article/${article.id}`}
+                    href={`/articles/${article.id}`}
                     size="sm"
                     variant="outline"
                     colorScheme="blue"
