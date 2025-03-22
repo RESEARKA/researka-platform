@@ -13,6 +13,9 @@ export interface Review {
   reviewerId: string;
   articleId: string;
   createdAt: any;
+  score?: number;
+  recommendation?: string;
+  reviewerName?: string;
 }
 
 export interface ReviewsResponse {
@@ -114,11 +117,15 @@ const fetchReviews = async (
           : new Date().toLocaleDateString(),
         reviewerId: data.reviewerId || '',
         articleId: data.articleId || '',
-        createdAt: data.createdAt
+        createdAt: data.createdAt,
+        score: data.score || 0,
+        recommendation: data.recommendation || '',
+        reviewerName: data.reviewerName || ''
       };
     });
     
     console.log(`useReviews: Fetched ${reviews.length} reviews for user:`, userId);
+    console.log('useReviews: First review data:', reviews[0]);
     
     // Calculate total pages (this is an approximation)
     const totalPages = page + (hasMore ? 1 : 0);
@@ -179,6 +186,6 @@ export const useReviews = (
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
     enabled: !!userId && authIsInitialized === true,
-    retry: 3
+    retry: 1
   });
 };

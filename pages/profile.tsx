@@ -535,6 +535,13 @@ const ProfilePage: React.FC = () => {
     refetch: refetchReviews
   } = useReviews(reviewsPage);
   
+  // Debug logging for reviews data
+  useEffect(() => {
+    console.log('Profile: Reviews data from useReviews hook:', reviewsData);
+    console.log('Profile: Reviews loading state:', reviewsLoading);
+    console.log('Profile: Reviews error:', reviewsError);
+  }, [reviewsData, reviewsLoading, reviewsError]);
+  
   // Add useEffect to trigger refetching when tab changes
   useEffect(() => {
     console.log('Profile: Active tab changed to:', activeTab);

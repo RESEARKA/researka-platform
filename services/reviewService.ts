@@ -118,3 +118,41 @@ export const getReviewsForArticle = async (articleId: string): Promise<Review[]>
     throw new Error('Failed to get reviews for article');
   }
 };
+
+/**
+ * Debug function to log all reviews for the current user
+ */
+export const logUserReviews = async (): Promise<void> => {
+  try {
+    const { getAuth } = await import('firebase/auth');
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      console.error('ReviewService: User not authenticated');
+      return;
+    }
+    
+    if (!db) {
+      console.error('ReviewService: Firestore not initialized');
+      return;
+    }
+    
+    // Query reviews for the current user
+    const reviewsRef = collection(db, reviewsCollection);
+    const q = query(
+      reviewsRef,
+      where('reviewerId', '==', currentUser.uid),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    console.log(`ReviewService: Found ${querySnapshot.docs.length} reviews for user ${currentUser.uid}`);
+    
+    querySnapshot.forEach((doc) => {
+      console.log(`ReviewService: Review ${doc.id}:`, doc.data());
+    });
+  } catch (error) {
+    console.error('ReviewService: Error logging user reviews:', error);
+  }
+};

@@ -22,7 +22,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { FiSend, FiStar } from 'react-icons/fi';
-import { submitReview } from '../services/reviewService';
+import { submitReview, logUserReviews } from '../services/reviewService';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ReviewFormProps {
@@ -90,6 +90,10 @@ function ReviewForm({ articleId, articleTitle, onSuccess, onCancel }: ReviewForm
       
       // Submit review
       await submitReview(reviewData);
+      
+      // Debug: Log all reviews for the current user
+      console.log('ReviewForm: Logging all reviews for current user');
+      await logUserReviews();
       
       toast({
         title: 'Review submitted',

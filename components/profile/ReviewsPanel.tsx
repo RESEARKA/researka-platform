@@ -43,6 +43,9 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   
+  // Debug logging
+  console.log('ReviewsPanel: Rendering with data:', reviewsData);
+  
   return (
     <VStack spacing={4} align="stretch">
       {reviewsData && reviewsData.reviews && reviewsData.reviews.length > 0 ? (
@@ -62,7 +65,19 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                   <Heading as="h3" size="md" fontWeight="600">
                     {review.articleTitle || 'Review'}
                   </Heading>
-                  <Badge colorScheme="blue">Completed</Badge>
+                  <HStack spacing={2}>
+                    <Badge colorScheme="blue">
+                      {review.recommendation ? 
+                        review.recommendation.replace('_', ' ').charAt(0).toUpperCase() + 
+                        review.recommendation.replace('_', ' ').slice(1) : 
+                        'Completed'}
+                    </Badge>
+                    {review.score && (
+                      <Badge colorScheme="green">
+                        Score: {review.score}/5
+                      </Badge>
+                    )}
+                  </HStack>
                 </Flex>
               </CardHeader>
               
@@ -107,7 +122,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
           )}
         </>
       ) : (
-        <EmptyState type="reviews" />
+        <EmptyState type="Reviews" />
       )}
     </VStack>
   );
