@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   VStack,
   Card,
@@ -18,8 +18,9 @@ import {
 } from '@chakra-ui/react';
 import { FiCalendar, FiStar, FiExternalLink } from 'react-icons/fi';
 import ResponsiveText from '../ResponsiveText';
-import { Review, ReviewsResponse } from '../../hooks/useReviews';
+import { Review, ReviewsResponse, SortOption, FilterOptions } from '../../hooks/useReviews';
 import Link from 'next/link';
+import ReviewFilters from './ReviewFilters';
 
 interface ReviewsPanelProps {
   reviewsData: ReviewsResponse | undefined;
@@ -31,6 +32,10 @@ interface ReviewsPanelProps {
     totalPages: number;
     onPageChange: (page: number) => void;
   }>;
+  onFilterChange?: (filters: FilterOptions) => void;
+  onSortChange?: (sortOption: SortOption) => void;
+  currentSort?: SortOption;
+  currentFilters?: FilterOptions;
 }
 
 const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
@@ -39,6 +44,10 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   onPageChange,
   EmptyState,
   PaginationControl,
+  onFilterChange,
+  onSortChange,
+  currentSort = 'date_desc',
+  currentFilters = {},
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -48,6 +57,15 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   
   return (
     <VStack spacing={4} align="stretch">
+      {onFilterChange && onSortChange && (
+        <ReviewFilters
+          onFilterChange={onFilterChange}
+          onSortChange={onSortChange}
+          currentSort={currentSort}
+          currentFilters={currentFilters}
+        />
+      )}
+      
       {reviewsData && reviewsData.reviews && reviewsData.reviews.length > 0 ? (
         <>
           {reviewsData.reviews.map((review: Review) => (
@@ -100,9 +118,9 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                     as={Link}
                     href={`/articles/${review.articleId}`}
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     colorScheme="purple"
-                    leftIcon={<FiExternalLink size={14} />}
+                    rightIcon={<FiExternalLink size={14} />}
                   >
                     View Article
                   </Button>
@@ -122,7 +140,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
           )}
         </>
       ) : (
-        <EmptyState type="Reviews" />
+        <EmptyState type="reviews" />
       )}
     </VStack>
   );

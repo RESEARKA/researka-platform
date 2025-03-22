@@ -1,9 +1,18 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentData, QueryDocumentSnapshot, Query } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 // Types
+export interface ReviewResponse {
+  id?: string;
+  content: string;
+  authorId: string;
+  authorName?: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
 export interface Review {
   id: string;
   title?: string;
@@ -16,6 +25,8 @@ export interface Review {
   score?: number;
   recommendation?: string;
   reviewerName?: string;
+  responses?: ReviewResponse[];
+  authorId?: string; // The ID of the article author
 }
 
 export interface ReviewsResponse {
@@ -25,11 +36,23 @@ export interface ReviewsResponse {
   hasMore: boolean;
 }
 
+export type SortOption = 'date_desc' | 'date_asc' | 'score_desc' | 'score_asc';
+
+export interface FilterOptions {
+  recommendation?: string;
+  minScore?: number;
+  maxScore?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 // Fetch reviews from Firestore
 const fetchReviews = async (
   userId: string | undefined,
   page = 1,
   itemsPerPage = 5,
+  sortBy: SortOption = 'date_desc',
+  filters: FilterOptions = {},
   lastVisible: QueryDocumentSnapshot<DocumentData> | null = null
 ): Promise<ReviewsResponse> => {
   // Return empty response if no userId
@@ -43,21 +66,68 @@ const fetchReviews = async (
     };
   }
 
-  console.log(`useReviews: Fetching reviews for user: ${userId}, page: ${page}, itemsPerPage: ${itemsPerPage}`);
+  console.log(`useReviews: Fetching reviews for user: ${userId}, page: ${page}, itemsPerPage: ${itemsPerPage}, sortBy: ${sortBy}`);
+  console.log('useReviews: Filters:', filters);
   
   try {
     // Create a reference to the reviews collection
     const reviewsRef = collection(db, 'reviews');
     
     // Create a query against the collection
-    let reviewsQuery;
+    let queryConstraints: any[] = [where('reviewerId', '==', userId)];
+    
+    // Add filters if provided
+    if (filters.recommendation) {
+      queryConstraints.push(where('recommendation', '==', filters.recommendation));
+    }
+    
+    if (filters.minScore !== undefined) {
+      queryConstraints.push(where('score', '>=', filters.minScore));
+    }
+    
+    if (filters.maxScore !== undefined) {
+      queryConstraints.push(where('score', '<=', filters.maxScore));
+    }
+    
+    // Add sorting based on sortBy parameter
+    let sortField: string;
+    let sortDirection: 'asc' | 'desc';
+    
+    switch (sortBy) {
+      case 'date_asc':
+        sortField = 'createdAt';
+        sortDirection = 'asc';
+        break;
+      case 'score_desc':
+        sortField = 'score';
+        sortDirection = 'desc';
+        break;
+      case 'score_asc':
+        sortField = 'score';
+        sortDirection = 'asc';
+        break;
+      case 'date_desc':
+      default:
+        sortField = 'createdAt';
+        sortDirection = 'desc';
+        break;
+    }
+    
+    queryConstraints.push(orderBy(sortField, sortDirection));
+    
+    // If sorting by something other than createdAt, we need to add a secondary sort by createdAt
+    // to ensure consistent pagination
+    if (sortField !== 'createdAt') {
+      queryConstraints.push(orderBy('createdAt', 'desc'));
+    }
+    
+    let reviewsQuery: Query<DocumentData>;
     
     if (lastVisible) {
       // If we have a lastVisible document, start after it
       reviewsQuery = query(
         reviewsRef,
-        where('reviewerId', '==', userId),
-        orderBy('createdAt', 'desc'),
+        ...queryConstraints,
         startAfter(lastVisible),
         limit(itemsPerPage)
       );
@@ -66,8 +136,7 @@ const fetchReviews = async (
       // First page query
       reviewsQuery = query(
         reviewsRef,
-        where('reviewerId', '==', userId),
-        orderBy('createdAt', 'desc'),
+        ...queryConstraints,
         limit(itemsPerPage)
       );
       console.log('useReviews: First page query without lastVisible document');
@@ -93,10 +162,10 @@ const fetchReviews = async (
     const lastVisibleDoc = reviewsSnapshot.docs[reviewsSnapshot.docs.length - 1];
     
     // Check if there are more documents
+    const nextQueryConstraints = [...queryConstraints];
     const nextQuery = query(
       reviewsRef,
-      where('reviewerId', '==', userId),
-      orderBy('createdAt', 'desc'),
+      ...nextQueryConstraints,
       startAfter(lastVisibleDoc),
       limit(1)
     );
@@ -120,7 +189,9 @@ const fetchReviews = async (
         createdAt: data.createdAt,
         score: data.score || 0,
         recommendation: data.recommendation || '',
-        reviewerName: data.reviewerName || ''
+        reviewerName: data.reviewerName || '',
+        responses: data.responses || [],
+        authorId: data.authorId
       };
     });
     
@@ -146,6 +217,9 @@ const fetchReviews = async (
         match /reviews/{reviewId} {
           allow read: if request.auth != null;
           allow write: if request.auth != null && request.auth.uid == resource.data.reviewerId;
+          allow update: if request.auth != null && 
+            (request.auth.uid == resource.data.reviewerId || 
+             request.auth.uid == resource.data.authorId);
         }
         `);
         console.error('Visit the Firebase console to update security rules: https://console.firebase.google.com/project/_/firestore/rules');
@@ -174,14 +248,16 @@ const fetchReviews = async (
 // React Query hook
 export const useReviews = (
   page = 1,
-  itemsPerPage = 5
+  itemsPerPage = 5,
+  sortBy: SortOption = 'date_desc',
+  filters: FilterOptions = {}
 ): UseQueryResult<ReviewsResponse, Error> => {
   const { currentUser, authIsInitialized } = useAuth();
   const userId = currentUser?.uid;
 
   return useQuery({
-    queryKey: ['reviews', userId, page, itemsPerPage],
-    queryFn: () => fetchReviews(userId, page, itemsPerPage),
+    queryKey: ['reviews', userId, page, itemsPerPage, sortBy, filters],
+    queryFn: () => fetchReviews(userId, page, itemsPerPage, sortBy, filters),
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,

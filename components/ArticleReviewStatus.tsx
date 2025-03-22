@@ -57,6 +57,16 @@ const ArticleReviewStatus: React.FC<ArticleReviewStatusProps> = ({
   
   // Get status display information
   const getStatusInfo = () => {
+    // If all required reviews are received, show "Completed" status regardless of article.status
+    if (reviews.length >= reviewsNeeded) {
+      return {
+        label: 'Completed',
+        icon: FiCheckCircle,
+        color: 'green',
+        description: `This article has received all ${reviewsNeeded} required reviews.`
+      };
+    }
+    
     switch (article.status) {
       case 'pending':
         return {

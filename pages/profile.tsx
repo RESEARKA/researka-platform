@@ -40,7 +40,7 @@ import dynamic from 'next/dynamic';
 import Layout from '../components/Layout';
 import ResponsiveText from '../components/ResponsiveText';
 import { useArticles, Article, ArticlesResponse } from '../hooks/useArticles';
-import { useReviews, Review, ReviewsResponse } from '../hooks/useReviews';
+import { useReviews, Review, ReviewsResponse, SortOption, FilterOptions } from '../hooks/useReviews';
 import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import RecommendedArticles from '../components/RecommendedArticles';
 import { useAuth } from '../contexts/AuthContext';
@@ -517,6 +517,8 @@ const ProfilePage: React.FC = () => {
   const [articlesPage, setArticlesPage] = useState(1);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [savedPage, setSavedPage] = useState(1);
+  const [reviewSort, setReviewSort] = useState<SortOption>('date_desc');
+  const [reviewFilters, setReviewFilters] = useState<FilterOptions>({});
   
   const itemsPerPage = 5;
   
@@ -533,14 +535,29 @@ const ProfilePage: React.FC = () => {
     isLoading: reviewsLoading, 
     error: reviewsError,
     refetch: refetchReviews
-  } = useReviews(reviewsPage);
+  } = useReviews(reviewsPage, 5, reviewSort, reviewFilters);
   
   // Debug logging for reviews data
   useEffect(() => {
     console.log('Profile: Reviews data from useReviews hook:', reviewsData);
     console.log('Profile: Reviews loading state:', reviewsLoading);
     console.log('Profile: Reviews error:', reviewsError);
-  }, [reviewsData, reviewsLoading, reviewsError]);
+    console.log('Profile: Current review filters:', reviewFilters);
+    console.log('Profile: Current review sort:', reviewSort);
+  }, [reviewsData, reviewsLoading, reviewsError, reviewFilters, reviewSort]);
+  
+  // Handlers for review filtering and sorting
+  const handleReviewFilterChange = (filters: FilterOptions) => {
+    console.log('Profile: Changing review filters to:', filters);
+    setReviewFilters(filters);
+    setReviewsPage(1); // Reset to first page when filters change
+  };
+  
+  const handleReviewSortChange = (sortOption: SortOption) => {
+    console.log('Profile: Changing review sort to:', sortOption);
+    setReviewSort(sortOption);
+    setReviewsPage(1); // Reset to first page when sort changes
+  };
   
   // Add useEffect to trigger refetching when tab changes
   useEffect(() => {
@@ -775,6 +792,10 @@ const ProfilePage: React.FC = () => {
                               onPageChange={setReviewsPage}
                               EmptyState={EmptyState}
                               PaginationControl={PaginationControl}
+                              onFilterChange={handleReviewFilterChange}
+                              onSortChange={handleReviewSortChange}
+                              currentSort={reviewSort}
+                              currentFilters={reviewFilters}
                             />
                           </Suspense>
                         )}

@@ -20,7 +20,7 @@ import {
   useColorModeValue,
   useToast,
 } from '@chakra-ui/react';
-import { FiCalendar, FiDownload, FiEye, FiFileText, FiShare2, FiUser } from 'react-icons/fi';
+import { FiCalendar, FiDownload, FiEye, FiFileText, FiShare2, FiUser, FiArrowLeft } from 'react-icons/fi';
 import { Article } from '../../utils/recommendationEngine';
 import { getAllResearchFields } from '../../utils/researchTaxonomy';
 import ArticleReviewStatus from '../../components/ArticleReviewStatus';
@@ -122,6 +122,18 @@ const ArticleDetailPage: React.FC = () => {
   
   return (
     <Container maxW="container.xl" py={8}>
+      {/* Add navigation back button */}
+      <Box mb={4}>
+        <Button
+          leftIcon={<Icon as={FiArrowLeft} />}
+          variant="ghost"
+          size="md"
+          onClick={() => router.push('/articles')}
+        >
+          Back to Articles
+        </Button>
+      </Box>
+      
       {isLoading ? (
         <Box>
           <Skeleton height="50px" width="80%" mb={4} />
