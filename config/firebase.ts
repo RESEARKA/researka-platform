@@ -4,7 +4,7 @@ import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/fire
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
 
 // Your web app's Firebase configuration
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBm1xnqw87ho4mXEEMVVvqNKismySpQOsU",
   authDomain: "researka.firebaseapp.com",
   projectId: "researka",
@@ -15,9 +15,9 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
+let app: FirebaseApp = {} as FirebaseApp;
+let auth: Auth = {} as Auth;
+let db: Firestore = {} as Firestore;
 let analytics: Analytics | null = null;
 
 // Only initialize Firebase on the client side
@@ -36,39 +36,67 @@ if (typeof window !== 'undefined') {
     auth = getAuth(app);
     db = getFirestore(app);
     
-    // Verify Firestore connection
-    db.toJSON(); // This will throw if Firestore isn't properly initialized
-    
     // Only initialize analytics on client side if supported
     isSupported().then(supported => {
       if (supported) {
-        analytics = getAnalytics(app);
-        console.log('Firebase Analytics initialized');
+        try {
+          analytics = getAnalytics(app);
+          console.log('Firebase Analytics initialized');
+        } catch (analyticsError) {
+          console.error('Error initializing Firebase Analytics:', analyticsError);
+          // Don't throw, just log the error
+        }
       } else {
         console.log('Firebase Analytics not supported in this environment');
       }
+    }).catch(err => {
+      console.error('Error checking analytics support:', err);
+      // Don't throw, just log the error
     });
     
     // Connect to emulators if in development
     if (process.env.NODE_ENV === 'development' && process.env.FIREBASE_USE_EMULATOR === 'true') {
-      console.log('Connecting to Firebase emulators');
-      connectAuthEmulator(auth, 'http://localhost:9099');
-      connectFirestoreEmulator(db, 'localhost', 8080);
+      try {
+        console.log('Connecting to Firebase emulators');
+        connectAuthEmulator(auth, 'http://localhost:9099');
+        connectFirestoreEmulator(db, 'localhost', 8080);
+      } catch (emulatorError) {
+        console.error('Error connecting to Firebase emulators:', emulatorError);
+        // Don't throw, just log the error
+      }
     }
     
     console.log('Firebase initialized successfully');
   } catch (error) {
     console.error('Error initializing Firebase:', error);
-    // Rethrow to make initialization failures more visible
-    throw new Error(`Firebase initialization failed: ${error}`);
+    // Already initialized with empty objects above, no need to reassign
   }
 } else {
   // Server-side placeholder
   console.log('Firebase not initialized in server environment');
-  // We need to provide these for TypeScript, but they won't be used server-side
-  app = {} as FirebaseApp;
-  auth = {} as Auth;
-  db = {} as Firestore;
+  // We're already using empty objects initialized above
 }
+
+// Helper functions to safely get Firebase services
+export const getFirebaseAuth = (): Auth => {
+  if (!auth || Object.keys(auth).length === 0) {
+    throw new Error('Firebase Auth not initialized');
+  }
+  return auth;
+};
+
+export const getFirebaseFirestore = (): Firestore => {
+  if (!db || Object.keys(db).length === 0) {
+    throw new Error('Firebase Firestore not initialized');
+  }
+  return db;
+};
+
+export const getFirebaseApp = (): FirebaseApp => {
+  if (!app || Object.keys(app).length === 0) {
+    throw new Error('Firebase App not initialized');
+  }
+  return app;
+};
 
 export { app, auth, db, analytics };

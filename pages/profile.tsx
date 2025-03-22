@@ -230,7 +230,7 @@ const ProfilePage: React.FC = () => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
-  const { currentUser, getUserProfile, updateUserData } = useAuth();
+  const { currentUser, getUserProfile, updateUserData, authIsInitialized, isLoading: authLoading } = useAuth();
   const router = useRouter();
   
   // State to track if a profile update toast has been shown in this session
@@ -293,115 +293,185 @@ const ProfilePage: React.FC = () => {
       });
     }
   };
-  
+
   // Check if user is logged in
   React.useEffect(() => {
-    const checkAuth = async () => {
+    console.log('Profile: Effect running with:', {
+      authIsInitialized,
+      authLoading,
+      currentUser: currentUser?.uid
+    });
+
+    // Wait for auth to be ready
+    if (!authIsInitialized || authLoading) {
+      console.log('Profile: Auth not ready yet');
+      return;
+    }
+
+    // If no user, redirect to home
+    if (!currentUser) {
+      console.log('Profile: No user found, redirecting to home');
+      router.replace('/');
+      return;
+    }
+
+    // Load profile data
+    const loadData = async () => {
+      setIsLoading(true);
       try {
-        if (!currentUser) {
-          console.log('Profile: No user is logged in, redirecting to homepage');
-          // Redirect to homepage if not logged in
-          router.push('/');
-          return;
+        console.log('Profile: Loading profile data for user:', currentUser.uid);
+        const success = await loadProfileData();
+        if (!success) {
+          console.error('Profile: Failed to load profile data');
+          setError('Failed to load profile data. Please try again.');
         }
-        
-        // Load user profile data
-        console.log('Profile: Loading user profile data for user:', currentUser.uid);
-        const userProfile = await getUserProfile();
-        
-        if (userProfile) {
-          console.log('Profile: User profile found:', userProfile);
-          setUser(userProfile);
-          setIsProfileComplete(!!userProfile.profileComplete);
-          
-          // If profile is not complete, show edit mode
-          if (!userProfile.profileComplete) {
-            console.log('Profile: Profile not complete, showing edit form');
-            setIsEditMode(true);
-          }
-        } else {
-          console.log('Profile: No user profile found, creating default profile');
-          // Create a default profile if none exists
-          const defaultProfile: User = {
-            name: currentUser.displayName || '',
-            email: currentUser.email || '',
-            role: 'Researcher',
-            institution: '',
-            department: '',
-            position: '',
-            researchInterests: [],
-            articles: 0,
-            reviews: 0,
-            reputation: 0,
-            profileComplete: false,
-            createdAt: new Date().toISOString()
-          };
-          
-          try {
-            // Save the default profile to Firestore
-            console.log('Profile: Saving default profile to Firestore');
-            const updateSuccess = await updateUserData(defaultProfile);
-            setUser(defaultProfile);
-            setIsProfileComplete(false);
-            setIsEditMode(true);
-            
-            if (!updateSuccess) {
-              console.warn('Profile: Failed to save default profile to Firestore');
-              // Show a toast notification only once
-              if (!toast.isActive('profile-update-error')) {
-                toast({
-                  id: 'profile-update-error',
-                  title: 'Warning',
-                  description: 'Could not save profile to database. Changes may not persist.',
-                  status: 'warning',
-                  duration: 5000,
-                  isClosable: true,
-                  position: 'top-right'
-                });
-              }
-            }
-          } catch (updateError) {
-            console.error('Profile: Error creating default profile:', updateError);
-            
-            // If we can't save to Firestore, at least set the local state
-            setUser(defaultProfile);
-            setIsProfileComplete(false);
-            setIsEditMode(true);
-            
-            // Show a toast notification only once
-            if (!toast.isActive('profile-update-error')) {
-              toast({
-                id: 'profile-update-error',
-                title: 'Warning',
-                description: 'Could not save profile to database. Changes may not persist.',
-                status: 'warning',
-                duration: 5000,
-                isClosable: true,
-                position: 'top-right'
-              });
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Profile: Error checking authentication:', error);
-        // Show error toast
-        toast({
-          title: 'Authentication Error',
-          description: 'There was a problem with your account. Please try logging in again.',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
+      } catch (err) {
+        console.error('Profile: Error loading profile:', err);
+        setError('An error occurred while loading your profile. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
     };
+
+    loadData();
+  }, [authIsInitialized, authLoading, currentUser, router]);
+  
+  // Load user profile data
+  const loadProfileData = async () => {
+    try {
+      if (!currentUser) {
+        console.error('Profile: No user is logged in when trying to load profile data');
+        return false;
+      }
+      
+      console.log('Profile: Loading user profile data for user:', currentUser.uid);
+      const userProfile = await getUserProfile();
+      
+      if (userProfile) {
+        console.log('Profile: User profile found:', userProfile);
+        setUser(userProfile);
+        setIsProfileComplete(!!userProfile.profileComplete);
+        
+        // If profile is not complete, show edit mode
+        if (!userProfile.profileComplete) {
+          console.log('Profile: Profile not complete, showing edit form');
+          setIsEditMode(true);
+        }
+        return true;
+      } else {
+        return await createDefaultProfile();
+      }
+    } catch (error) {
+      console.error('Profile: Error loading profile data:', error);
+      setError('Failed to load profile data. Please try again.');
+      return false;
+    }
+  };
+  
+  // Create a default profile if none exists
+  const createDefaultProfile = async () => {
+    try {
+      console.log('Profile: No user profile found, creating default profile');
+      // Create a default profile if none exists
+      const defaultProfile: User = {
+        name: currentUser?.displayName || '',
+        email: currentUser?.email || '',
+        role: 'Researcher',
+        institution: '',
+        department: '',
+        position: '',
+        researchInterests: [],
+        articles: 0,
+        reviews: 0,
+        reputation: 0,
+        profileComplete: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      try {
+        // Save the default profile to Firestore
+        console.log('Profile: Saving default profile to Firestore');
+        const updateSuccess = await updateUserData(defaultProfile);
+        setUser(defaultProfile);
+        setIsProfileComplete(false);
+        setIsEditMode(true);
+        
+        if (!updateSuccess) {
+          console.warn('Profile: Failed to save default profile to Firestore');
+          // Show a toast notification only once
+          if (!toast.isActive('profile-update-error')) {
+            toast({
+              id: 'profile-update-error',
+              title: 'Warning',
+              description: 'Could not save profile to database. Changes may not persist.',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+              position: 'top-right'
+            });
+          }
+        }
+        return true;
+      } catch (updateError) {
+        console.error('Profile: Error creating default profile:', updateError);
+        
+        // If we can't save to Firestore, at least set the local state
+        setUser(defaultProfile);
+        setIsProfileComplete(false);
+        setIsEditMode(true);
+        
+        // Show a toast notification only once
+        if (!toast.isActive('profile-update-error')) {
+          toast({
+            id: 'profile-update-error',
+            title: 'Warning',
+            description: 'Could not save profile to database. Changes may not persist.',
+            status: 'warning',
+            duration: 5000,
+            isClosable: true,
+            position: 'top-right'
+          });
+        }
+        return false;
+      }
+    } catch (error) {
+      console.error('Profile: Error in createDefaultProfile:', error);
+      setError('Failed to create profile. Please try again.');
+      return false;
+    }
+  };
+
+  // Handle retry
+  const handleRetry = async () => {
+    setError(null);
+    setIsLoading(true);
     
-    // Add a small delay to ensure Firebase auth is fully initialized
-    const timer = setTimeout(() => {
-      checkAuth();
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [currentUser, getUserProfile, updateUserData, toast, router]);
+    try {
+      // Refetch articles and reviews
+      refetchArticles();
+      refetchReviews();
+      
+      // Try to load profile data again
+      const loadSuccess = await loadProfileData();
+      
+      if (loadSuccess) {
+        toast({
+          title: 'Success',
+          description: 'Profile data loaded successfully.',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        setError('Failed to load profile data. Please try again.');
+      }
+    } catch (retryError) {
+      console.error('Profile: Error in retry:', retryError);
+      setError('Failed to reload data. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Handle profile completion
   const handleProfileComplete = async (profileData: any) => {
@@ -490,19 +560,6 @@ const ProfilePage: React.FC = () => {
   };
   
   const currentSaved = getCurrentItems(mockSaved, savedPage);
-  
-  // Handle retry
-  const handleRetry = () => {
-    refetchArticles();
-    refetchReviews();
-    toast({
-      title: 'Retrying...',
-      description: 'Attempting to reload your profile data.',
-      status: 'info',
-      duration: 3000,
-      isClosable: true,
-    });
-  };
   
   // In a real app, you would fetch this data from your API
   const defaultUser: User = {

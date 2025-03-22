@@ -32,16 +32,17 @@ const SignupPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [detailedError, setDetailedError] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const { signup, currentUser } = useAuth();
+  const { signup, currentUser, authIsInitialized } = useAuth();
   const router = useRouter();
   const toast = useToast();
 
   // Redirect if user is already logged in
   useEffect(() => {
-    if (currentUser) {
-      router.push('/profile');
+    if (authIsInitialized && currentUser) {
+      console.log('Signup page: User already logged in, redirecting to profile...');
+      router.replace('/profile');
     }
-  }, [currentUser, router]);
+  }, [authIsInitialized, currentUser, router]);
 
   const validateForm = () => {
     setError(null);
@@ -97,7 +98,7 @@ const SignupPage: React.FC = () => {
       
       console.log('Signup page: Signup successful, user created with ID:', result.user.uid);
       
-      setSuccessMessage('Account created successfully! Redirecting to profile...');
+      setSuccessMessage('Account created successfully!');
       
       toast({
         title: 'Account created.',
@@ -107,27 +108,36 @@ const SignupPage: React.FC = () => {
         isClosable: true,
       });
       
-      // Redirect to profile page after a short delay
-      // Use router.replace instead of push to avoid history issues
-      setTimeout(() => {
-        console.log('Signup page: Redirecting to profile page...');
-        router.replace('/profile');
-      }, 1500);
-      
+      // The useEffect will handle redirection once currentUser is set
     } catch (err: any) {
       console.error('Signup page: Error during signup:', err);
       
-      // Set basic error message
-      setError('Failed to create account. Please try again.');
+      // Handle specific error cases
+      if (err.code === 'auth/email-already-in-use') {
+        setError('This email is already registered. Please sign in instead.');
+        toast({
+          title: 'Account Exists',
+          description: 'This email is already registered. Redirecting to login page...',
+          status: 'info',
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        // Redirect to login page after a short delay
+        setTimeout(() => {
+          router.replace('/login');
+        }, 2000);
+        return;
+      }
       
-      // Set detailed error for debugging
+      // Handle other errors
+      setError('Failed to create account. Please try again.');
       setDetailedError({
         code: err.code || 'unknown',
         message: err.message || 'Unknown error',
         stack: err.stack || 'No stack trace available'
       });
       
-      // Show toast notification
       toast({
         title: 'Error',
         description: err.message || 'Failed to create account',

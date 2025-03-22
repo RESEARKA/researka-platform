@@ -261,10 +261,10 @@ const RecommendedArticles: React.FC<RecommendedArticlesProps> = ({
           Recommended Articles
         </Heading>
         <Tooltip label="Articles are recommended based on your research interests and other factors">
-          <Flex align="center">
+          <Box display="inline-flex" alignItems="center">
             <Icon as={FiInfo} mr={1} />
             <Text fontSize="sm" color="gray.500">How are these selected?</Text>
-          </Flex>
+          </Box>
         </Tooltip>
       </Flex>
       

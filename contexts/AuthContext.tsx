@@ -12,10 +12,12 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+import { Box, Spinner } from '@chakra-ui/react';
 
 interface AuthContextType {
   currentUser: User | null;
   isLoading: boolean;
+  authIsInitialized: boolean;
   signup: (email: string, password: string, name: string) => Promise<UserCredential>;
   login: (email: string, password: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
@@ -41,6 +43,7 @@ export function useAuth() {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authIsInitialized, setAuthIsInitialized] = useState(false);
 
   // Sign up with email and password
   async function signup(email: string, password: string, name: string) {
@@ -421,6 +424,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     
+    // Add timeout fallback in case auth initialization takes too long
+    const authTimeout = setTimeout(() => {
+      if (!authIsInitialized) {
+        console.warn('AuthContext: Auth initialization timed out after 5 seconds, setting as initialized anyway');
+        setAuthIsInitialized(true);
+        setIsLoading(false);
+      }
+    }, 5000); // 5 second timeout
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('AuthContext: Auth state changed, user:', user ? user.uid : 'null');
       
@@ -447,14 +459,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       setCurrentUser(user);
       setIsLoading(false);
+      setAuthIsInitialized(true);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(authTimeout);
+    };
   }, []);
 
   const value = {
     currentUser,
     isLoading,
+    authIsInitialized,
     signup,
     login,
     logout,
@@ -469,7 +486,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <AuthContext.Provider value={value}>
-      {!isLoading && children}
+      {children}
+      {(!authIsInitialized || isLoading) && (
+        <Box
+          position="fixed"
+          top={0}
+          left={0}
+          right={0}
+          bottom={0}
+          bg="rgba(0, 0, 0, 0.5)"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          zIndex={9999}
+        >
+          <Spinner size="xl" color="white" />
+        </Box>
+      )}
     </AuthContext.Provider>
   );
 };

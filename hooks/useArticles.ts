@@ -39,57 +39,116 @@ const fetchArticles = async (
   }
 
   try {
-    const articlesCollection = 'articles';
+    // Create a reference to the articles collection
+    const articlesRef = collection(db, 'articles');
+    
+    // Create a query against the collection
     let articlesQuery;
-
-    // First page query
-    if (page === 1 || !lastVisible) {
+    
+    if (lastVisible) {
+      // If we have a lastVisible document, start after it
       articlesQuery = query(
-        collection(db, articlesCollection),
-        where('authorId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(itemsPerPage)
-      );
-    } else {
-      // Pagination query with startAfter
-      articlesQuery = query(
-        collection(db, articlesCollection),
+        articlesRef,
         where('authorId', '==', userId),
         orderBy('createdAt', 'desc'),
         startAfter(lastVisible),
         limit(itemsPerPage)
       );
+    } else {
+      // First page query
+      articlesQuery = query(
+        articlesRef,
+        where('authorId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(itemsPerPage)
+      );
     }
-
+    
+    // Execute the query
     const articlesSnapshot = await getDocs(articlesQuery);
-    const lastVisibleDoc = articlesSnapshot.docs[articlesSnapshot.docs.length - 1] || null;
-    const hasMore = articlesSnapshot.docs.length === itemsPerPage;
-
-    // Convert Firestore documents to Article objects
-    const articles = articlesSnapshot.docs.map(doc => {
-      const data = doc.data();
+    
+    // Check if there are any documents
+    if (articlesSnapshot.empty) {
+      console.log('useArticles: No articles found for user:', userId);
       return {
-        id: doc.id,
-        title: data.title || 'Untitled Article',
-        abstract: data.abstract || 'No abstract provided',
-        status: data.status || 'draft',
-        date: data.createdAt?.toDate?.() 
-          ? new Date(data.createdAt.toDate()).toLocaleDateString() 
-          : new Date().toLocaleDateString(),
-        authorId: data.authorId || '',
-        createdAt: data.createdAt
+        articles: [],
+        totalPages: 0,
+        lastVisible: null,
+        hasMore: false
       };
-    });
-
+    }
+    
+    // Get the last visible document for pagination
+    const lastVisibleDoc = articlesSnapshot.docs[articlesSnapshot.docs.length - 1];
+    
+    // Check if there are more documents
+    const nextQuery = query(
+      articlesRef,
+      where('authorId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      startAfter(lastVisibleDoc),
+      limit(1)
+    );
+    
+    const nextSnapshot = await getDocs(nextQuery);
+    const hasMore = !nextSnapshot.empty;
+    
+    // Map the documents to an array of articles
+    const articles = articlesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      title: doc.data().title || 'Untitled Article',
+      abstract: doc.data().abstract || 'No abstract provided',
+      status: doc.data().status || 'draft',
+      date: doc.data().createdAt?.toDate?.() 
+        ? new Date(doc.data().createdAt.toDate()).toLocaleDateString() 
+        : new Date().toLocaleDateString(),
+      authorId: doc.data().authorId || '',
+      createdAt: doc.data().createdAt
+    }));
+    
+    console.log(`useArticles: Fetched ${articles.length} articles for user:`, userId);
+    
+    // Calculate total pages (this is an approximation)
+    const totalPages = page + (hasMore ? 1 : 0);
+    
     return {
       articles,
-      totalPages: hasMore ? page + 1 : page,
+      totalPages,
       lastVisible: lastVisibleDoc,
       hasMore
     };
-  } catch (error) {
-    console.error('Error fetching articles:', error);
-    throw error;
+  } catch (error: any) {
+    // Check for specific error types
+    if (error?.name === 'FirebaseError') {
+      if (error.code === 'failed-precondition') {
+        console.error('useArticles: Missing required index for query. Follow these steps to create the index:');
+        console.error('1. Go to Firebase Console: https://console.firebase.google.com/project/_/firestore/indexes');
+        console.error('2. Click "Add Index" and select the "articles" collection');
+        console.error('3. Add these fields in this order:');
+        console.error('   - authorId (Ascending)');
+        console.error('   - createdAt (Descending)');
+        console.error('4. Click "Create"');
+        console.error('The full error message is:', error.message);
+        
+        // Extract the direct link from the error message if available
+        const linkMatch = error.message.match(/https:\/\/console\.firebase\.google\.com\/[^\s"]+/);
+        if (linkMatch && linkMatch[0]) {
+          console.error('Direct link to create index:', linkMatch[0]);
+        }
+      } else {
+        console.error('useArticles: Firebase error fetching articles:', error.code, error.message);
+      }
+    } else {
+      console.error('useArticles: Error fetching articles:', error);
+    }
+    
+    // Return empty data instead of throwing
+    return {
+      articles: [],
+      totalPages: 0,
+      lastVisible: null,
+      hasMore: false
+    };
   }
 };
 
@@ -98,7 +157,7 @@ export const useArticles = (
   page = 1,
   itemsPerPage = 5
 ): UseQueryResult<ArticlesResponse, Error> => {
-  const { currentUser } = useAuth();
+  const { currentUser, authIsInitialized } = useAuth();
   const userId = currentUser?.uid;
 
   return useQuery({
@@ -106,6 +165,8 @@ export const useArticles = (
     queryFn: () => fetchArticles(userId, page, itemsPerPage),
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    enabled: !!userId && authIsInitialized === true,
+    retry: 3
   });
 };

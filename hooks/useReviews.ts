@@ -39,33 +39,61 @@ const fetchReviews = async (
   }
 
   try {
-    const reviewsCollection = 'reviews';
+    // Create a reference to the reviews collection
+    const reviewsRef = collection(db, 'reviews');
+    
+    // Create a query against the collection
     let reviewsQuery;
-
-    // First page query
-    if (page === 1 || !lastVisible) {
+    
+    if (lastVisible) {
+      // If we have a lastVisible document, start after it
       reviewsQuery = query(
-        collection(db, reviewsCollection),
-        where('reviewerId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(itemsPerPage)
-      );
-    } else {
-      // Pagination query with startAfter
-      reviewsQuery = query(
-        collection(db, reviewsCollection),
+        reviewsRef,
         where('reviewerId', '==', userId),
         orderBy('createdAt', 'desc'),
         startAfter(lastVisible),
         limit(itemsPerPage)
       );
+    } else {
+      // First page query
+      reviewsQuery = query(
+        reviewsRef,
+        where('reviewerId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(itemsPerPage)
+      );
     }
-
+    
+    // Execute the query
     const reviewsSnapshot = await getDocs(reviewsQuery);
-    const lastVisibleDoc = reviewsSnapshot.docs[reviewsSnapshot.docs.length - 1] || null;
-    const hasMore = reviewsSnapshot.docs.length === itemsPerPage;
-
-    // Convert Firestore documents to Review objects
+    
+    // Check if there are any documents
+    if (reviewsSnapshot.empty) {
+      console.log('useReviews: No reviews found for user:', userId);
+      return {
+        reviews: [],
+        totalPages: 0,
+        lastVisible: null,
+        hasMore: false
+      };
+    }
+    
+    // Get the last visible document for pagination
+    const lastVisibleDoc = reviewsSnapshot.docs[reviewsSnapshot.docs.length - 1];
+    
+    // Check if there are more documents
+    const nextQuery = query(
+      reviewsRef,
+      where('reviewerId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      startAfter(lastVisibleDoc),
+      limit(1)
+    );
+    
+    const nextSnapshot = await getDocs(nextQuery);
+    const hasMore = !nextSnapshot.empty;
+    
+    // Map the documents to an array of reviews
     const reviews = reviewsSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -80,16 +108,50 @@ const fetchReviews = async (
         createdAt: data.createdAt
       };
     });
-
+    
+    console.log(`useReviews: Fetched ${reviews.length} reviews for user:`, userId);
+    
+    // Calculate total pages (this is an approximation)
+    const totalPages = page + (hasMore ? 1 : 0);
+    
     return {
       reviews,
-      totalPages: hasMore ? page + 1 : page,
+      totalPages,
       lastVisible: lastVisibleDoc,
       hasMore
     };
-  } catch (error) {
-    console.error('Error fetching reviews:', error);
-    throw error;
+  } catch (error: any) {
+    // Check for specific error types
+    if (error?.name === 'FirebaseError') {
+      if (error.code === 'permission-denied') {
+        console.error('useReviews: Permission denied error. You need to update Firestore security rules:');
+        console.error(`
+        // Add this to your Firestore security rules
+        match /reviews/{reviewId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == resource.data.reviewerId;
+        }
+        `);
+        console.error('Visit the Firebase console to update security rules: https://console.firebase.google.com/project/_/firestore/rules');
+      } else if (error.code === 'failed-precondition') {
+        console.error('useReviews: Missing required index for query. You need to create a composite index on Firestore:');
+        console.error('Collection: reviews');
+        console.error('Fields to index: reviewerId (Ascending) and createdAt (Descending)');
+        console.error('Visit the Firebase console to create this index: https://console.firebase.google.com/project/_/firestore/indexes');
+      } else {
+        console.error('useReviews: Firebase error fetching reviews:', error.code, error.message);
+      }
+    } else {
+      console.error('useReviews: Error fetching reviews:', error);
+    }
+    
+    // Return empty data instead of throwing
+    return {
+      reviews: [],
+      totalPages: 0,
+      lastVisible: null,
+      hasMore: false
+    };
   }
 };
 
@@ -98,7 +160,7 @@ export const useReviews = (
   page = 1,
   itemsPerPage = 5
 ): UseQueryResult<ReviewsResponse, Error> => {
-  const { currentUser } = useAuth();
+  const { currentUser, authIsInitialized } = useAuth();
   const userId = currentUser?.uid;
 
   return useQuery({
@@ -106,6 +168,8 @@ export const useReviews = (
     queryFn: () => fetchReviews(userId, page, itemsPerPage),
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    enabled: !!userId && authIsInitialized === true,
+    retry: 3
   });
 };

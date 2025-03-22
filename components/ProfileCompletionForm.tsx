@@ -492,7 +492,9 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   
                   <Box mt={2} p={3} bg="blue.50" borderRadius="md">
                     <Flex align="center">
-                      <Icon as={FiInfo} color="blue.500" mr={2} />
+                      <Box display="inline-block">
+                        <Icon as={FiInfo} color="blue.500" mr={2} />
+                      </Box>
                       <Text fontSize="sm" color="blue.700">
                         Email verification will be required after submission. You'll receive a verification link at your academic email address.
                       </Text>
@@ -577,7 +579,9 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                       <Flex align="center">
                         ORCID ID (Optional)
                         <Tooltip label="ORCID provides a persistent digital identifier that distinguishes you from other researchers">
-                          <Icon as={FiInfo} ml={1} color="gray.500" />
+                          <Box display="inline-block">
+                            <Icon as={FiInfo} ml={1} color="gray.500" />
+                          </Box>
                         </Tooltip>
                       </Flex>
                     </FormLabel>
