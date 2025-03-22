@@ -30,6 +30,7 @@ const fetchReviews = async (
 ): Promise<ReviewsResponse> => {
   // Return empty response if no userId
   if (!userId) {
+    console.log('useReviews: No userId provided, returning empty response');
     return {
       reviews: [],
       totalPages: 0,
@@ -38,6 +39,8 @@ const fetchReviews = async (
     };
   }
 
+  console.log(`useReviews: Fetching reviews for user: ${userId}, page: ${page}, itemsPerPage: ${itemsPerPage}`);
+  
   try {
     // Create a reference to the reviews collection
     const reviewsRef = collection(db, 'reviews');
@@ -54,6 +57,7 @@ const fetchReviews = async (
         startAfter(lastVisible),
         limit(itemsPerPage)
       );
+      console.log('useReviews: Using pagination with lastVisible document');
     } else {
       // First page query
       reviewsQuery = query(
@@ -62,10 +66,13 @@ const fetchReviews = async (
         orderBy('createdAt', 'desc'),
         limit(itemsPerPage)
       );
+      console.log('useReviews: First page query without lastVisible document');
     }
     
     // Execute the query
+    console.log('useReviews: Executing query...');
     const reviewsSnapshot = await getDocs(reviewsQuery);
+    console.log(`useReviews: Query executed, got ${reviewsSnapshot.docs.length} documents`);
     
     // Check if there are any documents
     if (reviewsSnapshot.empty) {
