@@ -20,60 +20,78 @@ let auth: Auth = {} as Auth;
 let db: Firestore = {} as Firestore;
 let analytics: Analytics | null = null;
 
+// Track initialization state
+let isInitialized = false;
+
 // Only initialize Firebase on the client side
 if (typeof window !== 'undefined') {
   try {
     // Check if Firebase is already initialized
     if (getApps().length === 0) {
-      console.log('Initializing Firebase for the first time');
+      console.log('Firebase: Initializing Firebase for the first time');
       app = initializeApp(firebaseConfig);
+      isInitialized = true;
     } else {
-      console.log('Firebase already initialized, reusing instance');
+      console.log('Firebase: Already initialized, reusing existing instance');
       app = getApps()[0];
+      isInitialized = true;
     }
     
-    // Initialize services
-    auth = getAuth(app);
-    db = getFirestore(app);
+    // Initialize services with detailed logging
+    try {
+      auth = getAuth(app);
+      console.log('Firebase: Auth service initialized successfully');
+    } catch (authError) {
+      console.error('Firebase: Error initializing Auth service:', authError);
+      auth = {} as Auth;
+    }
+    
+    try {
+      db = getFirestore(app);
+      console.log('Firebase: Firestore service initialized successfully');
+    } catch (dbError) {
+      console.error('Firebase: Error initializing Firestore service:', dbError);
+      db = {} as Firestore;
+    }
     
     // Only initialize analytics on client side if supported
     isSupported().then(supported => {
       if (supported) {
         try {
           analytics = getAnalytics(app);
-          console.log('Firebase Analytics initialized');
+          console.log('Firebase: Analytics service initialized successfully');
         } catch (analyticsError) {
-          console.error('Error initializing Firebase Analytics:', analyticsError);
-          // Don't throw, just log the error
+          console.error('Firebase: Error initializing Analytics service:', analyticsError);
+          analytics = null;
         }
       } else {
-        console.log('Firebase Analytics not supported in this environment');
+        console.log('Firebase: Analytics not supported in this environment');
       }
     }).catch(err => {
-      console.error('Error checking analytics support:', err);
+      console.error('Firebase: Error checking analytics support:', err);
       // Don't throw, just log the error
     });
     
     // Connect to emulators if in development
     if (process.env.NODE_ENV === 'development' && process.env.FIREBASE_USE_EMULATOR === 'true') {
       try {
-        console.log('Connecting to Firebase emulators');
+        console.log('Firebase: Connecting to Firebase emulators');
         connectAuthEmulator(auth, 'http://localhost:9099');
         connectFirestoreEmulator(db, 'localhost', 8080);
       } catch (emulatorError) {
-        console.error('Error connecting to Firebase emulators:', emulatorError);
+        console.error('Firebase: Error connecting to Firebase emulators:', emulatorError);
         // Don't throw, just log the error
       }
     }
     
-    console.log('Firebase initialized successfully');
+    console.log('Firebase: Initialized successfully');
   } catch (error) {
-    console.error('Error initializing Firebase:', error);
+    console.error('Firebase: Error initializing Firebase:', error);
     // Already initialized with empty objects above, no need to reassign
   }
 } else {
   // Server-side placeholder
-  console.log('Firebase not initialized in server environment');
+  console.log('Firebase: Not initialized in server environment');
   // We're already using empty objects initialized above
 }
 
@@ -99,4 +117,4 @@ export const getFirebaseApp = (): FirebaseApp => {
   return app;
 };
 
-export { app, auth, db, analytics };
+export { app, auth, db, analytics, isInitialized };

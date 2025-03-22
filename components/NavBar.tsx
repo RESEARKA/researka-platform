@@ -31,9 +31,8 @@ const NavBar: React.FC<NavBarProps> = ({
   const activePageLower = activePage.toLowerCase();
   
   // Use Firebase authentication
-  const { currentUser, logout, getUserProfile } = useAuth();
+  const { currentUser, logout, getUserProfile, authIsInitialized, isLoading, persistentUsername, setPersistentUsername } = useAuth();
   const [isLoggedIn, setIsLoggedIn] = useState(propIsLoggedIn);
-  const [username, setUsername] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
@@ -42,78 +41,70 @@ const NavBar: React.FC<NavBarProps> = ({
     propIsLoggedIn, 
     activePage,
     currentUserExists: !!currentUser,
-    initialUsername: username
+    persistentUsername,
+    isLoggedInState: isLoggedIn,
+    authIsInitialized,
+    isLoading
   });
   
   useEffect(() => {
     // Debug logging for useEffect
-    console.log('NavBar: useEffect triggered with currentUser:', currentUser ? {
-      uid: currentUser.uid,
-      email: currentUser.email,
-      displayName: currentUser.displayName,
-      isAnonymous: currentUser.isAnonymous
-    } : 'null');
+    console.log('NavBar: useEffect triggered with:', { 
+      currentUser: currentUser ? {
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+        isAnonymous: currentUser.isAnonymous
+      } : 'null',
+      authIsInitialized,
+      isLoading,
+      currentUsername: persistentUsername
+    });
     
     // Check if user is logged in with Firebase
-    if (currentUser) {
+    if (currentUser && authIsInitialized && !isLoading) {
+      console.log('NavBar: User is logged in, setting isLoggedIn to true');
       setIsLoggedIn(true);
       
-      // Set username from Firebase user with better fallback handling
-      console.log('NavBar: Current user data:', { 
-        displayName: currentUser.displayName, 
-        email: currentUser.email,
-        uid: currentUser.uid 
-      });
-      
-      // More robust username setting with fallbacks
-      const defaultUsername = currentUser.email 
-        ? currentUser.email.split('@')[0] 
-        : `User-${currentUser.uid.substring(0, 5)}`;
-      
-      setUsername(currentUser.displayName || defaultUsername);
-      console.log('NavBar: Setting username to:', currentUser.displayName || defaultUsername);
-      
-      // Get user profile from Firestore
-      const getUserData = async () => {
-        try {
-          console.log('NavBar: Fetching user profile data...');
-          const profile = await getUserProfile();
-          console.log('NavBar: User profile data received:', profile);
-          
-          if (profile) {
-            setUserProfile(profile);
-            if (profile.name) {
-              console.log('NavBar: Setting username from profile:', profile.name);
-              setUsername(profile.name);
-            } else {
-              console.log('NavBar: Profile has no name property');
-            }
+      // Get user profile from Firestore only if we haven't already fetched it
+      if (!userProfile) {
+        const getUserData = async () => {
+          try {
+            console.log('NavBar: Fetching user profile...');
+            const profile = await getUserProfile();
+            console.log('NavBar: Got user profile:', profile);
             
-            // Check if user is admin
-            const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com'];
-            setIsAdmin(adminEmails.includes(currentUser.email || ''));
-          } else {
-            console.log('NavBar: No profile found, using default username');
+            if (profile) {
+              setUserProfile(profile);
+              
+              // Check if user is admin
+              if (profile.role === 'Admin') {
+                console.log('NavBar: User is admin');
+                setIsAdmin(true);
+              }
+            }
+          } catch (error) {
+            console.error('NavBar: Error getting user profile:', error);
           }
-        } catch (error) {
-          console.error('NavBar: Failed to get user profile:', error);
-        }
-      };
-      
-      getUserData();
+        };
+        
+        getUserData();
+      }
     } else {
-      console.log('NavBar: No current user, setting logged out state');
+      console.log('NavBar: User is not logged in or auth not initialized, setting isLoggedIn to false');
       setIsLoggedIn(false);
-      setUsername(null);
-      setUserProfile(null);
+      
+      if (userProfile) {
+        setUserProfile(null);
+      }
+      
       setIsAdmin(false);
     }
-  }, [currentUser, getUserProfile]);
+  }, [currentUser, getUserProfile, authIsInitialized, isLoading, persistentUsername, userProfile]);
   
   const handleLogout = () => {
     logout();
     setIsLoggedIn(false);
-    setUsername(null);
     setUserProfile(null);
     setIsAdmin(false);
     window.location.href = '/';
@@ -250,16 +241,15 @@ const NavBar: React.FC<NavBarProps> = ({
                   px={3}
                   py={1}
                   height="auto"
-                  fontWeight="500"
+                  fontWeight="bold"
+                  color="white"
                   borderRadius="md"
                   mx={1}
                   _hover={{ bg: "blue.600" }}
                   _active={{ bg: "blue.700" }}
                   data-testid="user-menu-button"
                 >
-                  <Box as="span" display="inline-block" textAlign="left" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    {username ? username : 'User'}
-                  </Box>
+                  {persistentUsername || 'User'}
                 </MenuButton>
                 <MenuList minWidth="180px" fontSize="sm" bg="white" borderColor="gray.200">
                   <Link href="/profile" passHref legacyBehavior>

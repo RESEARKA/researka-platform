@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { 
   User, 
   createUserWithEmailAndPassword, 
@@ -8,16 +8,19 @@ import {
   sendPasswordResetEmail,
   updateProfile,
   signInAnonymously,
-  UserCredential
+  UserCredential,
+  Auth
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { doc, setDoc, getDoc, Firestore } from 'firebase/firestore';
+import { auth, db, app } from '../config/firebase';
 import { Box, Spinner } from '@chakra-ui/react';
+import { FirebaseApp } from 'firebase/app';
 
 interface AuthContextType {
   currentUser: User | null;
   isLoading: boolean;
   authIsInitialized: boolean;
+  persistentUsername: string | null;
   signup: (email: string, password: string, name: string) => Promise<UserCredential>;
   login: (email: string, password: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
@@ -28,6 +31,7 @@ interface AuthContextType {
   signInAnonymousUser: () => Promise<UserCredential>;
   isAnonymousUser: () => boolean;
   testFirestoreWrite: () => Promise<boolean>;
+  setPersistentUsername: (username: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,21 +45,27 @@ export function useAuth() {
 }
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Use refs to store Firebase instances to prevent re-initialization
+  const appRef = useRef<FirebaseApp | null>(null);
+  const authRef = useRef<Auth | null>(null);
+  const dbRef = useRef<Firestore | null>(null);
+  
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authIsInitialized, setAuthIsInitialized] = useState(false);
+  const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
 
   // Sign up with email and password
   async function signup(email: string, password: string, name: string) {
     console.log('AuthContext: Starting signup process...');
     try {
-      if (!auth) {
+      if (!authRef.current) {
         console.error('AuthContext: Authentication not initialized');
         throw new Error('Authentication not initialized');
       }
       
       // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(authRef.current, email, password);
       
       // Update user profile with name
       console.log('AuthContext: Updating user profile with name...');
@@ -69,12 +79,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Create user document in Firestore
         console.log('AuthContext: Creating user document in Firestore...');
         try {
-          if (!db) {
+          if (!dbRef.current) {
             console.error('AuthContext: Firestore not initialized');
             return userCredential;
           }
           // Use users collection now that rules allow authenticated access
-          await setDoc(doc(db, 'users', userCredential.user.uid), {
+          await setDoc(doc(dbRef.current, 'users', userCredential.user.uid), {
             name,
             email,
             role: 'Researcher',
@@ -109,11 +119,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   async function login(email: string, password: string) {
     console.log('AuthContext: Starting login process...');
     try {
-      if (!auth) {
+      if (!authRef.current) {
         console.error('AuthContext: Authentication not initialized');
         throw new Error('Authentication not initialized');
       }
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(authRef.current, email, password);
       console.log('AuthContext: Login successful');
       return result;
     } catch (error) {
@@ -126,11 +136,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   async function logout() {
     console.log('AuthContext: Logging out...');
     try {
-      if (!auth) {
+      if (!authRef.current) {
         console.error('AuthContext: Authentication not initialized');
         throw new Error('Authentication not initialized');
       }
-      await signOut(auth);
+      await signOut(authRef.current);
       console.log('AuthContext: Logout successful');
     } catch (error) {
       console.error('AuthContext: Logout error:', error);
@@ -142,11 +152,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   async function resetPassword(email: string) {
     console.log('AuthContext: Sending password reset email...');
     try {
-      if (!auth) {
+      if (!authRef.current) {
         console.error('AuthContext: Authentication not initialized');
         throw new Error('Authentication not initialized');
       }
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(authRef.current, email);
       console.log('AuthContext: Password reset email sent');
     } catch (error) {
       console.error('AuthContext: Password reset error:', error);
@@ -157,7 +167,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Update user profile
   async function updateUserProfile(name: string) {
     if (!currentUser) throw new Error('No user is logged in');
-    if (!auth) {
+    if (!authRef.current) {
       console.error('AuthContext: Authentication not initialized');
       throw new Error('Authentication not initialized');
     }
@@ -180,7 +190,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return null;
     }
     
-    if (!db) {
+    if (!dbRef.current) {
       console.error('AuthContext: Firestore not initialized');
       return null;
     }
@@ -188,7 +198,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('AuthContext: Getting user profile from Firestore for user:', currentUser.uid);
     try {
       // Use users collection now that rules allow authenticated access
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const userDoc = await getDoc(doc(dbRef.current, 'users', currentUser.uid));
       if (userDoc.exists()) {
         console.log('AuthContext: User profile retrieved successfully');
         return userDoc.data();
@@ -249,16 +259,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   async function signInAnonymousUser(): Promise<UserCredential> {
     console.log('AuthContext: Starting anonymous sign in...');
     try {
-      if (!auth) {
+      if (!authRef.current) {
         console.error('AuthContext: Authentication not initialized');
         throw new Error('Authentication not initialized');
       }
       
-      const result = await signInAnonymously(auth);
+      const result = await signInAnonymously(authRef.current);
       console.log('AuthContext: Anonymous sign in successful');
       
       // Create a basic profile for anonymous user
-      if (db) {
+      if (dbRef.current) {
         try {
           const anonymousProfile = {
             name: 'Anonymous User',
@@ -270,7 +280,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           };
           
           // Use users collection now that rules allow authenticated access
-          await setDoc(doc(db, 'users', result.user.uid), anonymousProfile, { merge: true });
+          await setDoc(doc(dbRef.current, 'users', result.user.uid), anonymousProfile, { merge: true });
           console.log('AuthContext: Created anonymous user profile in users collection');
         } catch (profileError) {
           console.error('AuthContext: Error creating anonymous profile:', profileError);
@@ -316,7 +326,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return false;
     }
     
-    if (!db) {
+    if (!dbRef.current) {
       console.error('AuthContext: Firestore not initialized');
       return false;
     }
@@ -353,7 +363,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     console.log('AuthContext: Updating user data in Firestore for user:', user.uid);
     try {
-      await setDoc(doc(db, 'users', user.uid), sanitizedData, { merge: true });
+      await setDoc(doc(dbRef.current, 'users', user.uid), sanitizedData, { merge: true });
       console.log('AuthContext: User data updated successfully');
       return true;
     } catch (error: any) {
@@ -387,7 +397,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     }
     
-    if (!db) {
+    if (!dbRef.current) {
       console.error('AuthContext: Firestore not initialized for test');
       return false;
     }
@@ -407,7 +417,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const docId = user.uid;
       console.log(`AuthContext: Attempting to write to public_test/${docId}`);
       
-      await setDoc(doc(db, 'public_test', docId), testData);
+      await setDoc(doc(dbRef.current, 'public_test', docId), testData);
       console.log('AuthContext: Test write to public_test successful');
       return true;
     } catch (error) {
@@ -417,90 +427,111 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   useEffect(() => {
-    // Subscribe to auth state changes
-    console.log('AuthContext: Setting up auth state listener...');
-    if (!auth) {
-      console.error('AuthContext: Authentication not initialized');
-      return;
+    console.log('AuthContext: Setting up auth state change listener...');
+    
+    // Initialize Firebase refs if not already initialized
+    if (!appRef.current) {
+      console.log('AuthContext: Initializing Firebase refs from imported instances');
+      try {
+        // Use the imported instances from config/firebase.ts
+        appRef.current = app;
+        authRef.current = auth;
+        dbRef.current = db;
+        
+        console.log('AuthContext: Firebase refs initialized successfully', {
+          appInitialized: !!appRef.current,
+          authInitialized: !!authRef.current,
+          dbInitialized: !!dbRef.current
+        });
+      } catch (error) {
+        console.error('AuthContext: Error initializing Firebase refs:', error);
+      }
     }
     
-    // Add timeout fallback in case auth initialization takes too long
+    // Set a timeout to handle cases where Firebase auth initialization takes too long
     const authTimeout = setTimeout(() => {
-      if (!authIsInitialized) {
-        console.warn('AuthContext: Auth initialization timed out after 5 seconds, setting as initialized anyway');
-        setAuthIsInitialized(true);
-        setIsLoading(false);
-      }
-    }, 5000); // 5 second timeout
+      console.warn('AuthContext: Auth initialization timed out after 10 seconds');
+      setIsLoading(false);
+      setAuthIsInitialized(true);
+    }, 10000);
     
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('AuthContext: Auth state changed, user:', user ? {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        isAnonymous: user.isAnonymous,
-        providerData: user.providerData.map(p => ({
-          providerId: p.providerId,
-          uid: p.uid,
-          displayName: p.displayName,
-          email: p.email
-        }))
-      } : 'null');
+    // Listen for auth state changes
+    if (!authRef.current) {
+      console.error('AuthContext: Auth not initialized in useEffect');
+      setIsLoading(false);
+      setAuthIsInitialized(true);
+      return () => clearTimeout(authTimeout);
+    }
+    
+    console.log('AuthContext: Setting up onAuthStateChanged listener...');
+    const unsubscribe = onAuthStateChanged(authRef.current, async (user) => {
+      console.log('AuthContext: Auth state changed:', user ? `User ${user.uid} (${user.email})` : 'No user');
       
+      // Process user authentication
       if (user) {
-        // Verify the token is valid
-        try {
-          const idTokenResult = await user.getIdTokenResult(true);
-          console.log('AuthContext: User token verified, expiration:', idTokenResult.expirationTime);
-          
-          // Check if token is expired
-          const expirationDate = new Date(idTokenResult.expirationTime);
-          const now = new Date();
-          
-          if (expirationDate <= now) {
-            console.error('AuthContext: User token is expired');
-            // Force token refresh
-            await user.getIdToken(true);
-            console.log('AuthContext: User token refreshed');
-          }
-          
-          // Check if displayName exists and log it
-          if (!user.displayName) {
-            console.warn('AuthContext: User has no displayName, attempting to retrieve from Firestore');
-            try {
-              if (db) {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  console.log('AuthContext: Retrieved user data from Firestore:', userData);
-                  
-                  if (userData.name && !user.displayName) {
-                    console.log('AuthContext: Updating user displayName from Firestore name:', userData.name);
-                    try {
-                      await updateProfile(user, {
-                        displayName: userData.name
-                      });
-                      console.log('AuthContext: Successfully updated displayName');
-                    } catch (updateError) {
-                      console.error('AuthContext: Failed to update displayName:', updateError);
-                    }
+        console.log('AuthContext: User authenticated, updating currentUser');
+        
+        // Set the current user
+        setCurrentUser(user);
+        
+        // Update persistentUsername from user displayName with fallbacks
+        const defaultUsername = user.email 
+          ? user.email.split('@')[0] 
+          : `User-${user.uid.substring(0, 5)}`;
+        
+        const newUsername = user.displayName || defaultUsername;
+        
+        if (newUsername && (!persistentUsername || newUsername !== persistentUsername)) {
+          console.log('AuthContext: Setting persistentUsername to:', newUsername);
+          setPersistentUsername(newUsername);
+        }
+        
+        // If user has no display name, try to get it from Firestore
+        if (!user.displayName) {
+          console.warn('AuthContext: User has no displayName, attempting to retrieve from Firestore');
+          try {
+            if (dbRef.current) {
+              const userDoc = await getDoc(doc(dbRef.current, 'users', user.uid));
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                console.log('AuthContext: Retrieved user data from Firestore:', userData);
+                
+                if (userData.name && !user.displayName) {
+                  console.log('AuthContext: Updating user displayName from Firestore name:', userData.name);
+                  try {
+                    await updateProfile(user, {
+                      displayName: userData.name
+                    });
+                    console.log('AuthContext: Successfully updated displayName');
+                  } catch (updateError) {
+                    console.error('AuthContext: Failed to update displayName:', updateError);
                   }
-                } else {
-                  console.warn('AuthContext: User document not found in Firestore');
                 }
+              } else {
+                console.warn('AuthContext: User document not found in Firestore');
               }
-            } catch (firestoreError) {
-              console.error('AuthContext: Error retrieving user data from Firestore:', firestoreError);
             }
+          } catch (firestoreError) {
+            console.error('AuthContext: Error retrieving user data from Firestore:', firestoreError);
           }
-        } catch (tokenError) {
-          console.error('AuthContext: Error verifying user token:', tokenError);
         }
       }
       
-      setCurrentUser(user);
+      // Update auth state with detailed logging
+      console.log('AuthContext: Updating auth state...', {
+        currentUserBefore: currentUser ? currentUser.uid : null,
+        isLoadingBefore: isLoading,
+        authIsInitializedBefore: authIsInitialized
+      });
+      
       setIsLoading(false);
       setAuthIsInitialized(true);
+      
+      console.log('AuthContext: Auth state updated', {
+        currentUserAfter: user ? user.uid : null,
+        isLoadingAfter: false,
+        authIsInitializedAfter: true
+      });
     });
 
     return () => {
@@ -513,6 +544,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     currentUser,
     isLoading,
     authIsInitialized,
+    persistentUsername,
     signup,
     login,
     logout,
@@ -522,13 +554,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateUserData,
     signInAnonymousUser,
     isAnonymousUser,
-    testFirestoreWrite
+    testFirestoreWrite,
+    setPersistentUsername
   };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
-      {(!authIsInitialized || isLoading) && (
+      {(isLoading || !authIsInitialized) && (
         <Box
           position="fixed"
           top={0}
