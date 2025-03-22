@@ -735,7 +735,7 @@ const ProfilePage: React.FC = () => {
                     {/* My Articles Tab */}
                     <TabPanel>
                       <div ref={articlesRef}>
-                        {articlesVisible && activeTab === 0 && (
+                        {activeTab === 0 && (
                           <Suspense fallback={
                             <Center py={8}>
                               <Spinner size="md" color="blue.500" />
@@ -756,7 +756,7 @@ const ProfilePage: React.FC = () => {
                     {/* My Reviews Tab */}
                     <TabPanel>
                       <div ref={reviewsRef}>
-                        {reviewsVisible && activeTab === 1 && (
+                        {activeTab === 1 && (
                           <Suspense fallback={
                             <Center py={8}>
                               <Spinner size="md" color="blue.500" />
@@ -777,7 +777,7 @@ const ProfilePage: React.FC = () => {
                     {/* Saved Articles Tab */}
                     <TabPanel>
                       <div ref={savedRef}>
-                        {savedVisible && activeTab === 2 && (
+                        {activeTab === 2 && (
                           <Suspense fallback={
                             <Center py={8}>
                               <Spinner size="md" color="blue.500" />
