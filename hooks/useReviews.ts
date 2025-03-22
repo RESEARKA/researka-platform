@@ -6,7 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 // Types
 export interface Review {
   id: string;
-  title: string;
+  title?: string;
+  articleTitle: string;
   content: string;
   date: string;
   reviewerId: string;
@@ -105,7 +106,8 @@ const fetchReviews = async (
       const data = doc.data();
       return {
         id: doc.id,
-        title: data.articleTitle || 'Review of Article',
+        title: data.title || undefined,
+        articleTitle: data.articleTitle || 'Review of Article',
         content: data.content || 'No review content provided',
         date: data.createdAt?.toDate?.() 
           ? new Date(data.createdAt.toDate()).toLocaleDateString() 

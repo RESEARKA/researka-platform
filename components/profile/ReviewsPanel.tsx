@@ -60,7 +60,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
               <CardHeader pb={2}>
                 <Flex justify="space-between" align="center">
                   <Heading as="h3" size="md" fontWeight="600">
-                    {review.title}
+                    {review.articleTitle || 'Review'}
                   </Heading>
                   <Badge colorScheme="blue">Completed</Badge>
                 </Flex>
@@ -83,7 +83,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                   
                   <Button
                     as={Link}
-                    href={`/article/${review.articleId}`}
+                    href={`/articles/${review.articleId}`}
                     size="sm"
                     variant="outline"
                     colorScheme="purple"

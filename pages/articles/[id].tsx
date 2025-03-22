@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import {
   Box,
   Container,
@@ -14,7 +15,6 @@ import {
   Grid,
   GridItem,
   Icon,
-  Link,
   Skeleton,
   SkeletonText,
   useColorModeValue,
@@ -220,7 +220,12 @@ const ArticleDetailPage: React.FC = () => {
                   Share
                 </Button>
                 
-                <Button colorScheme="blue" variant="solid">
+                <Button 
+                  as={Link}
+                  href={`/articles/${id}/review`}
+                  colorScheme="blue" 
+                  variant="solid"
+                >
                   Submit Review
                 </Button>
               </Flex>
