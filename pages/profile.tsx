@@ -535,6 +535,18 @@ const ProfilePage: React.FC = () => {
     refetch: refetchReviews
   } = useReviews(reviewsPage);
   
+  // Add useEffect to trigger refetching when tab changes
+  useEffect(() => {
+    console.log('Profile: Active tab changed to:', activeTab);
+    if (activeTab === 0) {
+      console.log('Profile: Refetching articles data');
+      refetchArticles();
+    } else if (activeTab === 1) {
+      console.log('Profile: Refetching reviews data');
+      refetchReviews();
+    }
+  }, [activeTab, refetchArticles, refetchReviews]);
+  
   // For saved items, we're still using mock data
   // In a real app, this would be another React Query hook
   const isLoadingData = articlesLoading || reviewsLoading;
