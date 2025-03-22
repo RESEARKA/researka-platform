@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon } from '@chakra-ui/react';
+import { Box, Container, Heading, Text, VStack, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, UnorderedList, ListItem } from '@chakra-ui/react';
 import Layout from '../../components/Layout';
 import Link from 'next/link';
 
@@ -47,13 +47,13 @@ const RolesPage: React.FC = () => {
                   </Text>
                   <Text mt={2}>
                     <strong>Key Responsibilities:</strong>
-                    <ul>
-                      <li>Produce high-quality research content</li>
-                      <li>Submit papers for peer review</li>
-                      <li>Respond to reviewer feedback</li>
-                      <li>Update and maintain their published works</li>
-                    </ul>
                   </Text>
+                  <UnorderedList>
+                    <ListItem>Produce high-quality research content</ListItem>
+                    <ListItem>Submit papers for peer review</ListItem>
+                    <ListItem>Respond to reviewer feedback</ListItem>
+                    <ListItem>Update and maintain their published works</ListItem>
+                  </UnorderedList>
                 </AccordionPanel>
               </AccordionItem>
 
@@ -74,13 +74,13 @@ const RolesPage: React.FC = () => {
                   </Text>
                   <Text mt={2}>
                     <strong>Key Responsibilities:</strong>
-                    <ul>
-                      <li>Evaluate research papers objectively</li>
-                      <li>Provide constructive feedback</li>
-                      <li>Identify methodological issues or errors</li>
-                      <li>Recommend acceptance, revision, or rejection</li>
-                    </ul>
                   </Text>
+                  <UnorderedList>
+                    <ListItem>Evaluate research papers objectively</ListItem>
+                    <ListItem>Provide constructive feedback</ListItem>
+                    <ListItem>Identify methodological issues or errors</ListItem>
+                    <ListItem>Recommend acceptance, revision, or rejection</ListItem>
+                  </UnorderedList>
                 </AccordionPanel>
               </AccordionItem>
 
@@ -101,13 +101,13 @@ const RolesPage: React.FC = () => {
                   </Text>
                   <Text mt={2}>
                     <strong>Key Responsibilities:</strong>
-                    <ul>
-                      <li>Manage the peer review process</li>
-                      <li>Select appropriate reviewers</li>
-                      <li>Make final publication decisions</li>
-                      <li>Maintain academic standards</li>
-                    </ul>
                   </Text>
+                  <UnorderedList>
+                    <ListItem>Manage the peer review process</ListItem>
+                    <ListItem>Select appropriate reviewers</ListItem>
+                    <ListItem>Make final publication decisions</ListItem>
+                    <ListItem>Maintain academic standards</ListItem>
+                  </UnorderedList>
                 </AccordionPanel>
               </AccordionItem>
 
@@ -128,13 +128,13 @@ const RolesPage: React.FC = () => {
                   </Text>
                   <Text mt={2}>
                     <strong>Key Responsibilities:</strong>
-                    <ul>
-                      <li>Validate transactions on the blockchain</li>
-                      <li>Maintain network consensus</li>
-                      <li>Secure the decentralized infrastructure</li>
-                      <li>Participate in governance decisions</li>
-                    </ul>
                   </Text>
+                  <UnorderedList>
+                    <ListItem>Validate transactions on the blockchain</ListItem>
+                    <ListItem>Maintain network consensus</ListItem>
+                    <ListItem>Secure the decentralized infrastructure</ListItem>
+                    <ListItem>Participate in governance decisions</ListItem>
+                  </UnorderedList>
                 </AccordionPanel>
               </AccordionItem>
 
@@ -155,13 +155,13 @@ const RolesPage: React.FC = () => {
                   </Text>
                   <Text mt={2}>
                     <strong>Key Responsibilities:</strong>
-                    <ul>
-                      <li>Access and read published research</li>
-                      <li>Provide feedback through comments</li>
-                      <li>Share and cite valuable research</li>
-                      <li>Contribute to academic discussions</li>
-                    </ul>
                   </Text>
+                  <UnorderedList>
+                    <ListItem>Access and read published research</ListItem>
+                    <ListItem>Provide feedback through comments</ListItem>
+                    <ListItem>Share and cite valuable research</ListItem>
+                    <ListItem>Contribute to academic discussions</ListItem>
+                  </UnorderedList>
                 </AccordionPanel>
               </AccordionItem>
             </Accordion>

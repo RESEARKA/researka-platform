@@ -186,10 +186,10 @@ const RecommendedReviewers: React.FC<RecommendedReviewersProps> = ({
           Recommended Reviewers
         </Heading>
         <Tooltip label="Reviewers are recommended based on research interest overlap with the article">
-          <Flex align="center">
+          <Box display="inline-flex" alignItems="center">
             <Icon as={FiInfo} mr={1} />
             <Text fontSize="sm" color="gray.500">How are these selected?</Text>
-          </Flex>
+          </Box>
         </Tooltip>
       </Flex>
       

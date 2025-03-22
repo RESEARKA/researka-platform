@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -36,11 +36,23 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const toast = useToast();
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, currentUser, authIsInitialized } = useAuth();
   
   // Get the redirect URL from query parameters or default to home
   const { redirect } = router.query;
   const redirectPath = typeof redirect === 'string' ? redirect : '/';
+  
+  // Handle redirection when user is already logged in
+  useEffect(() => {
+    if (authIsInitialized && currentUser) {
+      console.log('Login page: User already logged in, redirecting...');
+      if (redirectPath === '/') {
+        router.replace('/profile');
+      } else {
+        router.replace(redirectPath);
+      }
+    }
+  }, [authIsInitialized, currentUser, redirectPath, router]);
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +71,7 @@ const LoginPage: React.FC = () => {
       // Authenticate with Firebase
       await login(email, password);
       
-      console.log('Login page: Login successful, redirecting...');
+      console.log('Login page: Login successful');
       
       toast({
         title: 'Login Successful',
@@ -69,18 +81,7 @@ const LoginPage: React.FC = () => {
         isClosable: true,
       });
       
-      // Add a small delay before redirecting
-      setTimeout(() => {
-        console.log('Login page: Redirecting to profile page...');
-        // If the redirect path is the default '/' and the profile is complete, 
-        // redirect to the profile page instead
-        if (redirectPath === '/') {
-          router.replace('/profile');
-        } else {
-          // Otherwise, follow the requested redirect path
-          router.replace(redirectPath);
-        }
-      }, 500);
+      // The useEffect will handle redirection once currentUser is set
     } catch (err: any) {
       console.error('Login error:', err);
       
