@@ -21,7 +21,7 @@ interface AuthContextType {
   isLoading: boolean;
   authIsInitialized: boolean;
   persistentUsername: string | null;
-  signup: (email: string, password: string, name: string) => Promise<UserCredential>;
+  signup: (email: string, password: string, name?: string) => Promise<UserCredential>;
   login: (email: string, password: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
 
   // Sign up with email and password
-  async function signup(email: string, password: string, name: string) {
+  async function signup(email: string, password: string, name: string = '') {
     console.log('AuthContext: Starting signup process...');
     try {
       if (!authRef.current) {
@@ -67,10 +67,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(authRef.current, email, password);
       
-      // Update user profile with name
+      // Update user profile with name if provided
       console.log('AuthContext: Updating user profile with name...');
       try {
-        if (userCredential.user) {
+        if (userCredential.user && name) {
           await updateProfile(userCredential.user, {
             displayName: name
           });
@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           // Use users collection now that rules allow authenticated access
           await setDoc(doc(dbRef.current, 'users', userCredential.user.uid), {
-            name,
+            name: name || '',
             email,
             role: 'Researcher',
             institution: '',

@@ -24,7 +24,6 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 
 const SignupPage: React.FC = () => {
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,7 +48,7 @@ const SignupPage: React.FC = () => {
     setDetailedError(null);
 
     // Check for empty fields
-    if (!name || !email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       setError('All fields are required');
       return false;
     }
@@ -94,7 +93,7 @@ const SignupPage: React.FC = () => {
       console.log('Signup page: Form data validated, calling signup function...');
       
       // Call signup function from AuthContext
-      const result = await signup(email, password, name);
+      const result = await signup(email, password);
       
       console.log('Signup page: Signup successful, user created with ID:', result.user.uid);
       
@@ -182,15 +181,6 @@ const SignupPage: React.FC = () => {
             
             <form onSubmit={handleSubmit}>
               <Stack spacing={4}>
-                <FormControl id="name" isRequired>
-                  <FormLabel>Full Name</FormLabel>
-                  <Input 
-                    type="text" 
-                    value={name} 
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your full name"
-                  />
-                </FormControl>
                 
                 <FormControl id="email" isRequired>
                   <FormLabel>Email address</FormLabel>
