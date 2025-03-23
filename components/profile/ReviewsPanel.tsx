@@ -114,16 +114,18 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                     <Text fontSize="sm">{review.date}</Text>
                   </HStack>
                   
-                  <Button
-                    as={Link}
-                    href={`/articles/${review.articleId}`}
-                    size="sm"
-                    variant="ghost"
-                    colorScheme="purple"
-                    rightIcon={<FiExternalLink size={14} />}
-                  >
-                    View Article
-                  </Button>
+                  {review.articleId && review.articleId !== 'test-article-id' && (
+                    <Button
+                      as={Link}
+                      href={`/articles/${review.articleId}`}
+                      size="sm"
+                      variant="ghost"
+                      colorScheme="purple"
+                      rightIcon={<FiExternalLink size={14} />}
+                    >
+                      View Article
+                    </Button>
+                  )}
                 </Flex>
               </CardFooter>
             </Card>
