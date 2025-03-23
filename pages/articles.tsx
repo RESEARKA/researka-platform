@@ -29,6 +29,7 @@ import ArticleSkeleton from '../components/ArticleSkeleton';
 import PageTransition from '../components/PageTransition';
 import SimplePagination from '../components/SimplePagination';
 import { PageArticle, convertToPageArticles } from '../utils/articleAdapter';
+import { useRouter } from 'next/router';
 
 export default function ArticlesPage() {
   // State
@@ -41,6 +42,7 @@ export default function ArticlesPage() {
   const [articles, setArticles] = useState<PageArticle[]>([]);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+  const router = useRouter();
   
   // Hard limit to ensure we never show more than 10 articles per page
   const ARTICLES_PER_PAGE = 5;
@@ -484,6 +486,7 @@ export default function ArticlesPage() {
                             colorScheme="blue" 
                             variant="outline"
                             mt={2}
+                            onClick={() => router.push(`/articles/${article.id}`)}
                           >
                             Read More
                           </Button>
