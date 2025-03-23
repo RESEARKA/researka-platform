@@ -24,7 +24,6 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 
 const SignupPage: React.FC = () => {
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,15 +48,15 @@ const SignupPage: React.FC = () => {
     setDetailedError(null);
 
     // Check for empty fields
-    if (!name || !email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       setError('All fields are required');
       return false;
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+    // Validate academic email format
+    const academicEmailRegex = /^[^\s@]+@(([^\s@]+\.edu)|(([^\s@]+\.ac\.[a-z]{2})|([^\s@]+\.ac)))$/i;
+    if (!academicEmailRegex.test(email)) {
+      setError('Please enter a valid academic email address (.edu, .ac.xx, or .ac domain)');
       return false;
     }
 
@@ -93,8 +92,8 @@ const SignupPage: React.FC = () => {
       console.log('Signup page: Starting signup process...');
       console.log('Signup page: Form data validated, calling signup function...');
       
-      // Call signup function from AuthContext
-      const result = await signup(email, password, name);
+      // Call signup function from AuthContext with empty name (will be set in profile)
+      const result = await signup(email, password, '');
       
       console.log('Signup page: Signup successful, user created with ID:', result.user.uid);
       
@@ -108,7 +107,15 @@ const SignupPage: React.FC = () => {
         isClosable: true,
       });
       
-      // The useEffect will handle redirection once currentUser is set
+      // Wait for auth state to be fully initialized before redirecting
+      console.log('Signup page: Waiting for auth state to be fully initialized before redirecting...');
+      
+      // Explicitly redirect to profile page after a shorter delay to ensure auth state is fully initialized
+      setTimeout(() => {
+        console.log('Signup page: Redirecting to profile page...');
+        // Use router.replace instead of router.push for a cleaner navigation
+        router.replace('/profile');
+      }, 1500);
     } catch (err: any) {
       console.error('Signup page: Error during signup:', err);
       
@@ -117,16 +124,16 @@ const SignupPage: React.FC = () => {
         setError('This email is already registered. Please sign in instead.');
         toast({
           title: 'Account Exists',
-          description: 'This email is already registered. Redirecting to login page...',
+          description: 'This email is already registered. Please use the login option.',
           status: 'info',
           duration: 5000,
           isClosable: true,
         });
         
-        // Redirect to login page after a short delay
+        // Open login modal instead of redirecting to login page
         setTimeout(() => {
-          router.replace('/login');
-        }, 2000);
+          router.back(); // Go back to previous page
+        }, 1500);
         return;
       }
       
@@ -182,23 +189,13 @@ const SignupPage: React.FC = () => {
             
             <form onSubmit={handleSubmit}>
               <Stack spacing={4}>
-                <FormControl id="name" isRequired>
-                  <FormLabel>Full Name</FormLabel>
-                  <Input 
-                    type="text" 
-                    value={name} 
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your full name"
-                  />
-                </FormControl>
-                
                 <FormControl id="email" isRequired>
                   <FormLabel>Email address</FormLabel>
                   <Input 
                     type="email" 
                     value={email} 
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
+                    placeholder="Enter your academic email"
                   />
                 </FormControl>
                 

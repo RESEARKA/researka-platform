@@ -67,10 +67,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(authRef.current, email, password);
       
-      // Update user profile with name
-      console.log('AuthContext: Updating user profile with name...');
+      // Update user profile with name (if provided)
+      console.log('AuthContext: Updating user profile...');
       try {
-        if (userCredential.user) {
+        if (userCredential.user && name.trim()) {
           await updateProfile(userCredential.user, {
             displayName: name
           });
@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           // Use users collection now that rules allow authenticated access
           await setDoc(doc(dbRef.current, 'users', userCredential.user.uid), {
-            name,
+            name: name.trim() || '',
             email,
             role: 'Researcher',
             institution: '',
@@ -467,6 +467,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const unsubscribe = onAuthStateChanged(authRef.current, async (user) => {
       console.log('AuthContext: Auth state changed:', user ? `User ${user.uid} (${user.email})` : 'No user');
       
+      // Set loading state to true while processing auth state change
+      setIsLoading(true);
+      
       // Process user authentication
       if (user) {
         console.log('AuthContext: User authenticated, updating currentUser');
@@ -515,6 +518,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error('AuthContext: Error retrieving user data from Firestore:', firestoreError);
           }
         }
+      } else {
+        // No user is signed in
+        console.log('AuthContext: No user signed in, setting currentUser to null');
+        setCurrentUser(null);
       }
       
       // Update auth state with detailed logging
@@ -524,14 +531,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         authIsInitializedBefore: authIsInitialized
       });
       
-      setIsLoading(false);
-      setAuthIsInitialized(true);
-      
-      console.log('AuthContext: Auth state updated', {
-        currentUserAfter: user ? user.uid : null,
-        isLoadingAfter: false,
-        authIsInitializedAfter: true
-      });
+      // Add a small delay before finalizing auth state to ensure all operations are complete
+      setTimeout(() => {
+        setIsLoading(false);
+        setAuthIsInitialized(true);
+        
+        console.log('AuthContext: Auth state updated', {
+          currentUserAfter: user ? user.uid : null,
+          isLoadingAfter: false,
+          authIsInitializedAfter: true
+        });
+      }, 500);
     });
 
     return () => {

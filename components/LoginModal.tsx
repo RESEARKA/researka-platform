@@ -226,7 +226,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
               <Link color="blue.500" href="/forgot-password">
                 Forgot Password?
               </Link>
-              <Link color="blue.500" href="/signup">
+              <Link 
+                color="blue.500" 
+                onClick={() => {
+                  onClose();
+                  router.push('/signup');
+                }}
+                cursor="pointer"
+              >
                 Don't have an account? Sign Up
               </Link>
             </Flex>

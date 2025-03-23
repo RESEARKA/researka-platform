@@ -191,7 +191,7 @@ const PaginationControl: React.FC<PaginationProps> = ({ currentPage, totalPages,
 const ProfilePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
@@ -272,39 +272,53 @@ const ProfilePage: React.FC = () => {
       currentUser: currentUser?.uid
     });
 
+    // Always show loading state initially
+    setIsLoading(true);
+    setError(null);
+
     // Wait for auth to be ready
-    if (!authIsInitialized || authLoading) {
-      console.log('Profile: Auth not ready yet');
+    if (!authIsInitialized) {
+      console.log('Profile: Auth not initialized yet, waiting...');
       return;
     }
 
     // If no user, redirect to home
-    if (!currentUser) {
+    if (!currentUser && authIsInitialized) {
       console.log('Profile: No user found, redirecting to home');
       router.replace('/');
       return;
     }
 
-    // Load profile data
+    // Load profile data with increased delay to ensure auth state is fully processed
     const loadData = async () => {
-      setIsLoading(true);
-      try {
-        console.log('Profile: Loading profile data for user:', currentUser.uid);
-        const success = await loadProfileData();
-        if (!success) {
-          console.error('Profile: Failed to load profile data');
-          setError('Failed to load profile data. Please try again.');
+      console.log('Profile: Starting loadData with delay to ensure auth state is fully processed');
+      
+      // Add a longer delay to ensure auth state is fully processed
+      setTimeout(async () => {
+        try {
+          if (!currentUser) {
+            console.log('Profile: No user found after delay, redirecting to home');
+            router.replace('/');
+            return;
+          }
+          
+          console.log('Profile: Loading profile data for user:', currentUser.uid);
+          const success = await loadProfileData();
+          if (!success) {
+            console.error('Profile: Failed to load profile data');
+            setError('Failed to load profile data. Please try again.');
+          }
+        } catch (err) {
+          console.error('Profile: Error loading profile:', err);
+          setError('An error occurred while loading your profile. Please try again.');
+        } finally {
+          setIsLoading(false);
         }
-      } catch (err) {
-        console.error('Profile: Error loading profile:', err);
-        setError('An error occurred while loading your profile. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
+      }, 1000); // Increased delay to 1000ms
     };
 
     loadData();
-  }, [authIsInitialized, authLoading, currentUser, router]);
+  }, [authIsInitialized, currentUser, router]);
   
   // Load user profile data
   const loadProfileData = async () => {
@@ -570,7 +584,7 @@ const ProfilePage: React.FC = () => {
         <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
           <Container maxW="container.lg">
             <ErrorState 
-              message="Failed to load profile data. Please try again later." 
+              message={error} 
               onRetry={handleRetry} 
             />
           </Container>
@@ -578,7 +592,27 @@ const ProfilePage: React.FC = () => {
       </Layout>
     );
   }
-  
+
+  // Show loading state while auth is initializing or data is loading
+  if ((!authIsInitialized || isLoading)) {
+    return (
+      <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
+        <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
+          <Container maxW="container.lg">
+            <Center h="50vh">
+              <VStack spacing={4}>
+                <Spinner size="xl" color="blue.500" thickness="4px" />
+                <Text fontSize="lg" fontWeight="medium">
+                  Loading your profile...
+                </Text>
+              </VStack>
+            </Center>
+          </Container>
+        </Box>
+      </Layout>
+    );
+  }
+
   // If profile is not complete or in edit mode, show the profile completion/edit form
   if (!isProfileComplete || isEditMode) {
     return (
@@ -605,7 +639,7 @@ const ProfilePage: React.FC = () => {
             <Center h="50vh">
               <VStack spacing={4}>
                 <Spinner size="xl" color="blue.500" thickness="4px" />
-                <Text>Loading your profile...</Text>
+                <Text>Loading your content...</Text>
               </VStack>
             </Center>
           ) : (
