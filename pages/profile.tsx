@@ -297,6 +297,14 @@ const ProfilePage: React.FC = () => {
       const attemptLoad = async (): Promise<boolean> => {
         setIsLoading(true);
         try {
+          // Check if currentUser exists before accessing its properties
+          if (!currentUser) {
+            console.error('Profile: No user found during loading attempt');
+            setError('User authentication error. Please try logging in again.');
+            setIsLoading(false);
+            return false;
+          }
+          
           console.log(`Profile: Loading profile data for user (attempt ${retryCount + 1}):`, currentUser.uid);
           const success = await loadProfileData();
           
@@ -311,10 +319,13 @@ const ProfilePage: React.FC = () => {
               return attemptLoad();
             } else {
               setError('Failed to load profile data after multiple attempts. Please try again.');
+              setIsLoading(false); // Ensure loading state is turned off
               return false;
             }
           }
           
+          // Set loading to false on successful load
+          setIsLoading(false);
           return true;
         } catch (err) {
           console.error(`Profile: Error loading profile (attempt ${retryCount + 1}):`, err);
@@ -327,12 +338,13 @@ const ProfilePage: React.FC = () => {
             return attemptLoad();
           } else {
             setError('An error occurred while loading your profile. Please try again.');
+            setIsLoading(false); // Ensure loading state is turned off
             return false;
           }
         } finally {
-          if (retryCount >= maxRetries) {
-            setIsLoading(false);
-          }
+          // No longer needed as we're explicitly setting isLoading in each path
+          // This ensures isLoading is always set correctly regardless of the path taken
+          console.log(`Profile: Loading attempt ${retryCount + 1} completed`);
         }
       };
       
