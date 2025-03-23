@@ -494,11 +494,9 @@ const ProfilePage: React.FC = () => {
   // Handle profile completion
   const handleProfileComplete = async (profileData: any) => {
     try {
-      // Check if we've already shown a toast in this session
-      if (profileToastShown.complete) {
-        console.log('Profile: Skipping duplicate completion toast');
-        return;
-      }
+      // Set a flag to indicate that a toast has been shown by the ProfileCompletionForm
+      // This will prevent showing a duplicate toast here
+      setProfileToastShown(prev => ({...prev, complete: true}));
       
       // Update user state with profile data and mark as complete
       const updatedProfile = {...profileData, profileComplete: true};
@@ -508,17 +506,7 @@ const ProfilePage: React.FC = () => {
       // Save to Firestore
       await updateUserData(updatedProfile);
       
-      // Mark that we've shown the toast
-      setProfileToastShown(prev => ({...prev, complete: true}));
-      
-      toast({
-        id: 'profile-complete',
-        title: "Profile completed",
-        description: "Your profile has been successfully set up",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      // No need to show another toast here as the ProfileCompletionForm already showed one
     } catch (error) {
       console.error('Error completing profile:', error);
       toast({
