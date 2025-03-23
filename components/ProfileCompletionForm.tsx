@@ -38,6 +38,7 @@ import {
 import { FiCheck, FiInfo, FiPlus, FiUser, FiMail, FiBookOpen, FiHash, FiLink, FiGlobe, FiArrowLeft, FiX, FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import ResearchInterestSelector from './ResearchInterestSelector';
+import useAppToast from '../hooks/useAppToast';
 
 // Mock data for institutions and departments
 const MOCK_INSTITUTIONS = [
@@ -110,10 +111,10 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   onComplete, 
   initialData, 
   isEditMode = false, 
-  onCancel 
+  onCancel,
 }) => {
   const router = useRouter();
-  const toast = useToast();
+  const showToast = useAppToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
@@ -295,12 +296,12 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     if (validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
     } else {
-      toast({
+      showToast({
+        id: 'validation-error',
         title: "Validation Error",
         description: "Please fix the errors before proceeding",
         status: "error",
         duration: 3000,
-        isClosable: true,
       });
     }
   };
@@ -311,61 +312,76 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   };
 
   // Submit form
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validate all steps
     const allValid = validateStep(currentStep);
     
-    if (allValid) {
-      setIsSubmitting(true);
-      
-      // Simulate API call
-      setTimeout(() => {
-        // Create user profile object
-        const userProfile = {
-          name: `${formData.firstName} ${formData.lastName}`,
-          email: formData.email,
-          secondaryEmail: formData.secondaryEmail,
-          emailVerified: true, // In a real app, this would be set after verification
-          institution: formData.institution,
-          department: formData.department,
-          position: formData.position,
-          orcidId: formData.orcidId,
-          researchInterests: formData.researchInterests,
-          wantsToBeEditor: formData.wantsToBeEditor,
-          personalWebsite: formData.personalWebsite,
-          socialMedia: formData.socialMedia,
-          role: 'Researcher',
-          articles: 0,
-          reviews: 0,
-          reputation: 0,
-          profileComplete: true,
-        };
-        
-        // Save to localStorage (in a real app, this would be saved to a database)
-        localStorage.setItem('userProfile', JSON.stringify(userProfile));
-        localStorage.setItem('profileComplete', 'true');
-        
-        toast({
-          title: 'Profile Completed',
-          description: 'Your profile has been successfully set up.',
-          status: 'success',
-          duration: 5000,
-          isClosable: true,
-        });
-        
-        setIsSubmitting(false);
-        
-        // Call the onComplete callback
-        onComplete(userProfile);
-      }, 1500);
-    } else {
-      toast({
+    if (!allValid) {
+      showToast({
+        id: 'validation-error',
         title: 'Validation Error',
         description: 'Please fix the errors before submitting.',
         status: 'error',
         duration: 5000,
-        isClosable: true,
       });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      // Create user profile object
+      const userProfile = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        secondaryEmail: formData.secondaryEmail,
+        emailVerified: true, // In a real app, this would be set after verification
+        institution: formData.institution,
+        department: formData.department,
+        position: formData.position,
+        orcidId: formData.orcidId,
+        researchInterests: formData.researchInterests,
+        wantsToBeEditor: formData.wantsToBeEditor,
+        personalWebsite: formData.personalWebsite,
+        socialMedia: formData.socialMedia,
+        role: 'Researcher',
+        articles: 0,
+        reviews: 0,
+        reputation: 0,
+        profileComplete: true,
+      };
+      
+      // Save to localStorage (in a real app, this would be saved to a database)
+      localStorage.setItem('userProfile', JSON.stringify(userProfile));
+      localStorage.setItem('profileComplete', 'true');
+      
+      // Show toast with unique ID based on mode
+      showToast({
+        id: isEditMode ? 'profile-updated' : 'profile-completed',
+        title: isEditMode ? 'Profile Updated' : 'Profile Completed',
+        description: isEditMode 
+          ? 'Your profile has been successfully updated.' 
+          : 'Your profile has been successfully set up.',
+        status: 'success',
+        duration: 5000,
+      });
+      
+      console.log('[ProfileCompletionForm] Profile data prepared, calling onComplete');
+      
+      // Call the onComplete callback and await it in case it's async
+      await onComplete(userProfile);
+      
+      console.log('[ProfileCompletionForm] onComplete callback finished');
+    } catch (error) {
+      console.error('[ERROR] Error in handleSubmit:', error);
+      showToast({
+        id: 'profile-submission-error',
+        title: 'Error',
+        description: 'Failed to complete profile. Please try again.',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

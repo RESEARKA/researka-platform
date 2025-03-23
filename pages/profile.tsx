@@ -45,6 +45,7 @@ import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import RecommendedArticles from '../components/RecommendedArticles';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
+import useAppToast from '../hooks/useAppToast';
 
 // Import panel components directly instead of using lazy loading
 import ArticlesPanel from '../components/profile/ArticlesPanel';
@@ -196,7 +197,7 @@ const ProfilePage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const toast = useToast();
+  const showToast = useAppToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
@@ -244,22 +245,21 @@ const ProfilePage: React.FC = () => {
       // Mark that we've shown the toast
       setProfileToastShown(prev => ({...prev, update: true}));
       
-      toast({
+      showToast({
         id: 'profile-updated',
         title: "Profile updated",
         description: "Your profile has been successfully updated",
         status: "success",
         duration: 3000,
-        isClosable: true,
       });
     } catch (error) {
       console.error('Error saving profile:', error);
-      toast({
+      showToast({
+        id: 'profile-save-error',
         title: "Error",
         description: "Failed to update profile. Please try again.",
         status: "error",
         duration: 3000,
-        isClosable: true,
       });
     }
   };
@@ -417,15 +417,13 @@ const ProfilePage: React.FC = () => {
         if (!updateSuccess) {
           console.warn('Profile: Failed to save default profile to Firestore');
           // Show a toast notification only once
-          if (!toast.isActive('profile-update-error')) {
-            toast({
+          if (!showToast.isActive('profile-update-error')) {
+            showToast({
               id: 'profile-update-error',
               title: 'Warning',
               description: 'Could not save profile to database. Changes may not persist.',
               status: 'warning',
               duration: 5000,
-              isClosable: true,
-              position: 'top-right'
             });
           }
         }
@@ -439,15 +437,13 @@ const ProfilePage: React.FC = () => {
         setIsEditMode(true);
         
         // Show a toast notification only once
-        if (!toast.isActive('profile-update-error')) {
-          toast({
+        if (!showToast.isActive('profile-update-error')) {
+          showToast({
             id: 'profile-update-error',
             title: 'Warning',
             description: 'Could not save profile to database. Changes may not persist.',
             status: 'warning',
             duration: 5000,
-            isClosable: true,
-            position: 'top-right'
           });
         }
         return false;
@@ -473,12 +469,12 @@ const ProfilePage: React.FC = () => {
       const loadSuccess = await loadProfileData();
       
       if (loadSuccess) {
-        toast({
+        showToast({
+          id: 'profile-retry-success',
           title: 'Success',
           description: 'Profile data loaded successfully.',
           status: 'success',
           duration: 3000,
-          isClosable: true,
         });
       } else {
         setError('Failed to load profile data. Please try again.');
@@ -494,6 +490,8 @@ const ProfilePage: React.FC = () => {
   // Handle profile completion
   const handleProfileComplete = async (profileData: any) => {
     try {
+      console.log('[ProfilePage] handleProfileComplete started');
+      
       // Set a flag to indicate that a toast has been shown by the ProfileCompletionForm
       // This will prevent showing a duplicate toast here
       setProfileToastShown(prev => ({...prev, complete: true}));
@@ -503,18 +501,26 @@ const ProfilePage: React.FC = () => {
       setUser(updatedProfile);
       setIsProfileComplete(true);
       
+      console.log('[ProfilePage] Saving profile data to Firestore');
+      
       // Save to Firestore
       await updateUserData(updatedProfile);
       
+      console.log('[ProfilePage] Profile data saved successfully');
+      
       // No need to show another toast here as the ProfileCompletionForm already showed one
+      
+      // Navigate to the main dashboard or appropriate page after profile completion
+      console.log('[ProfilePage] Navigating to dashboard');
+      router.push('/dashboard');
     } catch (error) {
-      console.error('Error completing profile:', error);
-      toast({
+      console.error('[ERROR] Error completing profile:', error);
+      showToast({
+        id: 'profile-completion-error',
         title: "Error",
         description: "Failed to complete profile. Please try again.",
         status: "error",
         duration: 3000,
-        isClosable: true,
       });
     }
   };
