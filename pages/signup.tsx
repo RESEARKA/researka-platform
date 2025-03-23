@@ -107,15 +107,44 @@ const SignupPage: React.FC = () => {
         isClosable: true,
       });
       
-      // Wait for auth state to be fully initialized before redirecting
-      console.log('Signup page: Waiting for auth state to be fully initialized before redirecting...');
+      // Poll until auth is initialized and currentUser is available
+      const waitForAuth = () => 
+        new Promise<void>((resolve) => {
+          console.log('Signup page: Starting waitForAuth polling...');
+          let attempts = 0;
+          const maxAttempts = 10; // Reduced from 20 to 10 (2 seconds max with 200ms interval)
+          
+          const interval = setInterval(() => {
+            attempts++;
+            console.log(`Signup page: Checking auth state (attempt ${attempts}/${maxAttempts})...`, { 
+              authIsInitialized, 
+              currentUser: !!currentUser,
+              uid: currentUser?.uid 
+            });
+            
+            if (authIsInitialized && currentUser) {
+              console.log('Signup page: Auth state initialized and user available, proceeding with redirect');
+              clearInterval(interval);
+              resolve();
+            }
+            
+            // Failsafe timeout after max attempts
+            if (attempts >= maxAttempts) {
+              console.log('Signup page: Failsafe timeout reached, proceeding with redirect anyway');
+              clearInterval(interval);
+              resolve();
+            }
+          }, 200); // Reduced from 500ms to 200ms for faster polling
+        });
       
-      // Explicitly redirect to profile page after a shorter delay to ensure auth state is fully initialized
-      setTimeout(() => {
-        console.log('Signup page: Redirecting to profile page...');
-        // Use router.replace instead of router.push for a cleaner navigation
-        router.replace('/profile');
-      }, 1500);
+      await waitForAuth();
+      
+      // Add a small delay before redirecting to ensure all state updates have propagated
+      await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 1000ms to 200ms
+      
+      console.log('Signup page: Redirecting to profile page...');
+      // Use router.replace instead of router.push for a cleaner navigation
+      router.replace('/profile');
     } catch (err: any) {
       console.error('Signup page: Error during signup:', err);
       

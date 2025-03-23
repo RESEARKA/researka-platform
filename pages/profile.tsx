@@ -289,34 +289,56 @@ const ProfilePage: React.FC = () => {
       return;
     }
 
-    // Load profile data with increased delay to ensure auth state is fully processed
+    // Load profile data with retry mechanism
     const loadData = async () => {
-      console.log('Profile: Starting loadData with delay to ensure auth state is fully processed');
+      let retryCount = 0;
+      const maxRetries = 2; // Reduced from 3 to 2
       
-      // Add a longer delay to ensure auth state is fully processed
-      setTimeout(async () => {
+      const attemptLoad = async (): Promise<boolean> => {
+        setIsLoading(true);
         try {
-          if (!currentUser) {
-            console.log('Profile: No user found after delay, redirecting to home');
-            router.replace('/');
-            return;
+          console.log(`Profile: Loading profile data for user (attempt ${retryCount + 1}):`, currentUser.uid);
+          const success = await loadProfileData();
+          
+          if (!success) {
+            console.error(`Profile: Failed to load profile data (attempt ${retryCount + 1})`);
+            
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`Profile: Retrying (${retryCount}/${maxRetries})...`);
+              // Wait before retrying - reduced from 1000ms to 300ms
+              await new Promise(resolve => setTimeout(resolve, 300));
+              return attemptLoad();
+            } else {
+              setError('Failed to load profile data after multiple attempts. Please try again.');
+              return false;
+            }
           }
           
-          console.log('Profile: Loading profile data for user:', currentUser.uid);
-          const success = await loadProfileData();
-          if (!success) {
-            console.error('Profile: Failed to load profile data');
-            setError('Failed to load profile data. Please try again.');
-          }
+          return true;
         } catch (err) {
-          console.error('Profile: Error loading profile:', err);
-          setError('An error occurred while loading your profile. Please try again.');
+          console.error(`Profile: Error loading profile (attempt ${retryCount + 1}):`, err);
+          
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`Profile: Retrying (${retryCount}/${maxRetries})...`);
+            // Wait before retrying - reduced from 1000ms to 300ms
+            await new Promise(resolve => setTimeout(resolve, 300));
+            return attemptLoad();
+          } else {
+            setError('An error occurred while loading your profile. Please try again.');
+            return false;
+          }
         } finally {
-          setIsLoading(false);
+          if (retryCount >= maxRetries) {
+            setIsLoading(false);
+          }
         }
-      }, 1000); // Increased delay to 1000ms
+      };
+      
+      await attemptLoad();
     };
-
+    
     loadData();
   }, [authIsInitialized, currentUser, router]);
   
