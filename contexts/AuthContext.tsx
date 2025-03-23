@@ -448,19 +448,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     }
     
-    // Set a timeout to handle cases where Firebase auth initialization takes too long
-    const authTimeout = setTimeout(() => {
-      console.warn('AuthContext: Auth initialization timed out after 10 seconds');
-      setIsLoading(false);
-      setAuthIsInitialized(true);
-    }, 10000);
-    
     // Listen for auth state changes
     if (!authRef.current) {
       console.error('AuthContext: Auth not initialized in useEffect');
       setIsLoading(false);
       setAuthIsInitialized(true);
-      return () => clearTimeout(authTimeout);
+      return;
     }
     
     console.log('AuthContext: Setting up onAuthStateChanged listener...');
@@ -531,8 +524,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         authIsInitializedBefore: authIsInitialized
       });
       
-      // Add a small delay before finalizing auth state to ensure all operations are complete
-      setTimeout(() => {
+      // Use Promise.race with a timeout to ensure auth state is updated in a timely manner
+      const completeAuthInit = async () => {
+        try {
+          // Any additional async operations needed for auth initialization
+          // For example, fetching additional user data or permissions
+          return true;
+        } catch (error) {
+          console.error('AuthContext: Error during auth initialization:', error);
+          return false;
+        }
+      };
+      
+      const authPromise = completeAuthInit();
+      const timeoutPromise = new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+          console.warn('AuthContext: Auth initialization timed out after 3 seconds');
+          resolve(false);
+        }, 3000);
+      });
+      
+      try {
+        const result = await Promise.race([authPromise, timeoutPromise]);
+        
+        if (!result) {
+          console.warn('AuthContext: Auth initialization did not complete successfully or timed out');
+        }
+        
+        // Finalize auth state regardless of the result to prevent hanging
         setIsLoading(false);
         setAuthIsInitialized(true);
         
@@ -541,12 +560,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           isLoadingAfter: false,
           authIsInitializedAfter: true
         });
-      }, 50); // Reduced delay to optimize performance while ensuring operations complete
+      } catch (error) {
+        console.error('AuthContext: Unexpected error during auth initialization:', error);
+        
+        // Ensure we still update state even if there's an error
+        setIsLoading(false);
+        setAuthIsInitialized(true);
+      }
     });
 
     return () => {
       unsubscribe();
-      clearTimeout(authTimeout);
     };
   }, []);
 

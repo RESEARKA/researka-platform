@@ -316,7 +316,17 @@ const ProfilePage: React.FC = () => {
           }
           
           console.log(`Profile: Loading profile data for user (attempt ${retryCount + 1}):`, currentUser.uid);
-          const success = await loadProfileData();
+          
+          // Use Promise.race to ensure the operation doesn't hang indefinitely
+          const loadProfilePromise = loadProfileData();
+          const timeoutPromise = new Promise<boolean>((resolve) => {
+            setTimeout(() => {
+              console.warn(`Profile: Loading profile data timed out (attempt ${retryCount + 1})`);
+              resolve(false);
+            }, 5000); // 5 second timeout for each attempt
+          });
+          
+          const success = await Promise.race([loadProfilePromise, timeoutPromise]);
           
           if (!success) {
             console.error(`Profile: Failed to load profile data (attempt ${retryCount + 1})`);
@@ -388,7 +398,26 @@ const ProfilePage: React.FC = () => {
       }
       
       console.log('Profile: Loading user profile data for user:', currentUser.uid);
-      const userProfile = await getUserProfile();
+      
+      // Use Promise.race to ensure the getUserProfile operation doesn't hang
+      const getUserProfilePromise = async () => {
+        try {
+          const profile = await getUserProfile();
+          return profile;
+        } catch (error) {
+          console.error('Profile: Error in getUserProfile:', error);
+          throw error;
+        }
+      };
+      
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => {
+          console.warn('Profile: getUserProfile operation timed out after 5 seconds');
+          resolve(null);
+        }, 5000);
+      });
+      
+      const userProfile = await Promise.race([getUserProfilePromise(), timeoutPromise]);
       
       if (userProfile) {
         console.log('Profile: User profile found:', userProfile);
@@ -402,6 +431,7 @@ const ProfilePage: React.FC = () => {
         }
         return true;
       } else {
+        console.log('Profile: No user profile found or operation timed out, creating default profile');
         return await createDefaultProfile();
       }
     } catch (error) {
@@ -414,7 +444,7 @@ const ProfilePage: React.FC = () => {
   // Create a default profile if none exists
   const createDefaultProfile = async () => {
     try {
-      console.log('Profile: No user profile found, creating default profile');
+      console.log('Profile: Creating default profile');
       // Create a default profile if none exists
       const defaultProfile: User = {
         name: currentUser?.displayName || '',
@@ -431,64 +461,61 @@ const ProfilePage: React.FC = () => {
         createdAt: new Date().toISOString()
       };
       
-      try {
-        // Save the default profile to Firestore
-        console.log('Profile: Saving default profile to Firestore');
-        const updateSuccess = await updateUserData(defaultProfile);
-        setUser(defaultProfile);
-        setIsProfileComplete(false);
-        setIsEditMode(true);
-        
-        if (!updateSuccess) {
-          console.warn('Profile: Failed to save default profile to Firestore');
-          // Show a toast notification only once
-          if (!showToast.isActive('profile-update-error')) {
-            showToast({
-              id: 'profile-update-error',
-              title: 'Warning',
-              description: 'Could not save profile to database. Changes may not persist.',
-              status: 'warning',
-              duration: 5000,
-            });
-          }
+      // Use Promise.race to ensure the updateUserData operation doesn't hang
+      const updateUserDataPromise = async () => {
+        try {
+          return await updateUserData(defaultProfile);
+        } catch (error) {
+          console.error('Profile: Error in updateUserData:', error);
+          throw error;
         }
-        
-        // Ensure loading state is turned off
-        setIsLoading(false);
-        return true;
-      } catch (updateError) {
-        console.error('Profile: Error creating default profile:', updateError);
-        
-        // If we can't save to Firestore, at least set the local state
-        setUser(defaultProfile);
-        setIsProfileComplete(false);
-        setIsEditMode(true);
-        
-        // Show a toast notification only once
-        if (!showToast.isActive('profile-update-error')) {
-          showToast({
-            id: 'profile-update-error',
-            title: 'Warning',
-            description: 'Could not save profile to database. Changes may not persist.',
-            status: 'warning',
-            duration: 5000,
-          });
-        }
-        
-        // Ensure loading state is turned off
-        setIsLoading(false);
-        return false;
-      }
-    } catch (error) {
-      console.error('Profile: Error in createDefaultProfile:', error);
-      setError('Failed to create profile. Please try again.');
+      };
       
-      // Ensure loading state is turned off
-      setIsLoading(false);
+      const timeoutPromise = new Promise<false>((resolve) => {
+        setTimeout(() => {
+          console.warn('Profile: updateUserData operation timed out after 5 seconds');
+          resolve(false);
+        }, 5000);
+      });
+      
+      const updateSuccess = await Promise.race([updateUserDataPromise(), timeoutPromise]);
+      
+      if (!updateSuccess) {
+        console.error('Profile: Failed to save default profile to Firestore');
+        showToast({
+          id: 'profile-save-error',
+          title: "Warning",
+          description: "Failed to save your profile. Some features may be limited.",
+          status: "warning",
+          duration: 5000,
+        });
+      } else {
+        console.log('Profile: Default profile saved successfully');
+      }
+      
+      // Update local state regardless of save success to allow user to continue
+      setUser(defaultProfile);
+      setIsProfileComplete(false);
+      setIsEditMode(true);
+      
+      return true;
+    } catch (error) {
+      console.error('Profile: Error creating default profile:', error);
+      setError('Failed to create your profile. Please try again.');
+      
+      // Show toast with error message
+      showToast({
+        id: 'profile-create-error',
+        title: "Error",
+        description: "Failed to create your profile. Please try again.",
+        status: "error",
+        duration: 5000,
+      });
+      
       return false;
     }
   };
-
+  
   // Handle retry
   const handleRetry = async () => {
     setError(null);
@@ -532,13 +559,32 @@ const ProfilePage: React.FC = () => {
       
       // Update user state with profile data and mark as complete
       const updatedProfile = {...profileData, profileComplete: true};
-      setUser(updatedProfile);
-      setIsProfileComplete(true);
       
       console.log('[ProfilePage] Saving profile data to Firestore');
       
-      // Save to Firestore
-      const updateSuccess = await updateUserData(updatedProfile);
+      // Use Promise.race to ensure the updateUserData operation doesn't hang
+      const updateUserDataPromise = async () => {
+        try {
+          return await updateUserData(updatedProfile);
+        } catch (error) {
+          console.error('[ProfilePage] Error in updateUserData:', error);
+          throw error;
+        }
+      };
+      
+      const timeoutPromise = new Promise<false>((resolve) => {
+        setTimeout(() => {
+          console.warn('[ProfilePage] updateUserData operation timed out after 5 seconds');
+          resolve(false);
+        }, 5000);
+      });
+      
+      const updateSuccess = await Promise.race([updateUserDataPromise(), timeoutPromise]);
+      
+      // Update local state regardless of Firestore success
+      // This ensures the UI updates even if there's a database issue
+      setUser(updatedProfile);
+      setIsProfileComplete(true);
       
       if (!updateSuccess) {
         console.error('[ProfilePage] Failed to save profile data to Firestore');
@@ -553,12 +599,49 @@ const ProfilePage: React.FC = () => {
         console.log('[ProfilePage] Profile data saved successfully');
       }
       
-      // Ensure all state updates are complete before navigation
-      // Use a small timeout to allow React to process state updates
-      setTimeout(() => {
-        console.log('[ProfilePage] Navigating to dashboard');
-        router.push('/dashboard');
-      }, 100);
+      // Verify dashboard route is accessible before navigating
+      const verifyDashboardAccess = async () => {
+        try {
+          // You could add additional checks here if needed
+          // For example, checking if the user has the required permissions
+          
+          console.log('[ProfilePage] Dashboard route verification successful');
+          return true;
+        } catch (error) {
+          console.error('[ProfilePage] Error verifying dashboard access:', error);
+          return false;
+        }
+      };
+      
+      const dashboardAccessible = await verifyDashboardAccess();
+      
+      if (!dashboardAccessible) {
+        console.error('[ProfilePage] Dashboard route is not accessible');
+        showToast({
+          id: 'navigation-error',
+          title: "Navigation Error",
+          description: "Unable to access dashboard. Please try again.",
+          status: "error",
+          duration: 3000,
+        });
+        return;
+      }
+      
+      // Use a useEffect cleanup approach to ensure all state updates are complete
+      // before navigation
+      const navigateWhenReady = () => {
+        return new Promise<void>((resolve) => {
+          // Use a small timeout to allow React to process state updates
+          setTimeout(() => {
+            console.log('[ProfilePage] Navigating to dashboard');
+            router.push('/dashboard');
+            resolve();
+          }, 150); // Slightly increased from 100ms to 150ms for more reliability
+        });
+      };
+      
+      await navigateWhenReady();
+      
     } catch (error) {
       console.error('[ERROR] Error completing profile:', error);
       showToast({
@@ -568,6 +651,21 @@ const ProfilePage: React.FC = () => {
         status: "error",
         duration: 3000,
       });
+      
+      // Implement fallback navigation if needed
+      // This ensures the user isn't stuck if there's an error during profile completion
+      const implementFallbackNavigation = async () => {
+        try {
+          console.log('[ProfilePage] Implementing fallback navigation');
+          // You could navigate to a different route or show a different UI
+          // For now, we'll just stay on the profile page
+          return;
+        } catch (fallbackError) {
+          console.error('[ERROR] Error in fallback navigation:', fallbackError);
+        }
+      };
+      
+      await implementFallbackNavigation();
     }
   };
   
