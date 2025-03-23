@@ -1,39 +1,48 @@
-import React, { useState, useRef, lazy, Suspense, useEffect } from 'react';
-import {
-  Box,
-  Container,
-  Flex,
-  Text,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import { 
+  Box, 
+  Container, 
+  VStack, 
+  HStack,
+  Text, 
+  Flex, 
+  Avatar, 
+  Badge, 
+  Button, 
+  Tabs, 
+  TabList, 
+  TabPanels, 
+  Tab, 
+  TabPanel, 
+  Center, 
+  Spinner, 
+  useColorModeValue,
+  Heading,
+  Icon,
   SimpleGrid,
-  Card,
-  CardHeader,
-  CardBody,
-  CardFooter,
-  Avatar,
-  Badge,
   Stat,
   StatLabel,
   StatNumber,
-  VStack,
   Divider,
-  useColorModeValue,
   ButtonGroup,
   IconButton,
-  Spinner,
   Alert,
   AlertIcon,
   AlertTitle,
-  AlertDescription,
-  Center,
-  useToast,
-  Button,
+  AlertDescription
 } from '@chakra-ui/react';
-import { FiEdit, FiFileText, FiStar, FiSettings, FiBookmark, FiChevronLeft, FiChevronRight, FiRefreshCw } from 'react-icons/fi';
+import { 
+  FiEdit, 
+  FiFileText, 
+  FiStar, 
+  FiRefreshCw, 
+  FiAlertTriangle,
+  FiLock,
+  FiLogIn,
+  FiBookmark,
+  FiChevronLeft,
+  FiChevronRight
+} from 'react-icons/fi';
 import Head from 'next/head';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -79,6 +88,8 @@ interface User {
   position?: string;
   profileComplete?: boolean;
   createdAt?: string;
+  hasChangedName?: boolean;
+  hasChangedInstitution?: boolean;
 }
 
 interface PaginationProps {
@@ -89,23 +100,23 @@ interface PaginationProps {
 
 // Empty state component
 const EmptyState: React.FC<{ type: string }> = ({ type }) => (
-  <Card p={6} textAlign="center">
+  <Box p={6} textAlign="center">
     <VStack spacing={4}>
-      <FiBookmark size={40} color="gray" />
+      <Icon as={FiBookmark} boxSize={10} />
       <ResponsiveText variant="h3">No {type} Found</ResponsiveText>
       <ResponsiveText variant="body-sm" color="gray.500">You don't have any {type.toLowerCase()} yet.</ResponsiveText>
       {type === "Articles" && (
-        <Button
+        <Button 
+          colorScheme="blue" 
+          size="sm"
           as={Link}
           href="/submit"
-          colorScheme="blue" 
-          leftIcon={<FiFileText />}
         >
           Submit an Article
         </Button>
       )}
     </VStack>
-  </Card>
+  </Box>
 );
 
 // Error state component
@@ -130,7 +141,7 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ messag
     <Button
       mt={4} 
       leftIcon={<FiRefreshCw />} 
-      colorScheme="red" 
+      colorScheme="blue"
       onClick={onRetry}
     >
       Try Again
@@ -226,6 +237,27 @@ const ProfilePage: React.FC = () => {
   // Function to save profile edits
   const handleSaveProfile = async (updatedProfile: any) => {
     try {
+      console.log('Profile: handleSaveProfile called with:', updatedProfile);
+      console.log('Profile: Current user data:', user);
+      
+      // Check if name or institution has changed
+      const nameChanged = user?.name !== updatedProfile.name;
+      const institutionChanged = user?.institution !== updatedProfile.institution;
+      
+      console.log('Profile: Name changed:', nameChanged, 'Institution changed:', institutionChanged);
+      console.log('Profile: hasChangedName:', user?.hasChangedName, 'hasChangedInstitution:', user?.hasChangedInstitution);
+      
+      // Set flags if changed for the first time
+      if (nameChanged && user?.hasChangedName !== true) {
+        updatedProfile.hasChangedName = true;
+        console.log('Profile: Setting hasChangedName to true');
+      }
+      
+      if (institutionChanged && user?.hasChangedInstitution !== true) {
+        updatedProfile.hasChangedInstitution = true;
+        console.log('Profile: Setting hasChangedInstitution to true');
+      }
+      
       // Check if we've already shown a toast in this session
       if (profileToastShown.update) {
         console.log('Profile: Skipping duplicate update toast');
@@ -234,6 +266,7 @@ const ProfilePage: React.FC = () => {
       
       // Update user state
       const updatedUser = {...user, ...updatedProfile, profileComplete: true};
+      console.log('Profile: Updated user data:', updatedUser);
       setUser(updatedUser);
       
       // Save to Firestore
@@ -264,124 +297,59 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  // Check if user is logged in
-  React.useEffect(() => {
-    console.log('Profile: Effect running with:', {
-      authIsInitialized,
-      authLoading,
-      currentUser: currentUser?.uid
-    });
-
-    // Always show loading state initially
-    setIsLoading(true);
-    setError(null);
-
-    // Wait for auth to be ready
-    if (!authIsInitialized) {
-      console.log('Profile: Auth not initialized yet, waiting...');
-      return;
-    }
-
-    // If no user, redirect to home
-    if (!currentUser && authIsInitialized) {
-      console.log('Profile: No user found, redirecting to home');
-      router.replace('/');
-      return;
-    }
-
-    // Load profile data with retry mechanism
-    const loadData = async () => {
-      let retryCount = 0;
-      const maxRetries = 2; // Reduced from 3 to 2
-      
-      const attemptLoad = async (): Promise<boolean> => {
-        setIsLoading(true);
-        try {
-          // Check if currentUser exists before accessing its properties
-          if (!currentUser) {
-            console.error('Profile: No user found during loading attempt');
-            setError('User authentication error. Please try logging in again.');
-            setIsLoading(false);
-            return false;
-          }
-          
-          console.log(`Profile: Loading profile data for user (attempt ${retryCount + 1}):`, currentUser.uid);
-          const success = await loadProfileData();
-          
-          if (!success) {
-            console.error(`Profile: Failed to load profile data (attempt ${retryCount + 1})`);
-            
-            if (retryCount < maxRetries) {
-              retryCount++;
-              console.log(`Profile: Retrying (${retryCount}/${maxRetries})...`);
-              // Wait before retrying - reduced from 1000ms to 300ms
-              await new Promise(resolve => setTimeout(resolve, 300));
-              return attemptLoad();
-            } else {
-              setError('Failed to load profile data after multiple attempts. Please try again.');
-              setIsLoading(false); // Ensure loading state is turned off
-              return false;
-            }
-          }
-          
-          // Set loading to false on successful load
-          setIsLoading(false);
-          return true;
-        } catch (err) {
-          console.error(`Profile: Error loading profile (attempt ${retryCount + 1}):`, err);
-          
-          if (retryCount < maxRetries) {
-            retryCount++;
-            console.log(`Profile: Retrying (${retryCount}/${maxRetries})...`);
-            // Wait before retrying - reduced from 1000ms to 300ms
-            await new Promise(resolve => setTimeout(resolve, 300));
-            return attemptLoad();
-          } else {
-            setError('An error occurred while loading your profile. Please try again.');
-            setIsLoading(false); // Ensure loading state is turned off
-            return false;
-          }
-        } finally {
-          // No longer needed as we're explicitly setting isLoading in each path
-          // This ensures isLoading is always set correctly regardless of the path taken
-          console.log(`Profile: Loading attempt ${retryCount + 1} completed`);
-        }
-      };
-      
-      await attemptLoad();
-    };
-    
-    loadData();
-  }, [authIsInitialized, currentUser, router]);
-  
   // Load user profile data
-  const loadProfileData = async () => {
+  const loadProfileData = async (retryCount = 0, maxRetries = 3): Promise<boolean> => {
+    console.log(`Profile: loadProfileData called, attempt ${retryCount + 1}/${maxRetries + 1}`);
+    
     try {
-      if (!currentUser) {
-        console.error('Profile: No user is logged in when trying to load profile data');
+      // Don't attempt to load if auth isn't initialized yet
+      if (!authIsInitialized) {
+        console.log('Profile: Auth not initialized yet, waiting...');
         return false;
       }
       
-      console.log('Profile: Loading user profile data for user:', currentUser.uid);
-      const userProfile = await getUserProfile();
+      // If no user is logged in, don't attempt to load
+      if (!currentUser) {
+        console.log('Profile: No current user, skipping data load');
+        setIsLoading(false);
+        return false;
+      }
       
-      if (userProfile) {
-        console.log('Profile: User profile found:', userProfile);
-        setUser(userProfile);
-        setIsProfileComplete(!!userProfile.profileComplete);
-        
-        // If profile is not complete, show edit mode
-        if (!userProfile.profileComplete) {
-          console.log('Profile: Profile not complete, showing edit form');
-          setIsEditMode(true);
-        }
+      setIsLoading(true);
+      setError('');
+      
+      console.log('Profile: Attempting to get user profile data');
+      const userData = await getUserProfile();
+      
+      if (userData) {
+        console.log('Profile: User profile data loaded successfully', userData);
+        setUser(userData);
+        setIsProfileComplete(userData.profileComplete || false);
+        setIsLoading(false);
         return true;
       } else {
-        return await createDefaultProfile();
+        console.log('Profile: No user profile data found, creating default profile');
+        // If no profile exists, create a default one
+        const created = await createDefaultProfile();
+        setIsLoading(false);
+        return created;
       }
     } catch (error) {
       console.error('Profile: Error loading profile data:', error);
-      setError('Failed to load profile data. Please try again.');
+      
+      // If we haven't exceeded max retries, try again after a delay
+      if (retryCount < maxRetries) {
+        console.log(`Profile: Retrying (${retryCount + 1}/${maxRetries})...`);
+        setTimeout(() => {
+          loadProfileData(retryCount + 1, maxRetries);
+        }, 1000 * (retryCount + 1)); // Exponential backoff
+        return false;
+      }
+      
+      // Max retries exceeded, show error
+      console.error('Profile: Max retries exceeded, showing error');
+      setError('Failed to load your profile. Please try again.');
+      setIsLoading(false);
       return false;
     }
   };
@@ -389,6 +357,24 @@ const ProfilePage: React.FC = () => {
   // Create a default profile if none exists
   const createDefaultProfile = async () => {
     try {
+      console.log('Profile: createDefaultProfile called');
+      
+      if (!currentUser) {
+        console.error('Profile: No currentUser available for createDefaultProfile');
+        return false;
+      }
+      
+      // Check if user profile already exists using getUserProfile
+      console.log('Profile: Checking if user profile already exists');
+      const existingProfile = await getUserProfile();
+      
+      if (existingProfile) {
+        console.log('Profile: User profile already exists, using existing profile');
+        setUser(existingProfile);
+        setIsProfileComplete(existingProfile.profileComplete || false);
+        return true;
+      }
+      
       console.log('Profile: No user profile found, creating default profile');
       // Create a default profile if none exists
       const defaultProfile: User = {
@@ -403,54 +389,27 @@ const ProfilePage: React.FC = () => {
         reviews: 0,
         reputation: 0,
         profileComplete: false,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        hasChangedName: false,
+        hasChangedInstitution: false
       };
       
       try {
         // Save the default profile to Firestore
-        console.log('Profile: Saving default profile to Firestore');
+        console.log('Profile: Saving default profile to Firestore:', defaultProfile);
         const updateSuccess = await updateUserData(defaultProfile);
         setUser(defaultProfile);
         setIsProfileComplete(false);
         setIsEditMode(true);
-        
-        if (!updateSuccess) {
-          console.warn('Profile: Failed to save default profile to Firestore');
-          // Show a toast notification only once
-          if (!showToast.isActive('profile-update-error')) {
-            showToast({
-              id: 'profile-update-error',
-              title: 'Warning',
-              description: 'Could not save profile to database. Changes may not persist.',
-              status: 'warning',
-              duration: 5000,
-            });
-          }
-        }
         return true;
       } catch (updateError) {
-        console.error('Profile: Error creating default profile:', updateError);
-        
-        // If we can't save to Firestore, at least set the local state
-        setUser(defaultProfile);
-        setIsProfileComplete(false);
-        setIsEditMode(true);
-        
-        // Show a toast notification only once
-        if (!showToast.isActive('profile-update-error')) {
-          showToast({
-            id: 'profile-update-error',
-            title: 'Warning',
-            description: 'Could not save profile to database. Changes may not persist.',
-            status: 'warning',
-            duration: 5000,
-          });
-        }
+        console.error('Profile: Error saving default profile:', updateError);
+        setError('Failed to create your profile. Please try again.');
         return false;
       }
     } catch (error) {
       console.error('Profile: Error in createDefaultProfile:', error);
-      setError('Failed to create profile. Please try again.');
+      setError('An error occurred while creating your profile. Please try again.');
       return false;
     }
   };
@@ -582,134 +541,178 @@ const ProfilePage: React.FC = () => {
     }
   }, [activeTab, refetchArticles, refetchReviews]);
   
-  // For saved items, we're still using mock data
-  // In a real app, this would be another React Query hook
+  // useEffect to load data when auth is initialized
+  useEffect(() => {
+    console.log('Profile: useEffect triggered. Auth initialized:', authIsInitialized, 'Current user:', !!currentUser);
+    
+    // Only attempt to load data if auth is initialized and we have a user
+    if (authIsInitialized) {
+      if (currentUser) {
+        console.log('Profile: Auth initialized and user exists, loading data');
+        loadProfileData();
+      } else {
+        console.log('Profile: Auth initialized but no user, clearing loading state');
+        setIsLoading(false);
+      }
+    }
+  }, [authIsInitialized, currentUser]);
   
-  // Refs for intersection observer
-  const articlesRef = useRef<HTMLDivElement>(null);
-  const reviewsRef = useRef<HTMLDivElement>(null);
-  
-  // Use intersection observer to lazy load content
-  const articlesVisible = useIntersectionObserver(articlesRef, { threshold: 0.1 });
-  const reviewsVisible = useIntersectionObserver(reviewsRef, { threshold: 0.1 });
-  
-  // In a real app, you would fetch this data from your API
-  const defaultUser: User = {
-    name: "Alex Johnson",
-    role: "Researcher",
-    institution: "University of Science & Technology",
-    articles: 5,
-    reviews: 12,
-    reputation: 87,
-    walletAddress: "",
-    researchInterests: []
-  };
-  
-  // If there's an error, show error state
-  if (error) {
-    return (
-      <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
-        <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
-          <Container maxW="container.lg">
-            <ErrorState 
-              message={error} 
-              onRetry={handleRetry} 
-            />
-          </Container>
-        </Box>
-      </Layout>
-    );
-  }
-
-  // Show loading state while auth is initializing or data is loading
-  if ((!authIsInitialized || isLoading)) {
-    return (
-      <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
-        <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
-          <Container maxW="container.lg">
-            <Center h="50vh">
-              <VStack spacing={4}>
-                <Spinner size="xl" color="blue.500" thickness="4px" />
-                <Text fontSize="lg" fontWeight="medium">
-                  Loading your profile...
-                </Text>
-              </VStack>
-            </Center>
-          </Container>
-        </Box>
-      </Layout>
-    );
-  }
-
-  // If profile is not complete or in edit mode, show the profile completion/edit form
-  if (!isProfileComplete || isEditMode) {
-    return (
-      <Layout title={isEditMode ? "Edit Profile | RESEARKA" : "Complete Profile | RESEARKA"} 
-              description={isEditMode ? "Edit your Researka profile" : "Complete your Researka profile"} 
-              activePage="profile">
-        <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
-          <ProfileCompletionForm 
-            onComplete={isEditMode ? handleSaveProfile : handleProfileComplete} 
-            initialData={isEditMode ? user : undefined}
-            isEditMode={isEditMode}
-            onCancel={isEditMode ? handleCancelEdit : undefined}
-          />
-        </Box>
-      </Layout>
-    );
-  }
+  // Handle page navigation based on auth state
+  useEffect(() => {
+    // Only run this effect on the client side
+    if (typeof window === 'undefined') {
+      console.log('Profile: Running on server, skipping navigation effect');
+      return;
+    }
+    
+    console.log('Profile: Navigation effect triggered. Auth initialized:', authIsInitialized);
+    
+    if (authIsInitialized) {
+      if (!currentUser) {
+        console.log('Profile: No user logged in, redirecting to login');
+        // Use setTimeout to avoid hydration errors by pushing navigation to next tick
+        setTimeout(() => {
+          router.push('/login');
+        }, 0);
+      }
+    }
+  }, [authIsInitialized, currentUser, router]);
   
   return (
-    <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
-      <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
-        <Container maxW="container.lg">
-          {articlesLoading || reviewsLoading ? (
-            <Center h="50vh">
-              <VStack spacing={4}>
-                <Spinner size="xl" color="blue.500" thickness="4px" />
-                <Text>Loading your content...</Text>
-              </VStack>
-            </Center>
-          ) : (
-            <Flex direction={{ base: 'column', md: 'row' }} gap={6}>
-              {/* Sidebar - User Info */}
+    <Box as="main" minH="100vh" py={8} px={4} bg={bgColor}>
+      {/* Early return for loading state */}
+      {(!authIsInitialized || isLoading) && (
+        <Center h="80vh">
+          <VStack spacing={4}>
+            <Spinner size="xl" color="blue.500" thickness="4px" />
+            <Text>Loading your profile...</Text>
+          </VStack>
+        </Center>
+      )}
+      
+      {/* Early return for error state */}
+      {error && !isLoading && (
+        <Center h="80vh">
+          <VStack spacing={4}>
+            <Icon as={FiAlertTriangle} size={40} color="red" />
+            <Text fontSize="xl" fontWeight="bold">Error</Text>
+            <Text>{error}</Text>
+            <Button 
+              colorScheme="blue" 
+              leftIcon={<FiRefreshCw />}
+              onClick={() => {
+                setError('');
+                loadProfileData();
+              }}
+            >
+              Try Again
+            </Button>
+          </VStack>
+        </Center>
+      )}
+      
+      {/* Early return for unauthenticated state */}
+      {authIsInitialized && !currentUser && !isLoading && (
+        <Center h="80vh">
+          <VStack spacing={4}>
+            <Icon as={FiLock} size={40} color="orange" />
+            <Text fontSize="xl" fontWeight="bold">Authentication Required</Text>
+            <Text>Please sign in to view your profile</Text>
+            <Button 
+              colorScheme="blue" 
+              leftIcon={<FiLogIn />}
+              onClick={() => router.push('/login')}
+            >
+              Sign In
+            </Button>
+          </VStack>
+        </Center>
+      )}
+      
+      {/* Main content - only render when authenticated, initialized, and not loading */}
+      {authIsInitialized && currentUser && !isLoading && !error && (
+        <Container maxW="container.xl">
+          <VStack spacing={8} align="stretch">
+            {/* Header */}
+            <Flex 
+              justify="space-between" 
+              align="center" 
+              wrap="wrap"
+              gap={4}
+            >
+              <Text as="h1" fontSize="xl">
+                {isProfileComplete ? 'Your Profile' : 'Complete Your Profile'}
+              </Text>
+              
+              {/* Action buttons */}
+              <HStack spacing={4}>
+                {isProfileComplete && !isEditMode && (
+                  <Button 
+                    leftIcon={<FiEdit />} 
+                    colorScheme="blue" 
+                    variant="outline"
+                    onClick={() => setIsEditMode(true)}
+                  >
+                    Edit Profile
+                  </Button>
+                )}
+              </HStack>
+            </Flex>
+            
+            {/* Profile completion form or profile display */}
+            {(isEditMode || !isProfileComplete) ? (
               <Box 
-                w={{ base: '100%', md: '30%' }}
-                bg={bgColor}
-                p={6}
-                borderRadius="lg"
-                boxShadow="sm"
+                p={6} 
+                bg={cardBg} 
+                borderRadius="lg" 
+                boxShadow="md" 
+                borderWidth="1px"
+                borderColor={borderColor}
+              >
+                <ProfileCompletionForm 
+                  initialData={user} 
+                  onComplete={isEditMode ? handleSaveProfile : handleProfileComplete}
+                  isEditMode={isEditMode}
+                  onCancel={() => setIsEditMode(false)}
+                />
+              </Box>
+            ) : (
+              <Box 
+                p={6} 
+                bg={cardBg} 
+                borderRadius="lg" 
+                boxShadow="md" 
                 borderWidth="1px"
                 borderColor={borderColor}
               >
                 <VStack spacing={6} align="center">
                   <Avatar 
                     size="2xl" 
-                    name={user?.name || defaultUser.name} 
+                    name={user?.name || ''} 
                     bg="purple.500"
                     color="white"
                     src=""
                   >
-                    {user?.name?.charAt(0) || defaultUser.name.charAt(0)}
+                    {user?.name?.charAt(0) || ''}
                   </Avatar>
                   
                   <VStack spacing={1}>
-                    <ResponsiveText variant="h2">{user?.name || defaultUser.name}</ResponsiveText>
-                    <ResponsiveText variant="body-sm" color="gray.600">{user?.role || defaultUser.role}</ResponsiveText>
-                    <Badge colorScheme="green" mt={1}>{user?.institution || defaultUser.institution}</Badge>
+                    <Text variant="h2">{user?.name || ''}</Text>
+                    <Text variant="body-sm" color="gray.600">{user?.role || ''}</Text>
+                    <Badge colorScheme="green" mt={1}>{user?.institution || ''}</Badge>
                   </VStack>
                   
                   <SimpleGrid columns={3} width="100%" textAlign="center" gap={4}>
                     <Stat>
-                      <StatNumber>{user?.articles || defaultUser.articles}</StatNumber>
+                      <StatNumber>{user?.articles || 0}</StatNumber>
                       <StatLabel fontSize="xs">Articles</StatLabel>
                     </Stat>
                     <Stat>
-                      <StatNumber>{user?.reviews || defaultUser.reviews}</StatNumber>
+                      <StatNumber>{user?.reviews || 0}</StatNumber>
                       <StatLabel fontSize="xs">Reviews</StatLabel>
                     </Stat>
                     <Stat>
-                      <StatNumber>{user?.reputation || defaultUser.reputation}</StatNumber>
+                      <StatNumber>{user?.reputation || 0}</StatNumber>
                       <StatLabel fontSize="xs">Rep</StatLabel>
                     </Stat>
                   </SimpleGrid>
@@ -750,94 +753,62 @@ const ProfilePage: React.FC = () => {
                   </VStack>
                 </VStack>
               </Box>
-              
-              {/* Main Content */}
-              <Box 
-                w={{ base: '100%', md: '70%' }}
-                bg={bgColor}
-                borderRadius="lg"
-                boxShadow="sm"
-                borderWidth="1px"
-                borderColor={borderColor}
-              >
-                <Tabs 
-                  isFitted 
-                  variant="enclosed" 
-                  onChange={(index) => setActiveTab(index)}
-                >
-                  <TabList>
-                    <Tab><Flex alignItems="center"><FiFileText /><Text ml={2}>My Articles</Text></Flex></Tab>
-                    <Tab><Flex alignItems="center"><FiStar /><Text ml={2}>My Reviews</Text></Flex></Tab>
-                  </TabList>
-                  
-                  <TabPanels>
-                    {/* My Articles Tab */}
-                    <TabPanel>
-                      <div ref={articlesRef}>
-                        {activeTab === 0 && (
-                          <Suspense fallback={
-                            <Center py={8}>
-                              <Spinner size="md" color="blue.500" />
-                            </Center>
-                          }>
-                            <ArticlesPanel 
-                              articlesData={articlesData}
-                              currentPage={articlesPage}
-                              onPageChange={setArticlesPage}
-                              EmptyState={EmptyState}
-                              PaginationControl={PaginationControl}
-                            />
-                          </Suspense>
-                        )}
-                      </div>
-                    </TabPanel>
-                    
-                    {/* My Reviews Tab */}
-                    <TabPanel>
-                      <div ref={reviewsRef}>
-                        {activeTab === 1 && (
-                          <Suspense fallback={
-                            <Center py={8}>
-                              <Spinner size="md" color="blue.500" />
-                            </Center>
-                          }>
-                            <ReviewsPanel 
-                              reviewsData={reviewsData}
-                              currentPage={reviewsPage}
-                              onPageChange={setReviewsPage}
-                              EmptyState={EmptyState}
-                              PaginationControl={PaginationControl}
-                              onFilterChange={handleReviewFilterChange}
-                              onSortChange={handleReviewSortChange}
-                              currentSort={reviewSort}
-                              currentFilters={reviewFilters}
-                            />
-                          </Suspense>
-                        )}
-                      </div>
-                    </TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </Box>
-            </Flex>
-          )}
+            )}
+            
+            {/* Tabs for additional profile sections */}
+            {isProfileComplete && !isEditMode && (
+              <Tabs variant="enclosed" colorScheme="blue" isLazy>
+                <TabList>
+                  <Tab>Articles</Tab>
+                  <Tab>Reviews</Tab>
+                </TabList>
+                
+                <TabPanels>
+                  <TabPanel>
+                    <div ref={useRef<HTMLDivElement>(null)}>
+                      <Suspense fallback={
+                        <Center py={8}>
+                          <Spinner size="md" color="blue.500" />
+                        </Center>
+                      }>
+                        <ArticlesPanel 
+                          articlesData={articlesData}
+                          currentPage={articlesPage}
+                          onPageChange={setArticlesPage}
+                          EmptyState={EmptyState}
+                          PaginationControl={PaginationControl}
+                        />
+                      </Suspense>
+                    </div>
+                  </TabPanel>
+                  <TabPanel>
+                    <div ref={useRef<HTMLDivElement>(null)}>
+                      <Suspense fallback={
+                        <Center py={8}>
+                          <Spinner size="md" color="blue.500" />
+                        </Center>
+                      }>
+                        <ReviewsPanel 
+                          reviewsData={reviewsData}
+                          currentPage={reviewsPage}
+                          onPageChange={setReviewsPage}
+                          EmptyState={EmptyState}
+                          PaginationControl={PaginationControl}
+                          onFilterChange={handleReviewFilterChange}
+                          onSortChange={handleReviewSortChange}
+                          currentSort={reviewSort}
+                          currentFilters={reviewFilters}
+                        />
+                      </Suspense>
+                    </div>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+            )}
+          </VStack>
         </Container>
-      </Box>
-      
-      {/* Footer */}
-      <Box py={6} bg="white" borderTop="1px" borderColor="gray.200">
-        <Container maxW="container.xl">
-          <Flex justify="center" align="center" direction="column">
-            <ResponsiveText variant="caption" color="gray.500">
-              &copy; {new Date().getFullYear()} Researka Platform. All rights reserved.
-            </ResponsiveText>
-            <ResponsiveText variant="caption" color="gray.400" mt={1}>
-              A decentralized academic publishing solution built on zkSync
-            </ResponsiveText>
-          </Flex>
-        </Container>
-      </Box>
-    </Layout>
+      )}
+    </Box>
   );
 };
 

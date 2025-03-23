@@ -56,64 +56,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
 
   // Sign up with email and password
-  async function signup(email: string, password: string, name: string) {
-    console.log('AuthContext: Starting signup process...');
+  const signup = async (email: string, password: string, name: string) => {
     try {
-      if (!authRef.current) {
-        console.error('AuthContext: Authentication not initialized');
-        throw new Error('Authentication not initialized');
+      console.log('Auth: Signing up user:', email);
+      const userCredential = await createUserWithEmailAndPassword(authRef.current!, email, password);
+      
+      // Immediately create a user document with required fields
+      console.log('Auth: Creating initial user document for:', userCredential.user.uid);
+      await setDoc(doc(dbRef.current!, 'users', userCredential.user.uid), {
+        name: name || '',
+        email: userCredential.user.email,
+        role: 'Researcher',
+        institution: '',
+        department: '',
+        position: '',
+        researchInterests: [],
+        articles: 0,
+        reviews: 0,
+        reputation: 0,
+        profileComplete: false,
+        createdAt: new Date().toISOString(),
+        hasChangedName: false,
+        hasChangedInstitution: false
+      });
+      
+      // Update display name
+      if (name) {
+        console.log('Auth: Updating display name for:', userCredential.user.uid);
+        await updateProfile(userCredential.user, {
+          displayName: name
+        });
       }
       
-      // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(authRef.current, email, password);
-      
-      // Update user profile with name (if provided)
-      console.log('AuthContext: Updating user profile...');
-      try {
-        if (userCredential.user && name.trim()) {
-          await updateProfile(userCredential.user, {
-            displayName: name
-          });
-        }
-        
-        // Create user document in Firestore
-        console.log('AuthContext: Creating user document in Firestore...');
-        try {
-          if (!dbRef.current) {
-            console.error('AuthContext: Firestore not initialized');
-            return userCredential;
-          }
-          // Use users collection now that rules allow authenticated access
-          await setDoc(doc(dbRef.current, 'users', userCredential.user.uid), {
-            name: name.trim() || '',
-            email,
-            role: 'Researcher',
-            institution: '',
-            department: '',
-            position: '',
-            researchInterests: [],
-            articles: 0,
-            reviews: 0,
-            reputation: 0,
-            profileComplete: false,
-            createdAt: new Date().toISOString()
-          });
-          console.log('AuthContext: User document created successfully in users collection');
-        } catch (firestoreError) {
-          console.error('AuthContext: Error creating user document:', firestoreError);
-          // Continue even if Firestore fails - we can create the document later
-        }
-      } catch (profileError) {
-        console.error('AuthContext: Error updating profile:', profileError);
-        // Continue even if profile update fails
-      }
-      
+      console.log('Auth: Signup complete for:', userCredential.user.uid);
       return userCredential;
     } catch (error) {
-      console.error('AuthContext: Error in signup process:', error);
-      throw error; // Re-throw the error to be handled by the component
+      console.error('Auth: Signup error:', error);
+      throw error;
     }
-  }
+  };
 
   // Login with email and password
   async function login(email: string, password: string) {
@@ -226,7 +207,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const allowedFields = [
       'name', 'email', 'role', 'institution', 'department', 
       'position', 'researchInterests', 'articles', 'reviews', 
-      'reputation', 'profileComplete', 'createdAt', 'updatedAt'
+      'reputation', 'profileComplete', 'createdAt', 'updatedAt',
+      'hasChangedName', 'hasChangedInstitution'
     ];
     
     for (const key of Object.keys(data)) {

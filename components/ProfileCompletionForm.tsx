@@ -126,33 +126,43 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     { title: 'Platform Roles & Optional Details', description: 'Additional information' }
   ];
 
+  // Ensure initialData has the required fields with default values
+  const safeInitialData = initialData ? {
+    ...initialData,
+    hasChangedName: initialData?.hasChangedName === true,
+    hasChangedInstitution: initialData?.hasChangedInstitution === true
+  } : {
+    hasChangedName: false,
+    hasChangedInstitution: false
+  };
+
   // Form state
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<ProfileFormData>({
     // Basic Identity & Contact
-    firstName: initialData?.firstName || '',
-    lastName: initialData?.lastName || '',
-    email: initialData?.email || '',
-    secondaryEmail: initialData?.secondaryEmail || '',
-    emailVerified: initialData?.emailVerified || false,
+    firstName: safeInitialData?.firstName || '',
+    lastName: safeInitialData?.lastName || '',
+    email: safeInitialData?.email || '',
+    secondaryEmail: safeInitialData?.secondaryEmail || '',
+    emailVerified: safeInitialData?.emailVerified || false,
     
     // Institutional Affiliation
-    institution: initialData?.institution || '',
-    department: initialData?.department || '',
-    position: initialData?.position || '',
+    institution: safeInitialData?.institution || '',
+    department: safeInitialData?.department || '',
+    position: safeInitialData?.position || '',
     
     // Academic & Professional Details
-    orcidId: initialData?.orcidId || '',
-    researchInterests: initialData?.researchInterests || [] as string[],
+    orcidId: safeInitialData?.orcidId || '',
+    researchInterests: safeInitialData?.researchInterests || [] as string[],
     
     // Platform Roles & Activity
-    wantsToBeEditor: initialData?.wantsToBeEditor || false,
+    wantsToBeEditor: safeInitialData?.wantsToBeEditor || false,
     
     // Optional Extras
-    personalWebsite: initialData?.personalWebsite || '',
+    personalWebsite: safeInitialData?.personalWebsite || '',
     socialMedia: {
-      twitter: initialData?.socialMedia?.twitter || '',
-      linkedin: initialData?.socialMedia?.linkedin || '',
+      twitter: safeInitialData?.socialMedia?.twitter || '',
+      linkedin: safeInitialData?.socialMedia?.linkedin || '',
     },
   });
 
@@ -443,14 +453,18 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                         value={formData.firstName} 
                         onChange={handleChange} 
                         placeholder="Enter your first name"
-                        isReadOnly={isEditMode} 
-                        bg={isEditMode ? "gray.100" : undefined}
+                        isReadOnly={isEditMode && safeInitialData?.hasChangedName === true} 
+                        bg={isEditMode && safeInitialData?.hasChangedName === true ? "gray.100" : undefined}
                       />
-                      {isEditMode && (
+                      {isEditMode && safeInitialData?.hasChangedName === true ? (
                         <FormHelperText>
-                          First name cannot be changed after profile creation
+                          First name cannot be changed after initial update
                         </FormHelperText>
-                      )}
+                      ) : isEditMode ? (
+                        <FormHelperText>
+                          You can change your name once after profile creation
+                        </FormHelperText>
+                      ) : null}
                       <FormErrorMessage>{errors.firstName}</FormErrorMessage>
                     </FormControl>
                     
@@ -461,14 +475,18 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                         value={formData.lastName} 
                         onChange={handleChange} 
                         placeholder="Enter your last name"
-                        isReadOnly={isEditMode} 
-                        bg={isEditMode ? "gray.100" : undefined}
+                        isReadOnly={isEditMode && safeInitialData?.hasChangedName === true} 
+                        bg={isEditMode && safeInitialData?.hasChangedName === true ? "gray.100" : undefined}
                       />
-                      {isEditMode && (
+                      {isEditMode && safeInitialData?.hasChangedName === true ? (
                         <FormHelperText>
-                          Last name cannot be changed after profile creation
+                          Last name cannot be changed after initial update
                         </FormHelperText>
-                      )}
+                      ) : isEditMode ? (
+                        <FormHelperText>
+                          You can change your name once after profile creation
+                        </FormHelperText>
+                      ) : null}
                       <FormErrorMessage>{errors.lastName}</FormErrorMessage>
                     </FormControl>
                   </SimpleGrid>
@@ -533,9 +551,9 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                       value={formData.institution}
                       onChange={handleChange}
                       placeholder="Select your institution"
-                      isReadOnly={isEditMode}
-                      isDisabled={isEditMode}
-                      bg={isEditMode ? "gray.100" : undefined}
+                      isReadOnly={isEditMode && safeInitialData?.hasChangedInstitution === true}
+                      isDisabled={isEditMode && safeInitialData?.hasChangedInstitution === true}
+                      bg={isEditMode && safeInitialData?.hasChangedInstitution === true ? "gray.100" : undefined}
                     >
                       {MOCK_INSTITUTIONS.map((institution, index) => (
                         <option key={index} value={institution}>
@@ -543,11 +561,15 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                         </option>
                       ))}
                     </Select>
-                    {isEditMode && (
+                    {isEditMode && safeInitialData?.hasChangedInstitution === true ? (
                       <FormHelperText>
-                        Institution cannot be changed after profile creation
+                        Institution cannot be changed after initial update
                       </FormHelperText>
-                    )}
+                    ) : isEditMode ? (
+                      <FormHelperText>
+                        You can change your institution once after profile creation
+                      </FormHelperText>
+                    ) : null}
                     <FormErrorMessage>{errors.institution}</FormErrorMessage>
                   </FormControl>
                   
