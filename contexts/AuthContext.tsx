@@ -541,7 +541,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           isLoadingAfter: false,
           authIsInitializedAfter: true
         });
-      }, 200); // Reduced delay to optimize performance while ensuring operations complete
+      }, 50); // Reduced delay to optimize performance while ensuring operations complete
     });
 
     return () => {

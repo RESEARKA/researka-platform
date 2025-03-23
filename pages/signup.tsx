@@ -112,7 +112,7 @@ const SignupPage: React.FC = () => {
         new Promise<void>((resolve) => {
           console.log('Signup page: Starting waitForAuth polling...');
           let attempts = 0;
-          const maxAttempts = 10; // Reduced from 20 to 10 (2 seconds max with 200ms interval)
+          const maxAttempts = 5; // Reduced from 10 to 5 (1 second max with 200ms interval)
           
           const interval = setInterval(() => {
             attempts++;
@@ -134,13 +134,13 @@ const SignupPage: React.FC = () => {
               clearInterval(interval);
               resolve();
             }
-          }, 200); // Reduced from 500ms to 200ms for faster polling
+          }, 200); // Maintained at 200ms for reliable polling
         });
       
       await waitForAuth();
       
       // Add a small delay before redirecting to ensure all state updates have propagated
-      await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 1000ms to 200ms
+      await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 200ms to 100ms
       
       console.log('Signup page: Redirecting to profile page...');
       // Use router.replace instead of router.push for a cleaner navigation

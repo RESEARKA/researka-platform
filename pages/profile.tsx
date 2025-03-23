@@ -276,17 +276,27 @@ const ProfilePage: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Profile: Loading timeout reached, forcing loading state to false');
+        setIsLoading(false);
+        setError('Loading timed out. Please refresh the page or try again later.');
+      }
+    }, 10000); // 10 second timeout
+
     // Wait for auth to be ready
     if (!authIsInitialized) {
       console.log('Profile: Auth not initialized yet, waiting...');
-      return;
+      return () => clearTimeout(loadingTimeout);
     }
 
     // If no user, redirect to home
     if (!currentUser && authIsInitialized) {
       console.log('Profile: No user found, redirecting to home');
+      setIsLoading(false); // Ensure loading is turned off before redirecting
       router.replace('/');
-      return;
+      return () => clearTimeout(loadingTimeout);
     }
 
     // Load profile data with retry mechanism
@@ -348,12 +358,27 @@ const ProfilePage: React.FC = () => {
         }
       };
       
-      await attemptLoad();
+      try {
+        await attemptLoad();
+      } catch (unexpectedError) {
+        // Catch any unexpected errors that might have escaped the inner try/catch
+        console.error('Profile: Unexpected error in loadData:', unexpectedError);
+        setError('An unexpected error occurred. Please try again later.');
+        setIsLoading(false); // Ensure loading state is turned off
+      } finally {
+        // Final safety check to ensure loading state is always turned off
+        if (isLoading) {
+          console.warn('Profile: Loading state still true after loadData, forcing to false');
+          setIsLoading(false);
+        }
+      }
     };
     
     loadData();
-  }, [authIsInitialized, currentUser, router]);
-  
+    
+    return () => clearTimeout(loadingTimeout);
+  }, [authIsInitialized, currentUser, router, isLoading]);
+
   // Load user profile data
   const loadProfileData = async () => {
     try {
@@ -427,6 +452,9 @@ const ProfilePage: React.FC = () => {
             });
           }
         }
+        
+        // Ensure loading state is turned off
+        setIsLoading(false);
         return true;
       } catch (updateError) {
         console.error('Profile: Error creating default profile:', updateError);
@@ -446,11 +474,17 @@ const ProfilePage: React.FC = () => {
             duration: 5000,
           });
         }
+        
+        // Ensure loading state is turned off
+        setIsLoading(false);
         return false;
       }
     } catch (error) {
       console.error('Profile: Error in createDefaultProfile:', error);
       setError('Failed to create profile. Please try again.');
+      
+      // Ensure loading state is turned off
+      setIsLoading(false);
       return false;
     }
   };
@@ -504,15 +538,27 @@ const ProfilePage: React.FC = () => {
       console.log('[ProfilePage] Saving profile data to Firestore');
       
       // Save to Firestore
-      await updateUserData(updatedProfile);
+      const updateSuccess = await updateUserData(updatedProfile);
       
-      console.log('[ProfilePage] Profile data saved successfully');
+      if (!updateSuccess) {
+        console.error('[ProfilePage] Failed to save profile data to Firestore');
+        showToast({
+          id: 'profile-save-error',
+          title: "Warning",
+          description: "Your profile was updated but there was an issue saving to the database. Some changes may not persist.",
+          status: "warning",
+          duration: 5000,
+        });
+      } else {
+        console.log('[ProfilePage] Profile data saved successfully');
+      }
       
-      // No need to show another toast here as the ProfileCompletionForm already showed one
-      
-      // Navigate to the main dashboard or appropriate page after profile completion
-      console.log('[ProfilePage] Navigating to dashboard');
-      router.push('/dashboard');
+      // Ensure all state updates are complete before navigation
+      // Use a small timeout to allow React to process state updates
+      setTimeout(() => {
+        console.log('[ProfilePage] Navigating to dashboard');
+        router.push('/dashboard');
+      }, 100);
     } catch (error) {
       console.error('[ERROR] Error completing profile:', error);
       showToast({
