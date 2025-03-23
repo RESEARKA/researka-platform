@@ -49,7 +49,6 @@ import { useRouter } from 'next/router';
 // Import panel components directly instead of using lazy loading
 import ArticlesPanel from '../components/profile/ArticlesPanel';
 import ReviewsPanel from '../components/profile/ReviewsPanel';
-import SavedItemsPanel from '../components/profile/SavedItemsPanel';
 import ProfileCompletionForm from '../components/ProfileCompletionForm';
 
 // Dynamically import components that aren't needed for initial render
@@ -65,13 +64,6 @@ const MobileNav = dynamic(() => import('../components/MobileNav'), {
 });
 
 // Define types for our data
-interface SavedItem {
-  id: number;
-  title: string;
-  abstract: string;
-  date: string;
-}
-
 interface User {
   name: string;
   role: string;
@@ -93,28 +85,6 @@ interface PaginationProps {
   totalPages: number;
   onPageChange: (page: number) => void;
 }
-
-// Mock data for saved items (would be replaced with a React Query hook in a real app)
-const mockSaved: SavedItem[] = [
-  {
-    id: 1,
-    title: "Decentralized Science: The Future of Research",
-    abstract: "This article discusses the potential of decentralized science to revolutionize the way we conduct research.",
-    date: "March 12, 2025"
-  },
-  {
-    id: 2,
-    title: "Web3 Publishing Platforms: A Comparative Analysis",
-    abstract: "This article provides a comparative analysis of different Web3 publishing platforms.",
-    date: "March 10, 2025"
-  },
-  {
-    id: 3,
-    title: "Tokenized Citation Impact: Beyond Traditional Metrics",
-    abstract: "This article explores the concept of tokenized citation impact and its potential to revolutionize the way we measure research impact.",
-    date: "March 8, 2025"
-  }
-];
 
 // Empty state component
 const EmptyState: React.FC<{ type: string }> = ({ type }) => (
@@ -516,7 +486,6 @@ const ProfilePage: React.FC = () => {
   // State for pagination
   const [articlesPage, setArticlesPage] = useState(1);
   const [reviewsPage, setReviewsPage] = useState(1);
-  const [savedPage, setSavedPage] = useState(1);
   const [reviewSort, setReviewSort] = useState<SortOption>('date_desc');
   const [reviewFilters, setReviewFilters] = useState<FilterOptions>({});
   
@@ -573,29 +542,14 @@ const ProfilePage: React.FC = () => {
   
   // For saved items, we're still using mock data
   // In a real app, this would be another React Query hook
-  const isLoadingData = articlesLoading || reviewsLoading;
-  const hasErrorData = articlesError || reviewsError;
   
   // Refs for intersection observer
   const articlesRef = useRef<HTMLDivElement>(null);
   const reviewsRef = useRef<HTMLDivElement>(null);
-  const savedRef = useRef<HTMLDivElement>(null);
   
   // Use intersection observer to lazy load content
   const articlesVisible = useIntersectionObserver(articlesRef, { threshold: 0.1 });
   const reviewsVisible = useIntersectionObserver(reviewsRef, { threshold: 0.1 });
-  const savedVisible = useIntersectionObserver(savedRef, { threshold: 0.1 });
-  
-  // Calculate pagination for saved items
-  const savedPages = Math.ceil(mockSaved.length / itemsPerPage);
-  
-  // Get current saved items
-  const getCurrentItems = <T,>(items: T[], page: number): T[] => {
-    const startIndex = (page - 1) * itemsPerPage;
-    return items.slice(startIndex, startIndex + itemsPerPage);
-  };
-  
-  const currentSaved = getCurrentItems(mockSaved, savedPage);
   
   // In a real app, you would fetch this data from your API
   const defaultUser: User = {
@@ -610,7 +564,7 @@ const ProfilePage: React.FC = () => {
   };
   
   // If there's an error, show error state
-  if (hasErrorData) {
+  if (error) {
     return (
       <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
         <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
@@ -647,7 +601,7 @@ const ProfilePage: React.FC = () => {
     <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
       <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
         <Container maxW="container.lg">
-          {isLoadingData ? (
+          {articlesLoading || reviewsLoading ? (
             <Center h="50vh">
               <VStack spacing={4}>
                 <Spinner size="xl" color="blue.500" thickness="4px" />
@@ -752,7 +706,6 @@ const ProfilePage: React.FC = () => {
                   <TabList>
                     <Tab><Flex alignItems="center"><FiFileText /><Text ml={2}>My Articles</Text></Flex></Tab>
                     <Tab><Flex alignItems="center"><FiStar /><Text ml={2}>My Reviews</Text></Flex></Tab>
-                    <Tab><Flex alignItems="center"><FiBookmark /><Text ml={2}>Saved</Text></Flex></Tab>
                   </TabList>
                   
                   <TabPanels>
@@ -800,37 +753,6 @@ const ProfilePage: React.FC = () => {
                           </Suspense>
                         )}
                       </div>
-                    </TabPanel>
-                    
-                    {/* Saved Articles Tab */}
-                    <TabPanel>
-                      <div ref={savedRef}>
-                        {activeTab === 2 && (
-                          <Suspense fallback={
-                            <Center py={8}>
-                              <Spinner size="md" color="blue.500" />
-                            </Center>
-                          }>
-                            <SavedItemsPanel 
-                              savedItems={currentSaved}
-                              currentPage={savedPage}
-                              totalPages={savedPages}
-                              onPageChange={setSavedPage}
-                              EmptyState={EmptyState}
-                              PaginationControl={PaginationControl}
-                            />
-                          </Suspense>
-                        )}
-                      </div>
-                    </TabPanel>
-                    
-                    {/* Recommended Articles Tab */}
-                    <TabPanel>
-                      <RecommendedArticles 
-                        userId={user?.walletAddress || "user1"} 
-                        userInterests={user?.researchInterests || []} 
-                        limit={4}
-                      />
                     </TabPanel>
                   </TabPanels>
                 </Tabs>
