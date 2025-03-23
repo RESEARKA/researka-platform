@@ -26,21 +26,6 @@ import { getAllResearchFields } from '../../utils/researchTaxonomy';
 import ArticleReviewStatus from '../../components/ArticleReviewStatus';
 import RecommendedReviewers from '../../components/RecommendedReviewers';
 
-// Mock article data for demonstration
-const MOCK_ARTICLE: Article = {
-  id: 'article1',
-  title: 'Quantum Computing: A New Paradigm for Information Processing',
-  abstract: 'This paper explores the potential of quantum computing to revolutionize information processing, focusing on recent advances in quantum algorithms and their applications in cryptography and optimization problems. We present a comprehensive review of the current state of quantum computing research and discuss the challenges and opportunities in this rapidly evolving field. Our analysis includes a detailed examination of quantum supremacy experiments, error correction techniques, and the development of practical quantum algorithms for real-world applications. Additionally, we propose a novel framework for evaluating the potential impact of quantum computing on various industries and scientific disciplines.',
-  keywords: ['quantum-computing', 'quantum-algorithms', 'information-theory', 'cryptography'],
-  categories: ['computer-science', 'quantum-physics'],
-  authorId: 'author1',
-  publishedDate: '2023-01-15',
-  views: 1245,
-  citations: 18,
-  reviewCount: 1,
-  status: 'under_review',
-};
-
 // Mock reviews for demonstration
 const MOCK_REVIEWS = [
   {
@@ -76,9 +61,6 @@ const ArticleDetailPage: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     
-    // In a real application, you would fetch the article from an API
-    // For now, we'll use mock data
-    
     // Create a map of field IDs to their names for display
     const fields = getAllResearchFields();
     const fieldMap = fields.reduce((acc, field) => {
@@ -87,13 +69,59 @@ const ArticleDetailPage: React.FC = () => {
     }, {} as Record<string, string>);
     setAllFields(fieldMap);
     
-    // Simulate API delay
-    setTimeout(() => {
-      setArticle(MOCK_ARTICLE);
-      setReviews(MOCK_REVIEWS);
-      setIsLoading(false);
-    }, 1000);
-  }, [id]);
+    // Fetch the real article data from Firebase
+    const fetchArticle = async () => {
+      try {
+        setIsLoading(true);
+        const { getArticleById } = await import('../../services/articleService');
+        const fetchedArticle = await getArticleById(id as string);
+        
+        if (fetchedArticle) {
+          console.log('Fetched article:', fetchedArticle);
+          // Convert to the format expected by the component
+          const formattedArticle: Article = {
+            id: fetchedArticle.id || '',
+            title: fetchedArticle.title,
+            abstract: fetchedArticle.abstract,
+            keywords: fetchedArticle.keywords || [],
+            categories: [fetchedArticle.category],
+            authorId: fetchedArticle.authorId || 'unknown',
+            publishedDate: fetchedArticle.date,
+            views: 0,
+            citations: 0,
+            reviewCount: 0,
+            status: (fetchedArticle.status === 'pending_review' ? 'under_review' : 
+                    (fetchedArticle.status === 'published' ? 'accepted' : 
+                    (fetchedArticle.status === 'rejected' ? 'rejected' : 'pending'))) as 'pending' | 'under_review' | 'accepted' | 'rejected',
+          };
+          setArticle(formattedArticle);
+          setReviews([]); // Clear mock reviews
+        } else {
+          console.error('Article not found with ID:', id);
+          toast({
+            title: 'Article not found',
+            description: 'The requested article could not be found',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching article:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load article details',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchArticle();
+  }, [id, toast]);
   
   // Get readable name for a field ID
   const getFieldName = (fieldId: string) => {
