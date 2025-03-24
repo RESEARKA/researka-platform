@@ -253,6 +253,56 @@ export default function ArticlesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, isMounted]);
   
+  // Debug log array to capture console output
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  
+  // Override console.log to capture output for debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isMounted) {
+      const originalConsoleLog = console.log;
+      const originalConsoleError = console.error;
+      const originalConsoleWarn = console.warn;
+      
+      console.log = (...args) => {
+        originalConsoleLog(...args);
+        const logString = args.map(arg => 
+          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+        ).join(' ');
+        setDebugLogs(prev => [...prev.slice(-50), `LOG: ${logString}`]);
+      };
+      
+      console.error = (...args) => {
+        originalConsoleError(...args);
+        const logString = args.map(arg => 
+          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+        ).join(' ');
+        setDebugLogs(prev => [...prev.slice(-50), `ERROR: ${logString}`]);
+      };
+      
+      console.warn = (...args) => {
+        originalConsoleWarn(...args);
+        const logString = args.map(arg => 
+          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+        ).join(' ');
+        setDebugLogs(prev => [...prev.slice(-50), `WARN: ${logString}`]);
+      };
+      
+      return () => {
+        console.log = originalConsoleLog;
+        console.error = originalConsoleError;
+        console.warn = originalConsoleWarn;
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted]);
+
+  const resetFilters = () => {
+    setCategoryFilter('all');
+    setSearchQuery('');
+    setCurrentPage(1);
+    setLastVisible(null);
+  };
+
   return (
     <Layout 
       title="Articles | Researka" 
@@ -401,7 +451,7 @@ export default function ArticlesPage() {
               </Text>
               <Button 
                 colorScheme="blue" 
-                onClick={refreshArticles}
+                onClick={resetFilters}
               >
                 Clear Filters
               </Button>
@@ -509,6 +559,46 @@ export default function ArticlesPage() {
                 </Box>
               )}
             </>
+          )}
+          
+          {/* Debug console - only visible in development */}
+          {process.env.NODE_ENV !== 'production' && (
+            <Box 
+              mt={10} 
+              p={4} 
+              bg="gray.800" 
+              color="white" 
+              borderRadius="md" 
+              overflowY="auto" 
+              maxH="400px"
+              fontSize="xs"
+              fontFamily="monospace"
+            >
+              <Heading size="sm" mb={2} color="gray.300">Debug Console</Heading>
+              <Button 
+                size="xs" 
+                mb={2} 
+                onClick={() => setDebugLogs([])}
+                colorScheme="red"
+              >
+                Clear Logs
+              </Button>
+              {debugLogs.map((log, i) => (
+                <Box 
+                  key={i} 
+                  p={1} 
+                  whiteSpace="pre-wrap" 
+                  borderBottom="1px solid" 
+                  borderColor="gray.700"
+                  color={
+                    log.startsWith('ERROR') ? 'red.300' : 
+                    log.startsWith('WARN') ? 'yellow.300' : 'green.300'
+                  }
+                >
+                  {log}
+                </Box>
+              ))}
+            </Box>
           )}
         </Box>
       </PageTransition>
