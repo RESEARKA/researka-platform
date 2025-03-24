@@ -46,6 +46,7 @@ import RecommendedArticles from '../components/RecommendedArticles';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 import useAppToast from '../hooks/useAppToast';
+import useClient from '../hooks/useClient';
 
 // Import panel components directly instead of using lazy loading
 import ArticlesPanel from '../components/profile/ArticlesPanel';
@@ -198,12 +199,15 @@ const ProfilePage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const showToast = useAppToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
   const { currentUser, getUserProfile, updateUserData, authIsInitialized, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const isClient = useClient();
   
   // State to track if a profile update toast has been shown in this session
   const [profileToastShown, setProfileToastShown] = useState<{
@@ -265,6 +269,63 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  // Load user profile data
+  useEffect(() => {
+    // Skip if not on client or auth not initialized yet
+    if (!isClient || !authIsInitialized) {
+      return;
+    }
+
+    // If no user logged in, redirect to login page
+    if (!currentUser) {
+      console.log('Profile: No user logged in, redirecting to login page');
+      router.replace('/login');
+      return;
+    }
+
+    const fetchUserProfile = async () => {
+      console.log('Profile: Starting to fetch user profile...');
+      setLoadingProfile(true);
+      try {
+        const userProfile = await getUserProfile();
+        console.log('Profile: User profile fetched successfully:', userProfile);
+        
+        // Set the user data and profile completion status
+        setUser(userProfile);
+        setIsProfileComplete(userProfile?.profileComplete || false);
+        
+        // If the user profile doesn't exist yet, give it some time to be created
+        if (!userProfile) {
+          console.log('Profile: No user profile found, will retry...');
+          if (retryCount < 3) {
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 1000);
+          } else {
+            // After max retries, assume it's a new user and initialize a blank profile
+            console.log('Profile: Max retries reached, initializing blank profile');
+            setIsEditMode(true);
+          }
+        }
+        
+        setError(null);
+      } catch (err: any) {
+        console.error('Profile: Error fetching user profile:', err);
+        setError(`Failed to load profile: ${err.message}`);
+        
+        // After max retries with errors, attempt to initialize a blank profile
+        if (retryCount >= 3) {
+          setIsEditMode(true);
+        }
+      } finally {
+        setIsLoading(false);
+        setLoadingProfile(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [isClient, authIsInitialized, currentUser, getUserProfile, router, retryCount]);
+  
   // Check if user is logged in
   React.useEffect(() => {
     console.log('Profile: Effect running with:', {
@@ -621,7 +682,7 @@ const ProfilePage: React.FC = () => {
   }
 
   // Show loading state while auth is initializing or data is loading
-  if ((!authIsInitialized || isLoading)) {
+  if ((!authIsInitialized || isLoading || loadingProfile) && !isClient) {
     return (
       <Layout title="Profile | RESEARKA" description="Your Researka profile" activePage="profile">
         <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
