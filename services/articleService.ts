@@ -13,34 +13,7 @@ import {
   DocumentSnapshot,
   QueryDocumentSnapshot
 } from 'firebase/firestore';
-
-// Define article interface
-export interface Article {
-  id?: string;
-  title: string;
-  abstract: string;
-  category: string;
-  keywords: string[];
-  author: string;
-  authorId?: string;
-  date: string;
-  compensation: string;
-  status: string;
-  createdAt?: Timestamp;
-  views?: number;
-  // Additional fields for the full article
-  content?: string;
-  introduction?: string;
-  methods?: string;
-  results?: string;
-  discussion?: string;
-  references?: string;
-  funding?: string;
-  ethicalApprovals?: string;
-  dataAvailability?: string;
-  conflicts?: string;
-  license?: string;
-}
+import { Article } from '../types/article';
 
 // Pagination result interface
 export interface PaginatedArticles {
@@ -326,33 +299,46 @@ export async function fetchPaginatedArticles(
 ) {
   try {
     console.log('ArticleService: Fetching paginated articles with parameters:', {
-      category, pageSize, sortField, sortDirection, searchQuery
+      category, 
+      pageSize, 
+      sortField, 
+      sortDirection, 
+      searchQuery,
+      lastVisible: lastVisible ? 'exists' : 'null'
     });
     
     const articlesCollection = collection(db, 'articles');
 
     const queryConstraints = [];
-    // If a category filter is applied and not "all", use an exact match query
+    // If a category filter is applied and not "all", use an exact match query with lowercase
     if (category && category !== 'all') {
-      queryConstraints.push(where('category', '==', category));
+      console.log(`Adding category filter: category == "${category.toLowerCase()}"`);
+      queryConstraints.push(where('category', '==', category.toLowerCase()));
     }
     
     // Always order by a field to ensure pagination works as expected
+    console.log(`Adding sort: orderBy("${sortField}", "${sortDirection}")`);
     queryConstraints.push(orderBy(sortField, sortDirection));
     
     // Add pagination
     if (lastVisible) {
+      console.log('Adding pagination: startAfter(lastVisible)');
       queryConstraints.push(startAfter(lastVisible));
     }
     
-    // Add limit
-    queryConstraints.push(limit(pageSize + 1)); // Get one extra to check if there are more
+    // Add limit (get one extra to check if there are more)
+    console.log(`Adding limit: ${pageSize + 1}`);
+    queryConstraints.push(limit(pageSize + 1));
     
     const q = query(articlesCollection, ...queryConstraints);
-    console.log('Executing Firestore query:', JSON.stringify(queryConstraints, null, 2));
+    console.log('Executing Firestore query with constraints:', JSON.stringify(queryConstraints.map(c => c.type)));
     
+    // Execute the query
+    console.time('Firestore query execution');
     const snapshot = await getDocs(q);
-    console.log(`Query returned ${snapshot.size} documents`);
+    console.timeEnd('Firestore query execution');
+    
+    console.log(`Query returned ${snapshot.size} documents from Firestore`);
     
     // Check if there are more results
     const hasMore = snapshot.size > pageSize;
@@ -365,6 +351,15 @@ export async function fetchPaginatedArticles(
     // Convert to array of articles (limit to pageSize)
     const articles: Article[] = [];
     
+    // For debugging - print document data
+    if (snapshot.size === 0) {
+      console.warn('No documents returned from Firestore query');
+    } else {
+      // Log the first document structure to help debug
+      const firstDoc = snapshot.docs[0];
+      console.log('First document data structure:', JSON.stringify(firstDoc.data(), null, 2));
+    }
+    
     snapshot.docs.slice(0, pageSize).forEach((doc) => {
       const data = doc.data();
       
@@ -375,14 +370,26 @@ export async function fetchPaginatedArticles(
           data.abstract?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (typeof data.author === 'string' && data.author.toLowerCase().includes(searchQuery.toLowerCase()));
         
-        if (!matchesSearch) return;
+        if (!matchesSearch) {
+          console.log(`Document ${doc.id} skipped - doesn't match search query "${searchQuery}"`);
+          return;
+        }
+      }
+      
+      // Handle different category formats
+      let categoryValue: string = '';
+      if (typeof data.category === 'string') {
+        categoryValue = data.category;
+      } else if (Array.isArray(data.category) && data.category.length > 0) {
+        categoryValue = data.category[0];
+        console.log(`Document ${doc.id} has array category, using first value: ${categoryValue}`);
       }
       
       articles.push({
         id: doc.id,
         title: data.title || '',
         abstract: data.abstract || '',
-        category: data.category || '',
+        category: categoryValue,
         keywords: data.keywords || [],
         author: data.author || 'Unknown',
         authorId: data.authorId || '',
@@ -405,7 +412,11 @@ export async function fetchPaginatedArticles(
       });
     });
     
-    console.log(`ArticleService: Returning ${articles.length} paginated articles, hasMore: ${hasMore}`);
+    console.log(`ArticleService: Processed ${articles.length} articles after filtering, hasMore: ${hasMore}`);
+    
+    if (articles.length === 0) {
+      console.warn(`No articles match criteria after processing. Category: "${category}", Search: "${searchQuery}"`);
+    }
     
     return {
       articles,

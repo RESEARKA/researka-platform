@@ -24,6 +24,7 @@ export default function ArticlesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [renderCount, setRenderCount] = useState(0); // For debugging re-renders
   
   // Filters and sorting
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,34 +103,49 @@ export default function ArticlesPage() {
       
       console.log(`Loaded ${result.articles.length} articles, hasMore: ${result.hasMore}`);
       
-      setArticles(result.articles);
-      setLastVisible(result.lastVisible);
-      setHasMore(result.hasMore);
-      
-      // Estimate total pages
-      if (page === 1 && !result.hasMore) {
-        setTotalPages(1);
-      } else if (page === 1 && result.hasMore) {
-        // If we have more, but don't know how many, set to a reasonable number
-        setTotalPages(10); 
-      } else if (page > 1 && !result.hasMore) {
-        setTotalPages(page);
+      // Add this check to see if component is still mounted before setting state
+      if (isMounted) {
+        if (page === 1) {
+          // Replace articles
+          setArticles(result.articles);
+        } else {
+          // Append to existing articles
+          setArticles(prev => [...prev, ...result.articles]);
+        }
+        
+        setLastVisible(result.lastVisible);
+        setHasMore(result.hasMore);
+        
+        // Estimate total pages
+        if (page === 1 && !result.hasMore) {
+          setTotalPages(1);
+        } else if (page === 1 && result.hasMore) {
+          // If we have more, but don't know how many, set to a reasonable number
+          setTotalPages(10); 
+        } else if (page > 1 && !result.hasMore) {
+          setTotalPages(page);
+        }
       }
     } catch (error) {
       console.error('Error loading articles:', error);
-      setArticles([]);
-      setError('Failed to load articles. Please try again later.');
-      toast({
-        title: 'Error',
-        description: 'Failed to load articles',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+      if (isMounted) {
+        setArticles([]);
+        setError('Failed to load articles. Please try again later.');
+        toast({
+          title: 'Error',
+          description: 'Failed to load articles',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
     } finally {
-      setIsLoading(false);
+      // Always set loading to false, but only if component is still mounted
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
-  }, [categoryFilter, searchQuery, sortBy, lastVisible, isLoading, toast]);
+  }, [categoryFilter, searchQuery, sortBy, lastVisible, isLoading, toast, isMounted]);
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
@@ -170,27 +186,70 @@ export default function ArticlesPage() {
     setLastVisible(null);
   };
   
-  // Load initial articles
+  // Load initial articles - use a ref to prevent multiple loads
+  const initialLoadDone = React.useRef(false);
+  
+  // Debugging re-renders
   useEffect(() => {
-    if (isMounted) {
+    setRenderCount(prevCount => prevCount + 1);
+    console.log(`ArticlesPage rendered ${renderCount + 1} times`);
+  }, [renderCount]);
+  
+  // Detailed state logging for debugging
+  useEffect(() => {
+    console.log('ArticlesPage state:', {
+      isMounted,
+      isLoading,
+      currentPage,
+      articleCount: articles.length,
+      hasError: !!error,
+      hasMore,
+      categoryFilter,
+      sortBy,
+      searchQuery
+    });
+  }, [isMounted, isLoading, currentPage, articles.length, error, hasMore, categoryFilter, sortBy, searchQuery]);
+  
+  // Initial load effect - runs only once
+  useEffect(() => {
+    if (isMounted && !initialLoadDone.current) {
+      console.log('Initial articles load triggered');
+      initialLoadDone.current = true;
       loadArticles(1);
     }
+    // Only depend on isMounted and loadArticles
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, categoryFilter, sortBy]);
+  }, [isMounted]);
   
-  // Effect for search query - we want to debounce this
+  // Effect for filter/sort changes - separated from initial load
   useEffect(() => {
-    if (!isMounted) return;
+    if (isMounted && initialLoadDone.current) {
+      console.log('Filter/sort change detected - resetting pagination and reloading');
+      setCurrentPage(1);
+      setLastVisible(null);
+      loadArticles(1);
+    }
+    // Explicitly listing dependencies that should trigger a reload
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, sortBy, isMounted]);
+  
+  // Effect for search query - debounced
+  useEffect(() => {
+    if (!isMounted || !initialLoadDone.current) return;
     
+    console.log(`Search query changed to "${searchQuery}" - debouncing...`);
     const timer = setTimeout(() => {
       if (searchQuery) {
+        console.log('Search debounce complete - reloading with search query');
         setCurrentPage(1);
         setLastVisible(null);
         loadArticles(1);
       }
     }, 500);
     
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, isMounted]);
   
