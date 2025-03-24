@@ -71,7 +71,6 @@ interface User {
   institution: string;
   articles: number;
   reviews: number;
-  reputation: number;
   walletAddress?: string;
   researchInterests: string[];
   email?: string;
@@ -79,6 +78,8 @@ interface User {
   position?: string;
   profileComplete?: boolean;
   createdAt?: string;
+  hasChangedName?: boolean;
+  hasChangedInstitution?: boolean;
 }
 
 interface PaginationProps {
@@ -401,7 +402,6 @@ const ProfilePage: React.FC = () => {
         researchInterests: [],
         articles: 0,
         reviews: 0,
-        reputation: 0,
         profileComplete: false,
         createdAt: new Date().toISOString()
       };
@@ -600,7 +600,6 @@ const ProfilePage: React.FC = () => {
     institution: "University of Science & Technology",
     articles: 5,
     reviews: 12,
-    reputation: 87,
     walletAddress: "",
     researchInterests: []
   };
@@ -699,18 +698,14 @@ const ProfilePage: React.FC = () => {
                     <Badge colorScheme="green" mt={1}>{user?.institution || defaultUser.institution}</Badge>
                   </VStack>
                   
-                  <SimpleGrid columns={3} width="100%" textAlign="center" gap={4}>
+                  <SimpleGrid columns={2} width="100%" textAlign="center" gap={4}>
                     <Stat>
-                      <StatNumber>{user?.articles || defaultUser.articles}</StatNumber>
+                      <StatNumber>{user?.articles || 0}</StatNumber>
                       <StatLabel fontSize="xs">Articles</StatLabel>
                     </Stat>
                     <Stat>
-                      <StatNumber>{user?.reviews || defaultUser.reviews}</StatNumber>
+                      <StatNumber>{user?.reviews || 0}</StatNumber>
                       <StatLabel fontSize="xs">Reviews</StatLabel>
-                    </Stat>
-                    <Stat>
-                      <StatNumber>{user?.reputation || defaultUser.reputation}</StatNumber>
-                      <StatLabel fontSize="xs">Rep</StatLabel>
                     </Stat>
                   </SimpleGrid>
                   

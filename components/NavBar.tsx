@@ -102,12 +102,23 @@ const NavBar: React.FC<NavBarProps> = ({
     }
   }, [currentUser, getUserProfile, authIsInitialized, isLoading, persistentUsername, userProfile]);
   
-  const handleLogout = () => {
-    logout();
-    setIsLoggedIn(false);
-    setUserProfile(null);
-    setIsAdmin(false);
-    window.location.href = '/';
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setIsLoggedIn(false);
+      setUserProfile(null);
+      setIsAdmin(false);
+      
+      // Add a small delay to ensure Firebase operations complete
+      // This helps prevent the blank screen issue after logout
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
+    } catch (error) {
+      console.error('NavBar: Error during logout:', error);
+      // Redirect anyway in case of error
+      window.location.href = '/';
+    }
   };
   
   return (
