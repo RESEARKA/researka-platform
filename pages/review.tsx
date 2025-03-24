@@ -74,8 +74,15 @@ const ReviewPage: React.FC = () => {
         // Import the article service
         const { getArticlesForReview } = await import('../services/articleService');
         
-        // Get articles from Firebase
-        const articles = await getArticlesForReview();
+        // Only proceed if currentUser is available
+        if (!currentUser) {
+          console.log('Review: User not logged in, unable to load articles');
+          setUserSubmissions([]);
+          return;
+        }
+        
+        // Get articles from Firebase, passing currentUser.uid to filter out own submissions
+        const articles = await getArticlesForReview(currentUser.uid);
         console.log('Review: Articles loaded from Firebase:', articles);
         
         setUserSubmissions(articles);
@@ -119,7 +126,7 @@ const ReviewPage: React.FC = () => {
     if (router.isReady) {
       loadArticlesFromFirebase();
     }
-  }, [router.isReady, toast]);
+  }, [router.isReady, toast, currentUser]);
 
   // Check if user is logged in and profile is complete
   React.useEffect(() => {
@@ -166,8 +173,16 @@ const ReviewPage: React.FC = () => {
       // Import the article service
       const { getArticlesForReview } = await import('../services/articleService');
       
-      // Get articles from Firebase
-      const articles = await getArticlesForReview();
+      // Only proceed if currentUser is available
+      if (!currentUser) {
+        console.log('Review: User not logged in, unable to refresh articles');
+        setUserSubmissions([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Get articles from Firebase, passing currentUser.uid to filter out own submissions
+      const articles = await getArticlesForReview(currentUser.uid);
       console.log('Review: Refreshed articles from Firebase:', articles);
       
       setUserSubmissions(articles);

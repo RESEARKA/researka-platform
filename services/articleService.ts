@@ -94,7 +94,7 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
 /**
  * Get all articles for review
  */
-export const getArticlesForReview = async (): Promise<Article[]> => {
+export const getArticlesForReview = async (userId?: string): Promise<Article[]> => {
   try {
     console.log('ArticleService: Starting getArticlesForReview');
     
@@ -123,6 +123,12 @@ export const getArticlesForReview = async (): Promise<Article[]> => {
       const data = doc.data();
       console.log(`ArticleService: Processing document ${doc.id}, title: ${data.title}, status: ${data.status}`);
       
+      // Skip articles authored by the current user if userId is provided
+      if (userId && data.authorId === userId) {
+        console.log(`ArticleService: Skipping article ${doc.id} because it was authored by the current user (${userId})`);
+        return; // Skip this article
+      }
+      
       articles.push({
         id: doc.id,
         title: data.title,
@@ -149,7 +155,7 @@ export const getArticlesForReview = async (): Promise<Article[]> => {
       });
     });
     
-    console.log(`ArticleService: Returning ${articles.length} articles`);
+    console.log(`ArticleService: Returning ${articles.length} articles (after filtering out user's own submissions)`);
     return articles;
   } catch (error) {
     console.error('ArticleService: Error getting articles for review:', error);
