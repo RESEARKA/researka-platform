@@ -23,6 +23,7 @@ export interface Article {
   compensation: string;
   status: string;
   createdAt?: Timestamp;
+  views?: number;
   // Additional fields for the full article
   content?: string;
   introduction?: string;
