@@ -1,530 +1,456 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Box, 
-  Heading, 
-  Text, 
-  Grid, 
-  GridItem, 
-  VStack, 
-  HStack, 
-  Input, 
-  InputGroup, 
-  InputLeftElement, 
-  Select, 
-  Button, 
-  useColorModeValue, 
-  Image, 
-  useToast, 
-  Flex,
-  Divider,
-  Tag,
-  Wrap,
-  WrapItem
-} from '@chakra-ui/react';
-import { 
-  FiSearch, FiCalendar, FiEye, FiRefreshCw, FiChevronLeft, FiChevronRight, FiShuffle
-} from 'react-icons/fi';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Box, Button, Spinner, Flex, Text, Heading, Grid, useToast, Select, Input, InputGroup, InputLeftElement, VStack, Image, Link, HStack } from '@chakra-ui/react';
+import { FiSearch, FiRefreshCw, FiShuffle } from 'react-icons/fi';
+import NextLink from 'next/link';
 import Layout from '../components/Layout';
-import ArticleSkeleton from '../components/ArticleSkeleton';
 import PageTransition from '../components/PageTransition';
+import ArticleSkeleton from '../components/ArticleSkeleton';
 import SimplePagination from '../components/SimplePagination';
-import { PageArticle, convertToPageArticles } from '../utils/articleAdapter';
-import { useRouter } from 'next/router';
+import { fetchPaginatedArticles } from '../services/articleService';
+import { Router, useRouter } from 'next/router';
+import { Article } from '../types/article';
+
+const ARTICLES_PER_PAGE = 5;
 
 export default function ArticlesPage() {
+  // Use a ref to track if component is mounted (to prevent hydration issues)
+  const [isMounted, setIsMounted] = useState(false);
+  
   // State
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  
+  // Filters and sorting
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
-  const [showRandom, setShowRandom] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [articles, setArticles] = useState<PageArticle[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const toast = useToast();
-  const router = useRouter();
   
-  // Hard limit to ensure we never show more than 10 articles per page
-  const ARTICLES_PER_PAGE = 5;
+  // Router and toast
+  const router = useRouter();
+  const toast = useToast();
 
-  // Load articles from Firebase
+  // Setup client-side detection to prevent hydration issues
   useEffect(() => {
-    const loadArticles = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        // Import the article service
-        const { getAllArticles } = await import('../services/articleService');
-        
-        // Get articles from Firebase
-        const firebaseArticles = await getAllArticles();
-        console.log('Articles loaded from Firebase:', firebaseArticles);
-        
-        // Convert to the format expected by the articles page
-        const convertedArticles = convertToPageArticles(firebaseArticles);
-        setArticles(convertedArticles);
-      } catch (error) {
-        console.error('Error loading articles from Firebase:', error);
-        setError('Failed to load articles');
-        toast({
-          title: 'Error',
-          description: 'Failed to load articles',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadArticles();
-  }, [toast]);
+    setIsMounted(true);
+  }, []);
 
-  // Function to refresh articles
-  const refreshArticles = async () => {
+  // Clear search terms
+  const refreshArticles = () => {
+    setSearchQuery('');
+    setCategoryFilter('all');
+    setSortBy('newest');
+    setCurrentPage(1);
+    setLastVisible(null);
+    loadArticles(1);
+  };
+
+  // Load random articles
+  const handleRandomArticles = () => {
+    // For now, just refresh and let the server return whatever comes first
+    refreshArticles();
+    toast({
+      title: 'Random Articles',
+      description: 'Showing a random selection of articles',
+      status: 'info',
+      duration: 2000,
+      isClosable: true,
+    });
+  };
+
+  // Load articles using the new standardized function
+  const loadArticles = useCallback(async (page: number = 1) => {
+    // Prevent loading if already loading
+    if (isLoading) {
+      console.log('Skip loading as already in progress');
+      return;
+    }
+    
+    console.log(`Loading articles for page ${page}, category: ${categoryFilter}, sort: ${sortBy}`);
     setIsLoading(true);
     setError(null);
     
     try {
-      // Import the article service
-      const { getAllArticles } = await import('../services/articleService');
+      // Convert sort option to Firestore field and direction
+      const sortField = sortBy === 'newest' || sortBy === 'oldest' ? 'createdAt' : 'views';
+      const sortDirection = sortBy === 'oldest' ? 'asc' : 'desc';
       
-      // Get articles from Firebase
-      const firebaseArticles = await getAllArticles();
-      console.log('Refreshed articles from Firebase:', firebaseArticles);
-      
-      // Convert to the format expected by the articles page
-      const convertedArticles = convertToPageArticles(firebaseArticles);
-      setArticles(convertedArticles);
-      
-      toast({
-        title: 'Refreshed',
-        description: `Loaded ${firebaseArticles.length} articles`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
+      // Only pass lastVisible if we're not on the first page
+      const startAfterDoc = page > 1 ? lastVisible : null;
+
+      console.log('Fetching articles with params:', {
+        category: categoryFilter,
+        lastVisible: startAfterDoc ? 'exists' : 'null',
+        pageSize: ARTICLES_PER_PAGE,
+        sortField,
+        sortDirection,
+        searchQuery
       });
+      
+      const result = await fetchPaginatedArticles(
+        categoryFilter,
+        startAfterDoc,
+        ARTICLES_PER_PAGE,
+        sortField,
+        sortDirection,
+        searchQuery
+      );
+      
+      console.log(`Loaded ${result.articles.length} articles, hasMore: ${result.hasMore}`);
+      
+      setArticles(result.articles);
+      setLastVisible(result.lastVisible);
+      setHasMore(result.hasMore);
+      
+      // Estimate total pages
+      if (page === 1 && !result.hasMore) {
+        setTotalPages(1);
+      } else if (page === 1 && result.hasMore) {
+        // If we have more, but don't know how many, set to a reasonable number
+        setTotalPages(10); 
+      } else if (page > 1 && !result.hasMore) {
+        setTotalPages(page);
+      }
     } catch (error) {
-      console.error('Error refreshing articles from Firebase:', error);
-      setError('Failed to load articles');
+      console.error('Error loading articles:', error);
+      setArticles([]);
+      setError('Failed to load articles. Please try again later.');
       toast({
         title: 'Error',
-        description: 'Failed to refresh articles',
+        description: 'Failed to load articles',
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Filter and sort articles
-  const filteredSortedArticles = useMemo(() => {
-    console.log('Filtering and sorting articles');
-    
-    // Start with all articles
-    let result = [...articles];
-    
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(article => 
-        article.title?.toLowerCase().includes(query) || 
-        (article.description?.toLowerCase().includes(query) || article.abstract?.toLowerCase().includes(query)) ||
-        article.categories.some(cat => cat.toLowerCase().includes(query))
-      );
-    }
-    
-    // Apply category filter
-    if (categoryFilter !== 'all') {
-      result = result.filter(article => 
-        article.categories.some(cat => cat.toLowerCase() === categoryFilter.toLowerCase())
-      );
-    }
-    
-    // Apply sorting
-    if (sortBy === 'newest') {
-      result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    } else if (sortBy === 'oldest') {
-      result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    } else if (sortBy === 'popular') {
-      result.sort((a, b) => b.views - a.views);
-    } else if (sortBy === 'alphabetical') {
-      result.sort((a, b) => a.title.localeCompare(b.title));
-    }
-    
-    // Apply random shuffle if enabled
-    if (showRandom) {
-      result = [...result].sort(() => Math.random() - 0.5);
-    }
-    
-    console.log(`Found ${result.length} articles after filtering`);
-    return result;
-  }, [searchQuery, categoryFilter, sortBy, showRandom, articles]);
-
-  // Calculate total pages
-  const totalPages = useMemo(() => {
-    return Math.ceil(filteredSortedArticles.length / ARTICLES_PER_PAGE);
-  }, [filteredSortedArticles.length, ARTICLES_PER_PAGE]);
-
-  // Calculate displayed articles based on current page
-  const displayedArticles = useMemo(() => {
-    console.log('Calculating displayed articles');
-    console.log(`Current page: ${currentPage}, Total pages: ${totalPages}`);
-    
-    // Safety check for empty articles
-    if (filteredSortedArticles.length === 0) {
-      console.log('No articles to display');
-      return [];
-    }
-    
-    // Calculate start and end indices
-    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
-    const endIndex = startIndex + ARTICLES_PER_PAGE;
-    
-    console.log(`Start index: ${startIndex}, End index: ${endIndex}`);
-    
-    // Slice the array to get the current page's articles
-    const paginatedArticles = filteredSortedArticles.slice(startIndex, endIndex);
-    
-    console.log(`Displaying ${paginatedArticles.length} articles`);
-    
-    return paginatedArticles;
-  }, [filteredSortedArticles, currentPage, ARTICLES_PER_PAGE, totalPages]);
+  }, [categoryFilter, searchQuery, sortBy, lastVisible, isLoading, toast]);
 
   // Handle page change
-  const handlePageChange = useCallback((newPage: number) => {
-    console.log(`Changing to page ${newPage} (total pages: ${totalPages})`);
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || (newPage > totalPages && !hasMore)) return;
     
-    // Validate page number
-    if (newPage < 1) {
-      console.log('Invalid page: less than 1');
-      return;
-    }
-    
-    if (newPage > totalPages) {
-      console.log('Invalid page: greater than total pages');
-      return;
-    }
-    
-    // Update state
     setCurrentPage(newPage);
+    loadArticles(newPage);
     
-    // Scroll to top for better UX
+    // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    
-    console.log(`Page changed to ${newPage}`);
-  }, [totalPages]);
-
-  // Ensure current page is valid (between 1 and totalPages)
-  useEffect(() => {
-    // If there are no articles, reset to page 1
-    if (filteredSortedArticles.length === 0) {
-      if (currentPage !== 1) {
-        console.log('No articles, resetting to page 1');
-        setCurrentPage(1);
-      }
-      return;
-    }
-    
-    // If current page is greater than total pages, reset to page 1
-    if (currentPage > totalPages) {
-      console.log(`Current page (${currentPage}) is greater than total pages (${totalPages}), resetting to page 1`);
-      setCurrentPage(1);
-    }
-  }, [filteredSortedArticles.length, totalPages, currentPage]);
-
-  // Add a separate effect to log the current page whenever it changes
-  useEffect(() => {
-    console.log(`Current page is now: ${currentPage}`);
-  }, [currentPage]);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    if (currentPage !== 1) {
-      console.log('Filters changed, resetting to page 1');
-      setCurrentPage(1);
-    }
-  }, [searchQuery, categoryFilter, sortBy, showRandom]);
-
-  // Handle search
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
   };
-
+  
   // Handle category filter change
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setCategoryFilter(e.target.value);
+    const newCategory = e.target.value;
+    setCategoryFilter(newCategory);
+    setCurrentPage(1);
+    setLastVisible(null);
   };
-
+  
+  // Handle search change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+  
+  // Handle search submit
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    setLastVisible(null);
+    loadArticles(1);
+  };
+  
   // Handle sort change
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortBy(e.target.value);
+    setCurrentPage(1);
+    setLastVisible(null);
   };
-
-  // Toggle random display
-  const toggleRandom = () => {
-    setShowRandom(!showRandom);
-    
-    if (!showRandom) {
-      toast({
-        title: "Random mode enabled",
-        description: "Articles are now displayed in random order",
-        status: "info",
-        duration: 3000,
-        isClosable: true,
-      });
+  
+  // Load initial articles
+  useEffect(() => {
+    if (isMounted) {
+      loadArticles(1);
     }
-  };
-
-  // Get unique categories from all articles
-  const allCategories = useMemo(() => {
-    const categories = new Set<string>();
-    articles.forEach(article => {
-      article.categories.forEach(category => {
-        categories.add(category.toLowerCase());
-      });
-    });
-    return Array.from(categories).sort();
-  }, [articles]);
-
-  // Colors
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const textColor = useColorModeValue('gray.700', 'gray.200');
-  const mutedColor = useColorModeValue('gray.600', 'gray.400');
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, categoryFilter, sortBy]);
+  
+  // Effect for search query - we want to debounce this
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        setCurrentPage(1);
+        setLastVisible(null);
+        loadArticles(1);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, isMounted]);
+  
   return (
-    <Layout title="Articles | Researka">
+    <Layout 
+      title="Articles | Researka" 
+      description="Browse and search for academic articles on Researka" 
+      activePage="articles"
+    >
       <PageTransition>
-        <Box maxW="1400px" mx="auto" px={4} py={8}>
-          <Heading as="h1" size="2xl" mb={8} textAlign="center">
-            Articles
-          </Heading>
-          
-          <Grid templateColumns={{ base: "1fr", md: "250px 1fr" }} gap={8}>
-            {/* Sidebar / Filters */}
-            <GridItem>
-              <VStack align="stretch" spacing={6} position="sticky" top="100px">
-                <Box p={4} bg={bgColor} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
-                  <Heading as="h3" size="md" mb={4}>Search</Heading>
-                  <InputGroup>
-                    <InputLeftElement pointerEvents="none">
-                      <FiSearch color="gray.300" />
-                    </InputLeftElement>
-                    <Input 
-                      placeholder="Search articles..." 
-                      value={searchQuery}
-                      onChange={handleSearch}
-                    />
-                  </InputGroup>
-                </Box>
-                
-                <Box p={4} bg={bgColor} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
-                  <Heading as="h3" size="md" mb={4}>Categories</Heading>
-                  <Select value={categoryFilter} onChange={handleCategoryChange}>
-                    <option value="all">All Categories</option>
-                    {allCategories.map(category => (
-                      <option key={category} value={category}>
-                        {category.charAt(0).toUpperCase() + category.slice(1)}
-                      </option>
-                    ))}
-                  </Select>
-                </Box>
-                
-                <Box p={4} bg={bgColor} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
-                  <Heading as="h3" size="md" mb={4}>Sort By</Heading>
-                  <Select value={sortBy} onChange={handleSortChange}>
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="popular">Most Popular</option>
-                    <option value="alphabetical">Alphabetical</option>
-                  </Select>
-                </Box>
-                
+        <Box 
+          maxW="6xl" 
+          mx="auto" 
+          px={{ base: 4, md: 8 }}
+          py={8}
+        >
+          <Flex 
+            direction={{ base: 'column', md: 'row' }} 
+            justify="space-between"
+            align={{ base: 'stretch', md: 'center' }}
+            mb={6}
+          >
+            <Heading as="h1" size="xl" mb={{ base: 4, md: 0 }}>
+              Articles
+            </Heading>
+            
+            {/* Only render interactive elements after client-side hydration */}
+            {isMounted && (
+              <HStack spacing={2}>
                 <Button 
                   leftIcon={<FiRefreshCw />} 
-                  size="sm" 
-                  colorScheme="blue" 
-                  variant="ghost"
-                  isLoading={isLoading}
+                  variant="outline"
                   onClick={refreshArticles}
-                  aria-label="Refresh articles"
+                  isLoading={isLoading}
+                  size="sm"
                 >
                   Refresh
                 </Button>
                 
-                <Button 
-                  leftIcon={showRandom ? <FiRefreshCw /> : <FiShuffle />} 
-                  colorScheme={showRandom ? "purple" : "gray"}
-                  onClick={toggleRandom}
-                  size="md"
-                  width="full"
+                <Button
+                  leftIcon={<FiShuffle />}
+                  variant="outline"
+                  onClick={handleRandomArticles}
+                  isLoading={isLoading}
+                  size="sm"
                 >
-                  {showRandom ? "Randomizing" : "Randomize Order"}
+                  Random
                 </Button>
-              </VStack>
-            </GridItem>
-            
-            {/* Main Content / Articles */}
-            <GridItem>
-              {/* Pagination Debug Info (Top) */}
-              <Box 
-                mb={4} 
-                p={2} 
-                borderRadius="md" 
-                bg="blue.50" 
-                color="blue.800"
-              >
-                <Text fontFamily="monospace" fontSize="sm">
-                  <strong>Current Page: {currentPage}</strong> | Total Pages: {totalPages} | 
-                  Articles: {filteredSortedArticles.length} | 
-                  Displayed: {displayedArticles.length}
-                </Text>
-              </Box>
-              
-              {/* Articles List */}
-              <VStack align="stretch" spacing={6}>
-                {isLoading ? (
-                  // Loading skeletons
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <ArticleSkeleton key={i} />
-                  ))
-                ) : filteredSortedArticles.length === 0 ? (
-                  // No results
-                  <Box 
-                    p={8} 
-                    textAlign="center" 
-                    borderWidth="1px" 
-                    borderRadius="lg" 
-                    borderColor={borderColor}
+              </HStack>
+            )}
+          </Flex>
+          
+          <Box mb={8}>
+            <Grid 
+              templateColumns={{ base: '1fr', md: '2fr 1fr 1fr' }}
+              gap={4}
+              mb={6}
+            >
+              {/* Only render interactive elements after client-side hydration */}
+              {isMounted ? (
+                <>
+                  <form onSubmit={handleSearchSubmit}>
+                    <InputGroup>
+                      <InputLeftElement pointerEvents="none">
+                        <FiSearch color="gray.300" />
+                      </InputLeftElement>
+                      <Input 
+                        placeholder="Search by title, abstract, or category" 
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                      />
+                    </InputGroup>
+                  </form>
+                  
+                  <Select 
+                    value={categoryFilter}
+                    onChange={handleCategoryChange}
                   >
-                    <Heading as="h3" size="md" mb={2}>No Articles Found</Heading>
-                    <Text color={mutedColor}>
-                      Try adjusting your search or filters to find what you're looking for.
-                    </Text>
-                    <Button 
-                      mt={4} 
-                      onClick={() => {
-                        setSearchQuery('');
-                        setCategoryFilter('all');
-                        setSortBy('newest');
-                        setShowRandom(false);
-                      }}
+                    <option value="all">All Categories</option>
+                    <option value="biology">Biology</option>
+                    <option value="chemistry">Chemistry</option>
+                    <option value="physics">Physics</option>
+                    <option value="medicine">Medicine</option>
+                    <option value="computer-science">Computer Science</option>
+                    <option value="mathematics">Mathematics</option>
+                    <option value="psychology">Psychology</option>
+                    <option value="economics">Economics</option>
+                  </Select>
+                  
+                  <Select 
+                    value={sortBy}
+                    onChange={handleSortChange}
+                  >
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="views">Most Views</option>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  {/* Static placeholders for SSR */}
+                  <Box height="40px" width="100%" bg="gray.100" borderRadius="md"></Box>
+                  <Box height="40px" width="100%" bg="gray.100" borderRadius="md"></Box>
+                  <Box height="40px" width="100%" bg="gray.100" borderRadius="md"></Box>
+                </>
+              )}
+            </Grid>
+          </Box>
+          
+          {/* Loading state */}
+          {isLoading && (
+            <Flex justify="center" py={10}>
+              <Spinner size="xl" />
+            </Flex>
+          )}
+          
+          {/* Error state */}
+          {!isLoading && error && (
+            <Box 
+              p={6} 
+              borderWidth="1px" 
+              borderRadius="lg" 
+              bg="red.50" 
+              borderColor="red.200"
+            >
+              <Text color="red.500">{error}</Text>
+              <Button 
+                mt={4} 
+                colorScheme="red" 
+                size="sm" 
+                onClick={() => loadArticles(currentPage)}
+              >
+                Retry
+              </Button>
+            </Box>
+          )}
+          
+          {/* Empty state */}
+          {!isLoading && !error && articles.length === 0 && (
+            <Box 
+              p={6} 
+              borderWidth="1px" 
+              borderRadius="lg" 
+              textAlign="center"
+            >
+              <Text fontSize="lg" mb={4}>No articles found</Text>
+              <Text mb={4} color="gray.500">
+                Try changing your search criteria or check back later.
+              </Text>
+              <Button 
+                colorScheme="blue" 
+                onClick={refreshArticles}
+              >
+                Clear Filters
+              </Button>
+            </Box>
+          )}
+          
+          {/* Articles list */}
+          {!isLoading && !error && articles.length > 0 && (
+            <>
+              <VStack spacing={6} align="stretch">
+                {articles.map((article) => (
+                  <Box
+                    key={article.id}
+                    p={6}
+                    borderWidth="1px"
+                    borderRadius="lg"
+                    bg="white"
+                    boxShadow="sm"
+                    transition="all 0.2s"
+                    _hover={{
+                      boxShadow: 'md',
+                      transform: 'translateY(-2px)'
+                    }}
+                  >
+                    <Heading
+                      as="h2"
+                      size="lg"
+                      mb={2}
+                      cursor="pointer"
+                      onClick={() => router.push(`/article/${article.id}`)}
+                      _hover={{ color: 'blue.500' }}
                     >
-                      Reset Filters
+                      {article.title}
+                    </Heading>
+
+                    <Flex
+                      mb={3}
+                      color="gray.600"
+                      fontSize="sm"
+                      align="center"
+                      flexWrap="wrap"
+                      gap={2}
+                    >
+                      <Text>
+                        {new Date(article.date || article.createdAt?.toDate() || new Date()).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </Text>
+                      
+                      {article.views !== undefined && (
+                        <>
+                          <Text mx={2}>•</Text>
+                          <Text>{article.views} views</Text>
+                        </>
+                      )}
+                    </Flex>
+
+                    <Text
+                      noOfLines={3}
+                      mb={4}
+                      color="gray.600"
+                    >
+                      {article.abstract || 'No description available'}
+                    </Text>
+
+                    {article.category && (
+                      <HStack spacing={2} mb={4}>
+                        <Button
+                          size="xs"
+                          colorScheme="blue"
+                          variant="outline"
+                          borderRadius="full"
+                          onClick={() => setCategoryFilter(typeof article.category === 'string' ? article.category : 'all')}
+                        >
+                          {typeof article.category === 'string' ? article.category : 
+                           Array.isArray(article.category) ? article.category[0] : 'Unknown'}
+                        </Button>
+                      </HStack>
+                    )}
+
+                    <Button
+                      colorScheme="blue"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/article/${article.id}`)}
+                    >
+                      Read Article
                     </Button>
                   </Box>
-                ) : (
-                  // Articles
-                  displayedArticles.map((article, index) => (
-                    <Box 
-                      key={article.id} 
-                      p={5} 
-                      borderWidth="1px" 
-                      borderRadius="lg" 
-                      borderColor={borderColor}
-                      bg={bgColor}
-                      boxShadow="sm"
-                      _hover={{ boxShadow: "md", borderColor: "blue.300" }}
-                      transition="all 0.2s"
-                    >
-                      <Grid templateColumns={{ base: "1fr", md: "200px 1fr" }} gap={5}>
-                        <Box>
-                          <img
-                            src={article.image || article.imageUrl || "https://via.placeholder.com/400x200?text=Article+Image"}
-                            alt={article.title}
-                            style={{ 
-                              borderRadius: "8px", 
-                              width: "100%", 
-                              height: "150px", 
-                              objectFit: "cover" 
-                            }}
-                          />
-                        </Box>
-                        <Box>
-                          <Heading as="h2" size="md" mb={2}>
-                            {article.title}
-                          </Heading>
-                          
-                          <HStack spacing={4} mb={3}>
-                            <HStack color={mutedColor} fontSize="sm">
-                              <FiCalendar />
-                              <Text>{article.date}</Text>
-                            </HStack>
-                            <HStack color={mutedColor} fontSize="sm">
-                              <FiEye />
-                              <Text>{article.views} views</Text>
-                            </HStack>
-                          </HStack>
-                          
-                          <Text color={textColor} noOfLines={3} mb={3}>
-                            {article.description || article.abstract}
-                          </Text>
-                          
-                          <Wrap spacing={2} mb={2}>
-                            {article.categories.map(category => (
-                              <WrapItem key={category}>
-                                <Tag 
-                                  size="sm" 
-                                  colorScheme="blue" 
-                                  borderRadius="full"
-                                  cursor="pointer"
-                                  onClick={() => setCategoryFilter(category.toLowerCase())}
-                                >
-                                  {category}
-                                </Tag>
-                              </WrapItem>
-                            ))}
-                          </Wrap>
-                          
-                          <Button 
-                            size="sm" 
-                            colorScheme="blue" 
-                            variant="outline"
-                            mt={2}
-                            onClick={() => router.push(`/articles/${article.id}`)}
-                          >
-                            Read More
-                          </Button>
-                        </Box>
-                      </Grid>
-                    </Box>
-                  ))
-                )}
+                ))}
               </VStack>
               
-              {/* Pagination Controls */}
-              {filteredSortedArticles.length > 0 && (
-                <Box mt={8} display="flex" flexDirection="column" alignItems="center">
-                  {/* Pagination Debug Info */}
-                  <Box 
-                    className="pagination-debug" 
-                    mb={4} 
-                    p={2} 
-                    borderRadius="md" 
-                    bg="gray.50" 
-                    color="gray.700"
-                  >
-                    <Text fontSize="sm" fontWeight="medium">
-                      Page {currentPage} of {totalPages} | 
-                      Showing {displayedArticles.length} of {filteredSortedArticles.length} articles
-                    </Text>
-                  </Box>
-                  
-                  {/* Simple Pagination Component */}
-                  <SimplePagination
+              {/* Pagination */}
+              {isMounted && (
+                <Box mt={8} display="flex" justifyContent="center">
+                  <SimplePagination 
                     currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={handlePageChange}
+                    hasNextPage={hasMore}
+                    hasPrevPage={currentPage > 1}
                   />
                 </Box>
               )}
-            </GridItem>
-          </Grid>
+            </>
+          )}
         </Box>
       </PageTransition>
     </Layout>

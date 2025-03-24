@@ -7,7 +7,11 @@ import {
   where, 
   orderBy, 
   Timestamp,
-  DocumentData
+  DocumentData,
+  limit,
+  startAfter,
+  DocumentSnapshot,
+  QueryDocumentSnapshot
 } from 'firebase/firestore';
 
 // Define article interface
@@ -36,6 +40,24 @@ export interface Article {
   dataAvailability?: string;
   conflicts?: string;
   license?: string;
+}
+
+// Pagination result interface
+export interface PaginatedArticles {
+  articles: Article[];
+  lastVisible: DocumentSnapshot | null;
+  hasMore: boolean;
+  totalCount?: number;
+}
+
+// Pagination options interface
+export interface PaginationOptions {
+  pageSize?: number;
+  startAfterDoc?: DocumentSnapshot | null;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  category?: string;
+  searchQuery?: string;
 }
 
 // Collection reference
@@ -241,6 +263,7 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
 
 /**
  * Get all articles from Firestore
+ * @deprecated Use getPaginatedArticles instead for better performance with large collections
  */
 export const getAllArticles = async (): Promise<Article[]> => {
   try {
@@ -278,14 +301,256 @@ export const getAllArticles = async (): Promise<Article[]> => {
         funding: data.funding,
         ethicalApprovals: data.ethicalApprovals,
         dataAvailability: data.dataAvailability,
-        conflicts: data.conflictsOfInterest,
+        conflicts: data.conflicts,
         license: data.license
       });
     });
     
     return articles;
   } catch (error) {
-    console.error('Error getting all articles:', error);
-    throw new Error('Failed to get articles');
+    console.error('ArticleService: Error getting all articles:', error);
+    throw new Error(`Failed to get articles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+/**
+ * Fetch paginated articles with standardized category handling
+ */
+export async function fetchPaginatedArticles(
+  category: string,
+  lastVisible: any,
+  pageSize: number = 10,
+  sortField: string = 'createdAt',
+  sortDirection: 'asc' | 'desc' = 'desc',
+  searchQuery: string = ''
+) {
+  try {
+    console.log('ArticleService: Fetching paginated articles with parameters:', {
+      category, pageSize, sortField, sortDirection, searchQuery
+    });
+    
+    const articlesCollection = collection(db, 'articles');
+
+    const queryConstraints = [];
+    // If a category filter is applied and not "all", use an exact match query
+    if (category && category !== 'all') {
+      queryConstraints.push(where('category', '==', category));
+    }
+    
+    // Always order by a field to ensure pagination works as expected
+    queryConstraints.push(orderBy(sortField, sortDirection));
+    
+    // Add pagination
+    if (lastVisible) {
+      queryConstraints.push(startAfter(lastVisible));
+    }
+    
+    // Add limit
+    queryConstraints.push(limit(pageSize + 1)); // Get one extra to check if there are more
+    
+    const q = query(articlesCollection, ...queryConstraints);
+    console.log('Executing Firestore query:', JSON.stringify(queryConstraints, null, 2));
+    
+    const snapshot = await getDocs(q);
+    console.log(`Query returned ${snapshot.size} documents`);
+    
+    // Check if there are more results
+    const hasMore = snapshot.size > pageSize;
+    
+    // Get the last visible document for next pagination
+    const lastVisibleDoc = snapshot.size > 0 
+      ? snapshot.docs[Math.min(pageSize - 1, snapshot.docs.length - 1)] 
+      : null;
+    
+    // Convert to array of articles (limit to pageSize)
+    const articles: Article[] = [];
+    
+    snapshot.docs.slice(0, pageSize).forEach((doc) => {
+      const data = doc.data();
+      
+      // Skip if it doesn't match search query (client-side filtering for now)
+      if (searchQuery) {
+        const matchesSearch = 
+          data.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          data.abstract?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (typeof data.author === 'string' && data.author.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        if (!matchesSearch) return;
+      }
+      
+      articles.push({
+        id: doc.id,
+        title: data.title || '',
+        abstract: data.abstract || '',
+        category: data.category || '',
+        keywords: data.keywords || [],
+        author: data.author || 'Unknown',
+        authorId: data.authorId || '',
+        date: data.date || '',
+        compensation: data.compensation || '',
+        status: data.status || '',
+        createdAt: data.createdAt,
+        views: data.views || 0,
+        content: data.content,
+        introduction: data.introduction,
+        methods: data.methods,
+        results: data.results,
+        discussion: data.discussion,
+        references: data.references,
+        funding: data.funding,
+        ethicalApprovals: data.ethicalApprovals,
+        dataAvailability: data.dataAvailability,
+        conflicts: data.conflicts,
+        license: data.license
+      });
+    });
+    
+    console.log(`ArticleService: Returning ${articles.length} paginated articles, hasMore: ${hasMore}`);
+    
+    return {
+      articles,
+      lastVisible: lastVisibleDoc,
+      hasMore
+    };
+  } catch (error) {
+    console.error('ArticleService: Error getting paginated articles:', error);
+    // Return empty results instead of throwing to avoid infinite loading states
+    return { 
+      articles: [], 
+      lastVisible: null, 
+      hasMore: false 
+    };
+  }
+};
+
+/**
+ * Get paginated articles from Firestore
+ */
+export const getPaginatedArticles = async (options: PaginationOptions = {}): Promise<PaginatedArticles> => {
+  try {
+    console.log('ArticleService: Getting paginated articles with options:', options);
+    
+    const {
+      pageSize = 10,
+      startAfterDoc = null,
+      sortBy = 'createdAt',
+      sortDirection = 'desc',
+      category = '',
+      searchQuery = ''
+    } = options;
+    
+    // Start building the query
+    let articlesQuery = collection(db, articlesCollection);
+    let queryConstraints = [];
+    
+    // Add category filter if specified - handle both string and array category types
+    if (category && category !== 'all') {
+      // We'll use an OR query to handle both string and array types
+      // First, we'll query for articles where category matches exactly (for string type)
+      queryConstraints.push(where('category', '==', category));
+    }
+    
+    // Add sorting
+    queryConstraints.push(orderBy(sortBy, sortDirection));
+    
+    // Add pagination
+    if (startAfterDoc) {
+      queryConstraints.push(startAfter(startAfterDoc));
+    }
+    
+    // Add limit
+    queryConstraints.push(limit(pageSize + 1)); // Get one extra to check if there are more
+    
+    // Execute the query
+    const q = query(articlesQuery, ...queryConstraints);
+    console.log('Executing Firestore query:', JSON.stringify(queryConstraints));
+    
+    const querySnapshot = await getDocs(q);
+    console.log(`Query returned ${querySnapshot.size} documents`);
+    
+    // Check if there are more results
+    const hasMore = querySnapshot.size > pageSize;
+    
+    // Get the last visible document for next pagination
+    const lastVisible = querySnapshot.size > 0 
+      ? querySnapshot.docs[Math.min(pageSize - 1, querySnapshot.docs.length - 1)] 
+      : null;
+    
+    // Convert to array of articles (limit to pageSize)
+    const articles: Article[] = querySnapshot.docs.slice(0, pageSize).map((doc) => {
+      const data = doc.data();
+      
+      // Skip if it doesn't match search query (client-side filtering for now)
+      if (searchQuery) {
+        const matchesSearch = 
+          data.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          data.abstract?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (typeof data.author === 'string' && data.author.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (Array.isArray(data.author) && data.author.some(author => 
+            author.toLowerCase().includes(searchQuery.toLowerCase())
+          ));
+        
+        if (!matchesSearch) return null;
+      }
+      
+      // If we're filtering by category and the article has an array category,
+      // check if it includes our category
+      if (category && category !== 'all' && Array.isArray(data.category)) {
+        const categoryMatches = data.category.some(cat => 
+          cat.toLowerCase() === category.toLowerCase()
+        );
+        if (!categoryMatches) return null;
+      }
+      
+      // Ensure we have at least the required fields
+      if (!data.title || !data.abstract) {
+        console.warn(`ArticleService: Article ${doc.id} is missing required fields`);
+        return null; // Skip this article
+      }
+      
+      return {
+        id: doc.id,
+        title: data.title,
+        abstract: data.abstract,
+        category: data.category,
+        keywords: data.keywords || [],
+        author: data.author || 'Unknown',
+        authorId: data.authorId || '',
+        date: data.date || '',
+        compensation: data.compensation || '',
+        status: data.status || '',
+        createdAt: data.createdAt,
+        views: data.views || 0,
+        content: data.content,
+        introduction: data.introduction,
+        methods: data.methods,
+        results: data.results,
+        discussion: data.discussion,
+        references: data.references,
+        funding: data.funding,
+        ethicalApprovals: data.ethicalApprovals,
+        dataAvailability: data.dataAvailability,
+        conflicts: data.conflicts,
+        license: data.license
+      };
+    }).filter(article => article !== null);
+    
+    console.log(`ArticleService: Returning ${articles.length} paginated articles, hasMore: ${hasMore}`);
+    
+    // If we got no articles but executed the query successfully, return an empty array
+    // instead of potentially throwing an error
+    return {
+      articles,
+      lastVisible,
+      hasMore
+    };
+  } catch (error) {
+    console.error('ArticleService: Error getting paginated articles:', error);
+    // Return empty results instead of throwing to avoid infinite loading states
+    return {
+      articles: [],
+      lastVisible: null,
+      hasMore: false
+    };
   }
 };
