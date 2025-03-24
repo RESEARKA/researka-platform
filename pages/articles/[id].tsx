@@ -25,6 +25,7 @@ import { Article } from '../../utils/recommendationEngine';
 import { getAllResearchFields } from '../../utils/researchTaxonomy';
 import ArticleReviewStatus from '../../components/ArticleReviewStatus';
 import RecommendedReviewers from '../../components/RecommendedReviewers';
+import { downloadArticlePdf } from '../../utils/pdfGenerator';
 
 // Mock reviews for demonstration
 const MOCK_REVIEWS = [
@@ -250,7 +251,43 @@ const ArticleDetailPage: React.FC = () => {
                 <Text color="gray.600" mb={4}>
                   This is a placeholder for the full text of the article. In a real application, this would contain the complete content of the research paper, potentially with sections, figures, tables, and references.
                 </Text>
-                <Button leftIcon={<FiDownload />} colorScheme="blue">
+                <Button 
+                  leftIcon={<FiDownload />} 
+                  colorScheme="blue"
+                  onClick={() => {
+                    try {
+                      // Log that we're generating the PDF
+                      console.log('Generating PDF for article:', article.title);
+                      
+                      // Generate and download the PDF using the available properties in the Article interface
+                      downloadArticlePdf({
+                        title: article.title || 'Untitled Article',
+                        author: article.authorId || 'Unknown Author',
+                        abstract: article.abstract || '',
+                        content: 'This is a placeholder for the full text of the article. In a real application, this would contain the complete content of the research paper, potentially with sections, figures, tables, and references.',
+                        date: article.publishedDate || new Date().toLocaleDateString(),
+                        categories: article.categories || []
+                      });
+                      
+                      toast({
+                        title: 'PDF Downloaded',
+                        description: 'Your PDF has been successfully generated and downloaded.',
+                        status: 'success',
+                        duration: 3000,
+                        isClosable: true,
+                      });
+                    } catch (error) {
+                      console.error('Error downloading PDF:', error);
+                      toast({
+                        title: 'Download Failed',
+                        description: 'There was an error generating the PDF. Please try again.',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                      });
+                    }
+                  }}
+                >
                   Download PDF
                 </Button>
               </Box>
