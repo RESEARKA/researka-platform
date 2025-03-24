@@ -4,12 +4,16 @@ interface SimplePaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  hasNextPage?: boolean;
+  hasPrevPage?: boolean;
 }
 
 const SimplePagination: React.FC<SimplePaginationProps> = ({
   currentPage,
   totalPages,
-  onPageChange
+  onPageChange,
+  hasNextPage,
+  hasPrevPage
 }) => {
   // Styles for the pagination component
   const styles = {
@@ -94,100 +98,57 @@ const SimplePagination: React.FC<SimplePaginationProps> = ({
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    if (page < 1 || page > totalPages) return;
+    if (page < 1 || (totalPages > 0 && page > totalPages)) return;
     onPageChange(page);
   };
 
   // Get visible page numbers (show 5 pages at most)
-  const getVisiblePageNumbers = () => {
-    const delta = 2; // Number of pages to show before and after current page
-    const range = [];
-    const rangeWithDots = [];
-    let l;
+  const getVisiblePages = () => {
+    const visiblePages = [];
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
     
-    // Calculate range
-    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
-      range.push(i);
+    // Adjust start page if needed
+    if (endPage - startPage < 4) {
+      startPage = Math.max(1, endPage - 4);
     }
     
-    // Always include first page
-    if (range.length > 0) {
-      // Add first page
-      rangeWithDots.push(1);
-      
-      // Add dots if needed
-      if (range[0] > 2) {
-        rangeWithDots.push('...');
-      }
-      
-      // Add range
-      for (const i of range) {
-        rangeWithDots.push(i);
-      }
-      
-      // Add dots if needed
-      if (range[range.length - 1] < totalPages - 1) {
-        rangeWithDots.push('...');
-      }
-      
-      // Add last page if not already included
-      if (totalPages > 1) {
-        rangeWithDots.push(totalPages);
-      }
-    } else {
-      // Only one page
-      rangeWithDots.push(1);
+    for (let i = startPage; i <= endPage; i++) {
+      visiblePages.push(i);
     }
     
-    return rangeWithDots;
+    return visiblePages;
   };
 
-  // If there's only one page, don't show pagination
-  if (totalPages <= 1) return null;
+  // Determine if we can go to next/prev page based on the props
+  const canGoPrev = hasPrevPage !== undefined ? hasPrevPage : currentPage > 1;
+  const canGoNext = hasNextPage !== undefined ? hasNextPage : currentPage < totalPages;
 
   return (
     <div style={styles.container}>
-      {/* Previous button */}
+      {/* Previous Page Button */}
       <button
-        onClick={() => handlePageChange(currentPage - 1)}
-        disabled={currentPage === 1}
-        style={currentPage === 1 ? styles.disabledNavButton : styles.navButton}
+        style={canGoPrev ? styles.navButton : styles.disabledNavButton}
+        onClick={() => canGoPrev && handlePageChange(currentPage - 1)}
+        disabled={!canGoPrev}
         aria-label="Previous page"
       >
-        <span aria-hidden="true">←</span> Prev
+        &laquo; Prev
       </button>
-
-      {/* Page numbers with ellipsis for many pages */}
-      {getVisiblePageNumbers().map((page, index) => {
-        if (page === '...') {
-          return (
-            <span key={`ellipsis-${index}`} style={{ color: '#718096' }}>
-              …
-            </span>
-          );
-        }
-        
-        return (
-          <button
-            key={`page-${page}`}
-            onClick={() => handlePageChange(page as number)}
-            style={currentPage === page ? styles.activeButton : styles.button}
-            aria-label={`Page ${page}`}
-            aria-current={currentPage === page ? 'page' : undefined}
-          >
-            {page}
-          </button>
-        );
-      })}
-
-      {/* Next button */}
+      
+      {/* Current page indicator */}
+      <span style={{ padding: '8px 12px' }}>
+        Page {currentPage}{totalPages > 0 ? ` of ${totalPages}` : ''}
+      </span>
+      
+      {/* Next Page Button */}
       <button
-        onClick={() => handlePageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
-        style={currentPage === totalPages ? styles.disabledNavButton : styles.navButton}
+        style={canGoNext ? styles.navButton : styles.disabledNavButton}
+        onClick={() => canGoNext && handlePageChange(currentPage + 1)}
+        disabled={!canGoNext}
         aria-label="Next page"
       >
-        Next <span aria-hidden="true">→</span>
+        Next &raquo;
       </button>
     </div>
   );
