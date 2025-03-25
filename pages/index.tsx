@@ -41,13 +41,13 @@ const LoginModal = dynamic(() => import('../components/LoginModal'), {
   loading: () => null
 });
 
-// Using ssr: true for server-rendered components
+// Using ssr: false for client-rendered components to avoid hydration issues
 const NavBar = dynamic(() => import('../components/NavBar'), {
-  ssr: true
+  ssr: false
 });
 
 const MobileNav = dynamic(() => import('../components/MobileNav'), {
-  ssr: true
+  ssr: false
 });
 
 // Using ssr: false for featured article to prevent hydration mismatch
@@ -94,60 +94,59 @@ const MainCategories = dynamic(() => Promise.resolve({
 
 // Using dynamic to avoid hydration mismatch
 const SubCategories = dynamic(() => Promise.resolve({
-  default: ({ onSelect }: { onSelect: (id: string) => void }) => (
-    <Flex wrap="wrap" gap={2} justify="center">
-      {[
-        { id: 'biology', name: 'BIOLOGY', color: 'gray.700' },
-        { id: 'chemistry', name: 'CHEMISTRY', color: 'gray.700' },
-        { id: 'data-science', name: 'DATA SCIENCE', color: 'gray.700' },
-        { id: 'physics', name: 'PHYSICS', color: 'gray.700' },
-        { id: 'mathematics', name: 'MATHEMATICS', color: 'gray.700' },
-        { id: 'earth-environmental', name: 'EARTH & ENVIRONMENTAL SCIENCES', color: 'gray.700' },
-        { id: 'astronomy', name: 'ASTRONOMY & ASTROPHYSICS', color: 'gray.700' },
-        { id: 'medicine', name: 'MEDICINE & HEALTH SCIENCES', color: 'gray.700' },
-        { id: 'neuroscience', name: 'NEUROSCIENCE', color: 'gray.700' },
-        { id: 'genetics', name: 'GENETICS', color: 'gray.700' },
-        { id: 'ecology', name: 'ECOLOGY & CONSERVATION', color: 'gray.700' },
-        { id: 'computer-science', name: 'COMPUTER SCIENCE', color: 'gray.700' },
-        { id: 'electrical', name: 'ELECTRICAL & ELECTRONIC ENGINEERING', color: 'gray.700' },
-        { id: 'mechanical', name: 'MECHANICAL ENGINEERING', color: 'gray.700' },
-        { id: 'materials', name: 'MATERIALS SCIENCE', color: 'gray.700' },
-        { id: 'ai', name: 'ARTIFICIAL INTELLIGENCE', color: 'gray.700' },
-        { id: 'blockchain', name: 'BLOCKCHAIN & DISTRIBUTED SYSTEMS', color: 'gray.700' },
-        { id: 'economics', name: 'ECONOMICS', color: 'gray.700' },
-        { id: 'psychology', name: 'PSYCHOLOGY', color: 'gray.700' },
-        { id: 'sociology', name: 'SOCIOLOGY', color: 'gray.700' },
-        { id: 'political', name: 'POLITICAL SCIENCE', color: 'gray.700' },
-        { id: 'education', name: 'EDUCATION', color: 'gray.700' },
-        { id: 'business', name: 'BUSINESS & MANAGEMENT', color: 'gray.700' },
-        { id: 'philosophy', name: 'PHILOSOPHY', color: 'gray.700' },
-        { id: 'literature', name: 'LITERATURE', color: 'gray.700' },
-        { id: 'history', name: 'HISTORY', color: 'gray.700' },
-        { id: 'cultural', name: 'CULTURAL STUDIES', color: 'gray.700' },
-        { id: 'linguistics', name: 'LINGUISTICS', color: 'gray.700' },
-        { id: 'visual', name: 'VISUAL & PERFORMING ARTS', color: 'gray.700' },
-        { id: 'sustainability', name: 'SUSTAINABILITY', color: 'gray.700' },
-        { id: 'cognitive', name: 'COGNITIVE SCIENCE', color: 'gray.700' },
-        { id: 'public-policy', name: 'PUBLIC POLICY', color: 'gray.700' },
-        { id: 'ethics', name: 'ETHICS', color: 'gray.700' },
-      ].map(category => (
-        <Tag 
-          key={category.id}
-          size="sm"
-          borderRadius="full"
-          variant="outline"
-          colorScheme={category.color.split('.')[0]}
-          cursor="pointer"
-          onClick={() => onSelect(category.id)}
-          _hover={{ opacity: 0.8 }}
-          mb={2}
-          color={category.color}
-        >
-          <TagLabel>{category.name}</TagLabel>
-        </Tag>
-      ))}
-    </Flex>
-  )
+  default({ onSelect }: { onSelect: (id: string) => void }) {
+    const subCategories = [
+      { id: 'biology', name: 'BIOLOGY', color: 'gray.700' },
+      { id: 'chemistry', name: 'CHEMISTRY', color: 'gray.700' },
+      { id: 'data-science', name: 'DATA SCIENCE', color: 'gray.700' },
+      { id: 'physics', name: 'PHYSICS', color: 'gray.700' },
+      { id: 'mathematics', name: 'MATHEMATICS', color: 'gray.700' },
+      { id: 'earth-environmental', name: 'EARTH & ENVIRONMENTAL SCIENCES', color: 'gray.700' },
+      { id: 'astronomy', name: 'ASTRONOMY & ASTROPHYSICS', color: 'gray.700' },
+      { id: 'medicine', name: 'MEDICINE & HEALTH SCIENCES', color: 'gray.700' },
+      { id: 'neuroscience', name: 'NEUROSCIENCE', color: 'gray.700' },
+      { id: 'genetics', name: 'GENETICS', color: 'gray.700' },
+      { id: 'ecology', name: 'ECOLOGY & CONSERVATION', color: 'gray.700' },
+      { id: 'computer-science', name: 'COMPUTER SCIENCE', color: 'gray.700' },
+      { id: 'electrical', name: 'ELECTRICAL & ELECTRONIC ENGINEERING', color: 'gray.700' },
+      { id: 'mechanical', name: 'MECHANICAL ENGINEERING', color: 'gray.700' },
+      { id: 'materials', name: 'MATERIALS SCIENCE', color: 'gray.700' },
+      { id: 'ai', name: 'ARTIFICIAL INTELLIGENCE', color: 'gray.700' },
+      { id: 'blockchain', name: 'BLOCKCHAIN & DISTRIBUTED SYSTEMS', color: 'gray.700' },
+      { id: 'economics', name: 'ECONOMICS', color: 'gray.700' },
+      { id: 'psychology', name: 'PSYCHOLOGY', color: 'gray.700' },
+      { id: 'sociology', name: 'SOCIOLOGY', color: 'gray.700' },
+      { id: 'political', name: 'POLITICAL SCIENCE', color: 'gray.700' },
+      { id: 'education', name: 'EDUCATION', color: 'gray.700' },
+      { id: 'business', name: 'BUSINESS & MANAGEMENT', color: 'gray.700' },
+      { id: 'philosophy', name: 'PHILOSOPHY', color: 'gray.700' },
+      { id: 'literature', name: 'LITERATURE', color: 'gray.700' },
+      { id: 'history', name: 'HISTORY', color: 'gray.700' },
+      { id: 'cultural', name: 'CULTURAL STUDIES', color: 'gray.700' },
+      { id: 'linguistics', name: 'LINGUISTICS', color: 'gray.700' },
+      { id: 'visual', name: 'VISUAL & PERFORMING ARTS', color: 'gray.700' },
+      { id: 'sustainability', name: 'SUSTAINABILITY', color: 'gray.700' },
+      { id: 'cognitive', name: 'COGNITIVE SCIENCE', color: 'gray.700' },
+      { id: 'public-policy', name: 'PUBLIC POLICY', color: 'gray.700' },
+      { id: 'ethics', name: 'ETHICS', color: 'gray.700' },
+    ];
+    return (
+      <Flex wrap="wrap" justify="center" gap={2} mb={6}>
+        {subCategories.map(category => (
+          <Button
+            key={category.id}
+            size="sm"
+            variant="outline"
+            colorScheme="blue"
+            borderRadius="full"
+            onClick={() => onSelect(category.id)}
+          >
+            {category.name}
+          </Button>
+        ))}
+      </Flex>
+    )
+  }
 }), { ssr: false });
 
 // Create a client-only wrapper component for content that should only render on the client

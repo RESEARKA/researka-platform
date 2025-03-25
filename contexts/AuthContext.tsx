@@ -67,6 +67,42 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!dbRef.current) dbRef.current = db;
     
     console.log('AuthContext: Firebase initialized on client side');
+    
+    // Immediately set up auth state listener after initialization
+    const setupAuthListener = () => {
+      console.log('AuthContext: Setting up auth state listener...');
+      
+      // Add timeout to prevent hanging indefinitely
+      const authTimeout = setTimeout(() => {
+        console.warn('AuthContext: Auth initialization timed out after 10 seconds');
+        setIsLoading(false);
+        setAuthIsInitialized(true);
+      }, 10000);
+      
+      const unsubscribe = onAuthStateChanged(authRef.current!, async (user) => {
+        console.log('AuthContext: Auth state changed', user ? `User: ${user.uid}` : 'No user');
+        
+        // Use functional updates to batch state changes
+        setCurrentUser(user);
+        setAuthIsInitialized(true);
+        setIsLoading(false);
+        
+        // Clear the timeout since auth state has changed
+        clearTimeout(authTimeout);
+      });
+      
+      // Return cleanup function
+      return () => {
+        unsubscribe();
+        clearTimeout(authTimeout);
+      };
+    };
+    
+    // Set up the listener immediately after initialization
+    const unsubscribe = setupAuthListener();
+    
+    // Cleanup subscription on unmount
+    return unsubscribe;
   }, [isClient]);
 
   // Sign up with email and password
@@ -110,6 +146,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             reviews: 0,
             reputation: 0,
             profileComplete: false,
+            hasChangedName: false,
+            hasChangedInstitution: false,
             createdAt: new Date().toISOString()
           });
           console.log('AuthContext: User document created successfully in users collection');
@@ -211,16 +249,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     console.log('AuthContext: Getting user profile from Firestore for user:', currentUser.uid);
     try {
-      // Use users collection now that rules allow authenticated access
-      const userDoc = await getDoc(doc(dbRef.current, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        console.log('AuthContext: User profile retrieved successfully');
-        return userDoc.data();
+      // Add retry logic for getting user profile
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          // Use users collection now that rules allow authenticated access
+          const userDoc = await getDoc(doc(dbRef.current, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            console.log('AuthContext: User profile retrieved successfully');
+            return userDoc.data();
+          }
+          
+          // If this is the first attempt and the document doesn't exist, try to create it
+          if (attempts === 0) {
+            console.log('AuthContext: User profile does not exist, attempting to create default profile');
+            try {
+              // Create a default profile
+              await setDoc(doc(dbRef.current, 'users', currentUser.uid), {
+                name: currentUser.displayName || '',
+                email: currentUser.email || '',
+                role: 'Researcher',
+                institution: '',
+                department: '',
+                position: '',
+                researchInterests: [],
+                articles: 0,
+                reviews: 0,
+                reputation: 0,
+                profileComplete: false,
+                hasChangedName: false,
+                hasChangedInstitution: false,
+                createdAt: new Date().toISOString()
+              });
+              console.log('AuthContext: Default profile created successfully');
+            } catch (createError) {
+              console.error('AuthContext: Error creating default profile:', createError);
+            }
+          }
+          
+          attempts++;
+          if (attempts < maxAttempts) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (error) {
+          console.error(`AuthContext: Error getting user profile (attempt ${attempts + 1}/${maxAttempts}):`, error);
+          attempts++;
+          if (attempts < maxAttempts) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
       }
-      console.log('AuthContext: User profile does not exist, will need to create one');
+      
+      console.log('AuthContext: Max attempts reached, returning null for user profile');
       return null;
     } catch (error) {
-      console.error('AuthContext: Error getting user profile:', error);
+      console.error('AuthContext: Error in getUserProfile:', error);
       return null;
     }
   }
@@ -341,47 +428,100 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   async function updateUserData(data: any): Promise<boolean> {
     console.log('AuthContext: Updating user data in Firestore:', data);
     try {
-      if (!dbRef.current || !currentUser) {
-        console.error('AuthContext: Database or user not initialized');
+      // Wait for auth and database to be initialized
+      if (!authIsInitialized) {
+        console.log('AuthContext: Waiting for auth to initialize before updating user data...');
+        // Wait up to 5 seconds for auth to initialize
+        for (let i = 0; i < 10; i++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if (authIsInitialized) break;
+        }
+      }
+      
+      // Check if database and user are initialized
+      if (!dbRef.current) {
+        console.error('AuthContext: Database not initialized, attempting to initialize...');
+        if (!app) {
+          console.error('AuthContext: Firebase app not available');
+          return false;
+        }
+        // Try to initialize database if not already done
+        dbRef.current = getFirestore(app);
+      }
+      
+      // Check if user is available
+      if (!currentUser) {
+        console.error('AuthContext: User not initialized, cannot update user data');
         return false;
       }
       
-      await updateDoc(doc(dbRef.current, 'users', currentUser.uid), {
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
+      // Validate user data before saving
+      const { isValid, sanitizedData, errors } = validateUserData(data);
+      if (!isValid) {
+        console.error('AuthContext: Invalid user data:', errors);
+        return false;
+      }
       
-      console.log('AuthContext: User data updated successfully');
-      return true;
+      // Add retry logic for updating user data
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          await updateDoc(doc(dbRef.current, 'users', currentUser.uid), {
+            ...sanitizedData,
+            updatedAt: new Date().toISOString()
+          });
+          
+          console.log('AuthContext: User data updated successfully');
+          return true;
+        } catch (error) {
+          console.error(`AuthContext: Error updating user data (attempt ${attempts + 1}/${maxAttempts}):`, error);
+          attempts++;
+          
+          // If this is the first attempt and we get a "document not found" error, try to create it
+          if (attempts === 1 && error instanceof Error && error.toString().includes('not found')) {
+            try {
+              console.log('AuthContext: Document not found, attempting to create it...');
+              await setDoc(doc(dbRef.current, 'users', currentUser.uid), {
+                ...sanitizedData,
+                name: sanitizedData.name || currentUser.displayName || '',
+                email: sanitizedData.email || currentUser.email || '',
+                role: sanitizedData.role || 'Researcher',
+                institution: sanitizedData.institution || '',
+                department: sanitizedData.department || '',
+                position: sanitizedData.position || '',
+                researchInterests: sanitizedData.researchInterests || [],
+                articles: sanitizedData.articles || 0,
+                reviews: sanitizedData.reviews || 0,
+                reputation: sanitizedData.reputation || 0,
+                profileComplete: sanitizedData.profileComplete || false,
+                hasChangedName: sanitizedData.hasChangedName || false,
+                hasChangedInstitution: sanitizedData.hasChangedInstitution || false,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+              console.log('AuthContext: User document created successfully');
+              return true;
+            } catch (createError) {
+              console.error('AuthContext: Error creating user document:', createError);
+            }
+          }
+          
+          if (attempts < maxAttempts) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+      }
+      
+      console.error('AuthContext: Max attempts reached, failed to update user data');
+      return false;
     } catch (error) {
-      console.error('AuthContext: Error updating user data:', error);
+      console.error('AuthContext: Error in updateUserData:', error);
       return false;
     }
   }
-
-  useEffect(() => {
-    // Only run on client side
-    if (!isClient) return;
-    
-    console.log('AuthContext: Setting up auth state listener...');
-    
-    // Make sure auth is initialized
-    if (!authRef.current) {
-      console.error('AuthContext: Auth not initialized');
-      return;
-    }
-    
-    const unsubscribe = onAuthStateChanged(authRef.current, async (user) => {
-      console.log('AuthContext: Auth state changed', user ? `User: ${user.uid}` : 'No user');
-      
-      setCurrentUser(user);
-      setAuthIsInitialized(true);
-      setIsLoading(false);
-    });
-    
-    // Cleanup subscription
-    return () => unsubscribe();
-  }, [isClient]); // Only re-run when isClient changes
 
   const value = {
     currentUser,

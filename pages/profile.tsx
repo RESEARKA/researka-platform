@@ -209,6 +209,10 @@ const ProfilePage: React.FC = () => {
   const router = useRouter();
   const isClient = useClient();
   
+  // Use ref to track ongoing operations and prevent duplicate calls
+  const isUpdatingProfile = useRef(false);
+  const isLoadingData = useRef(false);
+  
   // State to track if a profile update toast has been shown in this session
   const [profileToastShown, setProfileToastShown] = useState<{
     complete: boolean;
@@ -228,13 +232,20 @@ const ProfilePage: React.FC = () => {
     setIsEditMode(false);
   };
   
-  // Function to save profile edits
+  // Function to save profile edits - using ref to prevent duplicate calls
   const handleSaveProfile = async (updatedProfile: any) => {
+    // Prevent duplicate save operations
+    if (isUpdatingProfile.current) {
+      console.log('Profile: Save operation already in progress, skipping duplicate call');
+      return;
+    }
+    
+    isUpdatingProfile.current = true;
+    
     try {
       // Check if we've already shown a toast in this session
       if (profileToastShown.update) {
         console.log('Profile: Skipping duplicate update toast');
-        return;
       }
       
       // Update user state
@@ -266,27 +277,49 @@ const ProfilePage: React.FC = () => {
         status: "error",
         duration: 3000,
       });
+    } finally {
+      // Reset the ref to allow future save operations
+      isUpdatingProfile.current = false;
     }
   };
 
   // Load user profile data
   useEffect(() => {
-    // Skip if not on client or auth not initialized yet
-    if (!isClient || !authIsInitialized) {
+    // Skip if not on client
+    if (!isClient) {
+      console.log('Profile: Not on client, skipping profile fetch');
       return;
     }
 
-    // If no user logged in, redirect to login page
-    if (!currentUser) {
-      console.log('Profile: No user logged in, redirecting to login page');
+    // Show loading state while auth is initializing
+    if (!authIsInitialized) {
+      console.log('Profile: Auth not initialized yet, showing loading state');
+      setIsLoading(true);
+      return;
+    }
+
+    // If no user logged in after auth initialization, redirect to login page
+    if (authIsInitialized && !currentUser) {
+      console.log('Profile: Auth initialized but no user logged in, redirecting to login page');
       router.replace('/login');
       return;
     }
 
     const fetchUserProfile = async () => {
+      // Prevent duplicate fetch operations
+      if (isLoadingData.current) {
+        console.log('Profile: Profile fetch already in progress, skipping duplicate call');
+        return;
+      }
+      
       console.log('Profile: Starting to fetch user profile...');
+      isLoadingData.current = true;
       setLoadingProfile(true);
+      
       try {
+        // Add a small delay to ensure Firebase is fully initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const userProfile = await getUserProfile();
         console.log('Profile: User profile fetched successfully:', userProfile);
         
@@ -294,16 +327,34 @@ const ProfilePage: React.FC = () => {
         setUser(userProfile);
         setIsProfileComplete(userProfile?.profileComplete || false);
         
+        // Check if this is a new signup from the URL query parameter
+        const isNewSignup = router.query.new === 'true';
+        
         // If the user profile doesn't exist yet, give it some time to be created
         if (!userProfile) {
           console.log('Profile: No user profile found, will retry...');
-          if (retryCount < 3) {
+          if (retryCount < 5) { // Increased from 3 to 5 retries
             setTimeout(() => {
               setRetryCount(prev => prev + 1);
             }, 1000);
           } else {
             // After max retries, assume it's a new user and initialize a blank profile
             console.log('Profile: Max retries reached, initializing blank profile');
+            setIsEditMode(true);
+          }
+        } else if (isNewSignup && !profileToastShown.complete) {
+          // Show welcome toast for new signups
+          setProfileToastShown(prev => ({...prev, complete: true}));
+          showToast({
+            id: 'welcome-new-user',
+            title: "Welcome to Researka!",
+            description: "Please complete your profile to get started.",
+            status: "success",
+            duration: 5000,
+          });
+          
+          // Automatically enter edit mode for new users
+          if (!userProfile.profileComplete) {
             setIsEditMode(true);
           }
         }
@@ -314,17 +365,18 @@ const ProfilePage: React.FC = () => {
         setError(`Failed to load profile: ${err.message}`);
         
         // After max retries with errors, attempt to initialize a blank profile
-        if (retryCount >= 3) {
+        if (retryCount >= 5) { // Increased from 3 to 5 retries
           setIsEditMode(true);
         }
       } finally {
         setIsLoading(false);
         setLoadingProfile(false);
+        isLoadingData.current = false;
       }
     };
 
     fetchUserProfile();
-  }, [isClient, authIsInitialized, currentUser, getUserProfile, router, retryCount]);
+  }, [isClient, authIsInitialized, currentUser, getUserProfile, router, retryCount, showToast, profileToastShown.complete]);
   
   // Check if user is logged in
   React.useEffect(() => {
@@ -353,17 +405,26 @@ const ProfilePage: React.FC = () => {
 
     // Load profile data with retry mechanism
     const loadData = async () => {
+      // Prevent duplicate load operations
+      if (isLoadingData.current) {
+        console.log('Profile: Data loading already in progress, skipping duplicate call');
+        return;
+      }
+      
       let retryCount = 0;
       const maxRetries = 2; // Reduced from 3 to 2
       
       const attemptLoad = async (): Promise<boolean> => {
         setIsLoading(true);
+        isLoadingData.current = true;
+        
         try {
           // Check if currentUser exists before accessing its properties
           if (!currentUser) {
             console.error('Profile: No user found during loading attempt');
             setError('User authentication error. Please try logging in again.');
             setIsLoading(false);
+            isLoadingData.current = false;
             return false;
           }
           
@@ -382,12 +443,14 @@ const ProfilePage: React.FC = () => {
             } else {
               setError('Failed to load profile data after multiple attempts. Please try again.');
               setIsLoading(false); // Ensure loading state is turned off
+              isLoadingData.current = false;
               return false;
             }
           }
           
           // Set loading to false on successful load
           setIsLoading(false);
+          isLoadingData.current = false;
           return true;
         } catch (err) {
           console.error(`Profile: Error loading profile (attempt ${retryCount + 1}):`, err);
@@ -401,6 +464,7 @@ const ProfilePage: React.FC = () => {
           } else {
             setError('An error occurred while loading your profile. Please try again.');
             setIsLoading(false); // Ensure loading state is turned off
+            isLoadingData.current = false;
             return false;
           }
         } finally {
@@ -418,9 +482,18 @@ const ProfilePage: React.FC = () => {
   
   // Load user profile data
   const loadProfileData = async () => {
+    // Prevent duplicate load operations
+    if (isLoadingData.current) {
+      console.log('Profile: Profile data loading already in progress, skipping duplicate call');
+      return true; // Return true to prevent retry loops
+    }
+    
+    isLoadingData.current = true;
+    
     try {
       if (!currentUser) {
         console.error('Profile: No user is logged in when trying to load profile data');
+        isLoadingData.current = false;
         return false;
       }
       
@@ -437,13 +510,17 @@ const ProfilePage: React.FC = () => {
           console.log('Profile: Profile not complete, showing edit form');
           setIsEditMode(true);
         }
+        isLoadingData.current = false;
         return true;
       } else {
-        return await createDefaultProfile();
+        const result = await createDefaultProfile();
+        isLoadingData.current = false;
+        return result;
       }
     } catch (error) {
       console.error('Profile: Error loading profile data:', error);
       setError('Failed to load profile data. Please try again.');
+      isLoadingData.current = false;
       return false;
     }
   };
@@ -464,6 +541,8 @@ const ProfilePage: React.FC = () => {
         articles: 0,
         reviews: 0,
         profileComplete: false,
+        hasChangedName: false,
+        hasChangedInstitution: false,
         createdAt: new Date().toISOString()
       };
       
@@ -515,7 +594,7 @@ const ProfilePage: React.FC = () => {
       return false;
     }
   };
-
+  
   // Handle retry
   const handleRetry = async () => {
     setError(null);
@@ -571,16 +650,16 @@ const ProfilePage: React.FC = () => {
       
       // No need to show another toast here as the ProfileCompletionForm already showed one
       
-      // Navigate to the main dashboard or appropriate page after profile completion
-      console.log('[ProfilePage] Navigating to dashboard');
-      router.push('/dashboard');
+      // Navigate to the home page after profile completion
+      console.log('[ProfilePage] Navigating to home page after profile completion');
+      router.push('/');
     } catch (error) {
       console.error('[ERROR] Error completing profile:', error);
       showToast({
         id: 'profile-completion-error',
-        title: "Error",
-        description: "Failed to complete profile. Please try again.",
-        status: "error",
+        title: 'Error',
+        description: 'Failed to complete profile. Please try again.',
+        status: 'error',
         duration: 3000,
       });
     }
