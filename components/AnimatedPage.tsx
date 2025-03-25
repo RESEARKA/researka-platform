@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
 
@@ -29,6 +29,18 @@ const pageTransition = {
 
 const AnimatedPage: React.FC<AnimatedPageProps> = ({ children }) => {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Only enable animations after component has mounted on the client
+  // This prevents hydration mismatches
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  
+  // If not mounted yet, render children without animation to avoid hydration mismatch
+  if (!isMounted) {
+    return <>{children}</>;
+  }
   
   return (
     <AnimatePresence mode="wait">
