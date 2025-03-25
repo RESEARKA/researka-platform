@@ -39,7 +39,9 @@ const SignupPage: React.FC = () => {
 
   // Redirect if user is already logged in - only on client side
   useEffect(() => {
-    if (isClient && authIsInitialized && currentUser) {
+    if (!isClient) return; // Skip on server-side
+    
+    if (authIsInitialized && currentUser) {
       console.log('Signup page: User already logged in, redirecting to profile...');
       router.replace('/profile');
     }
@@ -80,16 +82,15 @@ const SignupPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Only proceed on client-side
-    if (!isClient) return;
-    
     // Reset messages
     setError(null);
     setDetailedError(null);
     setSuccessMessage(null);
     
     // Validate form
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
     
     setIsLoading(true);
     
@@ -193,116 +194,114 @@ const SignupPage: React.FC = () => {
 
   return (
     <Layout title="Sign Up | Researka">
-      {isClient ? (
-        <Box py={10} bg="gray.50" minH="calc(100vh - 64px)">
-          <Container maxW="md">
-            <Box p={8} bg="white" boxShadow="md" borderRadius="md">
-              <Heading as="h1" size="xl" textAlign="center" mb={6}>
-                Create an Account
-              </Heading>
-              
-              {error && (
-                <Alert status="error" mb={4} borderRadius="md">
-                  <AlertIcon />
-                  <AlertTitle mr={2}>Error!</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                  <CloseButton 
-                    position="absolute" 
-                    right="8px" 
-                    top="8px" 
-                    onClick={() => setError(null)}
-                  />
-                </Alert>
-              )}
-              
-              {successMessage && (
-                <Alert status="success" mb={4} borderRadius="md">
-                  <AlertIcon />
-                  <AlertDescription>{successMessage}</AlertDescription>
-                </Alert>
-              )}
-              
-              <form onSubmit={handleSubmit}>
-                <Stack spacing={4}>
-                  <FormControl id="email" isRequired>
-                    <FormLabel>Email address</FormLabel>
-                    <Input 
-                      type="email" 
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your academic email"
-                    />
-                  </FormControl>
-                  
-                  <FormControl id="password" isRequired>
-                    <FormLabel>Password</FormLabel>
-                    <Input 
-                      type="password" 
-                      value={password} 
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                    />
-                  </FormControl>
-                  
-                  <FormControl id="confirmPassword" isRequired>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <Input 
-                      type="password" 
-                      value={confirmPassword} 
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm your password"
-                    />
-                  </FormControl>
-                  
-                  <Button
-                    type="submit"
-                    colorScheme="blue"
-                    size="lg"
-                    fontSize="md"
-                    isLoading={isLoading}
-                    loadingText="Creating Account..."
-                    w="100%"
-                    mt={4}
-                  >
-                    Sign Up
-                  </Button>
-                </Stack>
-              </form>
-              
-              <Text mt={6} textAlign="center">
-                Already have an account?{' '}
-                <Link href="/login" passHref>
-                  <Text as="span" color="blue.500" cursor="pointer">
-                    Log In
-                  </Text>
-                </Link>
-              </Text>
-            </Box>
+      <Box py={10} bg="gray.50" minH="calc(100vh - 64px)">
+        <Container maxW="md">
+          <Box p={8} bg="white" boxShadow="md" borderRadius="md">
+            <Heading as="h1" size="xl" textAlign="center" mb={6}>
+              Create an Account
+            </Heading>
             
-            {/* Detailed error information for debugging */}
-            {detailedError && (
-              <Box mt={8} p={4} bg="white" boxShadow="md" borderRadius="md">
-                <Heading as="h3" size="md" mb={2}>
-                  Detailed Error Information (Debug Only)
-                </Heading>
-                <Divider mb={4} />
-                <Text fontWeight="bold">Error Code:</Text>
-                <Code p={2} mb={2} display="block">
-                  {detailedError.code}
-                </Code>
-                <Text fontWeight="bold">Error Message:</Text>
-                <Code p={2} mb={2} display="block">
-                  {detailedError.message}
-                </Code>
-                <Text fontWeight="bold">Stack Trace:</Text>
-                <Code p={2} mb={2} display="block" whiteSpace="pre-wrap">
-                  {detailedError.stack}
-                </Code>
-              </Box>
+            {error && (
+              <Alert status="error" mb={4} borderRadius="md">
+                <AlertIcon />
+                <AlertTitle mr={2}>Error!</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+                <CloseButton 
+                  position="absolute" 
+                  right="8px" 
+                  top="8px" 
+                  onClick={() => setError(null)}
+                />
+              </Alert>
             )}
-          </Container>
-        </Box>
-      ) : null}
+            
+            {successMessage && (
+              <Alert status="success" mb={4} borderRadius="md">
+                <AlertIcon />
+                <AlertDescription>{successMessage}</AlertDescription>
+              </Alert>
+            )}
+            
+            <form onSubmit={handleSubmit}>
+              <Stack spacing={4}>
+                <FormControl id="email" isRequired>
+                  <FormLabel>Email address</FormLabel>
+                  <Input 
+                    type="email" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your academic email"
+                  />
+                </FormControl>
+                
+                <FormControl id="password" isRequired>
+                  <FormLabel>Password</FormLabel>
+                  <Input 
+                    type="password" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                  />
+                </FormControl>
+                
+                <FormControl id="confirmPassword" isRequired>
+                  <FormLabel>Confirm Password</FormLabel>
+                  <Input 
+                    type="password" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm your password"
+                  />
+                </FormControl>
+                
+                <Button
+                  type="submit"
+                  colorScheme="blue"
+                  size="lg"
+                  fontSize="md"
+                  isLoading={isLoading}
+                  loadingText="Creating Account..."
+                  w="100%"
+                  mt={4}
+                >
+                  Sign Up
+                </Button>
+              </Stack>
+            </form>
+            
+            <Text mt={6} textAlign="center">
+              Already have an account?{' '}
+              <Link href="/login" passHref>
+                <Text as="span" color="blue.500" cursor="pointer">
+                  Log In
+                </Text>
+              </Link>
+            </Text>
+          </Box>
+          
+          {/* Detailed error information for debugging */}
+          {detailedError && (
+            <Box mt={8} p={4} bg="white" boxShadow="md" borderRadius="md">
+              <Heading as="h3" size="md" mb={2}>
+                Detailed Error Information (Debug Only)
+              </Heading>
+              <Divider mb={4} />
+              <Text fontWeight="bold">Error Code:</Text>
+              <Code p={2} mb={2} display="block">
+                {detailedError.code}
+              </Code>
+              <Text fontWeight="bold">Error Message:</Text>
+              <Code p={2} mb={2} display="block">
+                {detailedError.message}
+              </Code>
+              <Text fontWeight="bold">Stack Trace:</Text>
+              <Code p={2} mb={2} display="block" whiteSpace="pre-wrap">
+                {detailedError.stack}
+              </Code>
+            </Box>
+          )}
+        </Container>
+      </Box>
     </Layout>
   );
 };

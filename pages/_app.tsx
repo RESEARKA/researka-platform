@@ -23,6 +23,14 @@ const queryClient = new QueryClient({
 });
 
 function MyApp({ Component, pageProps }: AppProps) {
+  // Add a client-side only state to prevent hydration mismatch
+  const [isClient, setIsClient] = React.useState(false);
+  
+  // Only run on client-side
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
   return (
     <>
       <Head>
@@ -34,6 +42,14 @@ function MyApp({ Component, pageProps }: AppProps) {
         {/* Add preconnect for performance */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Disable caching for development */}
+        {process.env.NODE_ENV === 'development' && (
+          <>
+            <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+            <meta http-equiv="Pragma" content="no-cache" />
+            <meta http-equiv="Expires" content="0" />
+          </>
+        )}
       </Head>
       <QueryClientProvider client={queryClient}>
         <ChakraProvider>
@@ -43,10 +59,19 @@ function MyApp({ Component, pageProps }: AppProps) {
                 <ErrorBoundary onReset={() => {
                   // Optional: Reset any state or perform actions when error boundary resets
                   console.log('Error boundary reset');
+                  // Force a hard refresh on error
+                  if (typeof window !== 'undefined') {
+                    window.location.reload();
+                  }
                 }}>
-                  <AnimatedPage>
+                  {/* Render without animations until client-side hydration is complete */}
+                  {isClient ? (
                     <Component {...pageProps} />
-                  </AnimatedPage>
+                  ) : (
+                    <div style={{ visibility: 'hidden' }}>
+                      <Component {...pageProps} />
+                    </div>
+                  )}
                 </ErrorBoundary>
               </ModalProvider>
             </WalletProvider>
