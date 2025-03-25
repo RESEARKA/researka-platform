@@ -32,7 +32,7 @@ const SignupPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [detailedError, setDetailedError] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const { signup, currentUser, authIsInitialized } = useAuth();
+  const { signup, currentUser, authIsInitialized, getUserProfile, updateUserData } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const isClient = useClient();
@@ -82,6 +82,9 @@ const SignupPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Only proceed on client-side
+    if (!isClient) return;
+    
     // Reset messages
     setError(null);
     setDetailedError(null);
@@ -103,22 +106,69 @@ const SignupPage: React.FC = () => {
       
       console.log('Signup page: Signup successful, user created with ID:', result.user.uid);
       
-      setSuccessMessage('Account created successfully!');
+      // Create default profile and ensure it's completed before proceeding
+      const createDefaultProfileIfNeeded = async () => {
+        if (!result.user || !result.user.uid) {
+          console.error('Signup page: No user ID available for profile creation');
+          return false;
+        }
+        
+        try {
+          // Check if user document exists in Firestore
+          const userProfile = await getUserProfile();
+          
+          if (!userProfile) {
+            console.log('Signup page: Creating default user profile...');
+            // Create default profile with hasChangedName and hasChangedInstitution fields
+            await updateUserData({
+              name: '',
+              email: email,
+              role: 'Researcher',
+              institution: '',
+              department: '',
+              position: '',
+              researchInterests: [],
+              articles: 0,
+              reviews: 0,
+              reputation: 0,
+              profileComplete: false,
+              hasChangedName: false,
+              hasChangedInstitution: false,
+              createdAt: new Date().toISOString()
+            });
+            console.log('Signup page: Default profile created successfully');
+            return true;
+          }
+          
+          console.log('Signup page: User profile already exists:', userProfile);
+          return true;
+        } catch (error) {
+          console.error('Signup page: Error creating default profile:', error);
+          return false;
+        }
+      };
       
-      toast({
-        title: 'Account created.',
-        description: "We've created your account. You can now complete your profile.",
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
+      // Wait for profile creation to complete before showing success message
+      const profileCreated = await createDefaultProfileIfNeeded();
+      
+      if (profileCreated) {
+        setSuccessMessage('Account created successfully!');
+        
+        toast({
+          title: 'Account created.',
+          description: "We've created your account. You can now complete your profile.",
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
       
       // Poll until auth is initialized and currentUser is available
       const waitForAuth = () => 
         new Promise<void>((resolve) => {
           console.log('Signup page: Starting waitForAuth polling...');
           let attempts = 0;
-          const maxAttempts = 10; // Reduced from 20 to 10 (2 seconds max with 200ms interval)
+          const maxAttempts = 20; // Increased from 10 to 20 for more reliability
           
           const interval = setInterval(() => {
             attempts++;
@@ -140,17 +190,36 @@ const SignupPage: React.FC = () => {
               clearInterval(interval);
               resolve();
             }
-          }, 200); // Reduced from 500ms to 200ms for faster polling
+          }, 300); // Increased from 200ms to 300ms for more reliability
         });
       
       await waitForAuth();
       
-      // Add a small delay before redirecting to ensure all state updates have propagated
-      await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 1000ms to 200ms
+      // Add a longer delay before redirecting to ensure all state updates have propagated
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Increased from 500ms to 1000ms for more reliability
       
       console.log('Signup page: Redirecting to profile page...');
-      // Use router.replace instead of router.push for a cleaner navigation
-      router.replace('/profile');
+      try {
+        // First try to navigate using router.push
+        await router.push({
+          pathname: '/profile',
+          query: { new: 'true' } // Add a query parameter to indicate this is a new signup
+        });
+        
+        // If router.push doesn't work, try a direct window location change as fallback
+        // This is a more forceful approach but ensures navigation happens
+        setTimeout(() => {
+          console.log('Signup page: Checking if redirect happened, using fallback if needed');
+          if (window.location.pathname !== '/profile') {
+            console.log('Signup page: Using fallback redirect method');
+            window.location.href = '/profile?new=true';
+          }
+        }, 1500);
+      } catch (navError) {
+        console.error('Signup page: Navigation error:', navError);
+        // Fallback to direct location change if router.push fails
+        window.location.href = '/profile?new=true';
+      }
     } catch (err: any) {
       console.error('Signup page: Error during signup:', err);
       
