@@ -244,48 +244,212 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
  */
 export const getAllArticles = async (): Promise<Article[]> => {
   try {
+    console.log('ArticleService: Starting getAllArticles');
+    
+    // Check if we're on the server
+    if (typeof window === 'undefined') {
+      console.error('ArticleService: getAllArticles called on server side');
+      return [];
+    }
+    
+    // Import Firebase functions to get Firestore
+    const { getFirebaseFirestore, initializeFirebaseOnClient } = await import('../config/firebase');
+    
+    // Get Firestore instance
+    const db = getFirebaseFirestore();
+    if (!db) {
+      console.error('ArticleService: Firestore not initialized');
+      
+      // Try to initialize Firebase again
+      console.log('ArticleService: Attempting to initialize Firebase');
+      const initialized = await initializeFirebaseOnClient();
+      
+      if (!initialized) {
+        console.error('ArticleService: Failed to initialize Firebase after retry');
+        
+        // In development, return mock data
+        if (process.env.NODE_ENV === 'development') {
+          console.log('ArticleService: Returning mock data due to initialization failure');
+          return getMockArticles();
+        }
+        
+        throw new Error('Firestore not initialized');
+      }
+      
+      // Get Firestore instance again after initialization
+      const dbRetry = getFirebaseFirestore();
+      if (!dbRetry) {
+        console.error('ArticleService: Firestore still not initialized after retry');
+        
+        // In development, return mock data
+        if (process.env.NODE_ENV === 'development') {
+          console.log('ArticleService: Returning mock data due to initialization failure');
+          return getMockArticles();
+        }
+        
+        throw new Error('Firestore not initialized after retry');
+      }
+      
+      // Create query for all articles, ordered by creation date
+      const q = query(
+        collection(dbRetry, articlesCollection),
+        orderBy('createdAt', 'desc')
+      );
+      
+      console.log('ArticleService: Executing query after retry...');
+      
+      // Execute query
+      const querySnapshot = await getDocs(q);
+      
+      console.log(`ArticleService: Query executed after retry, found ${querySnapshot.size} documents`);
+      
+      // Process results
+      return processQueryResults(querySnapshot);
+    }
+    
     // Create query for all articles, ordered by creation date
     const q = query(
       collection(db, articlesCollection),
       orderBy('createdAt', 'desc')
     );
     
+    console.log('ArticleService: Executing query...');
+    
     // Execute query
     const querySnapshot = await getDocs(q);
     
-    // Convert to array of articles
-    const articles: Article[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      articles.push({
-        id: doc.id,
-        title: data.title,
-        abstract: data.abstract,
-        category: data.category,
-        keywords: data.keywords,
-        author: data.author,
-        authorId: data.authorId,
-        date: data.date,
-        compensation: data.compensation,
-        status: data.status,
-        createdAt: data.createdAt,
-        content: data.content,
-        introduction: data.introduction,
-        methods: data.methods,
-        results: data.results,
-        discussion: data.discussion,
-        references: data.references,
-        funding: data.funding,
-        ethicalApprovals: data.ethicalApprovals,
-        dataAvailability: data.dataAvailability,
-        conflicts: data.conflictsOfInterest,
-        license: data.license
-      });
-    });
+    console.log(`ArticleService: Query executed, found ${querySnapshot.size} documents`);
     
-    return articles;
+    // Process results
+    return processQueryResults(querySnapshot);
+    
   } catch (error) {
-    console.error('Error getting all articles:', error);
+    console.error('ArticleService: Error getting all articles:', error);
+    
+    // In development, return mock data on error
+    if (process.env.NODE_ENV === 'development') {
+      console.log('ArticleService: Returning mock data due to error');
+      return getMockArticles();
+    }
+    
     throw new Error('Failed to get articles');
   }
 };
+
+/**
+ * Process query results and return articles
+ */
+function processQueryResults(querySnapshot: any): Article[] {
+  // If no articles found, return empty array
+  if (querySnapshot.empty) {
+    console.log('ArticleService: No articles found in the database');
+    
+    // In development, return mock data
+    if (process.env.NODE_ENV === 'development') {
+      console.log('ArticleService: No articles found, returning mock data for development');
+      return getMockArticles();
+    }
+    
+    return [];
+  }
+  
+  // Convert to array of articles
+  const articles: Article[] = [];
+  querySnapshot.forEach((doc: any) => {
+    const data = doc.data();
+    
+    // Skip documents with missing required fields
+    if (!data.title) {
+      console.warn(`ArticleService: Document ${doc.id} is missing a title, skipping`);
+      return;
+    }
+    
+    // Use fallback values for missing fields
+    const article: Article = {
+      id: doc.id,
+      title: data.title || 'Untitled Article',
+      abstract: data.abstract || 'No abstract provided',
+      category: data.category || 'Uncategorized',
+      keywords: Array.isArray(data.keywords) ? data.keywords : [],
+      author: data.author || 'Anonymous',
+      authorId: data.authorId || '',
+      date: data.date || new Date().toISOString(),
+      compensation: data.compensation || '',
+      status: data.status || 'draft',
+      views: typeof data.views === 'number' ? data.views : 0
+    };
+    
+    // Add optional fields if they exist
+    if (data.createdAt) article.createdAt = data.createdAt;
+    if (data.content) article.content = data.content;
+    if (data.introduction) article.introduction = data.introduction;
+    if (data.methods) article.methods = data.methods;
+    if (data.results) article.results = data.results;
+    if (data.discussion) article.discussion = data.discussion;
+    if (data.references) article.references = data.references;
+    if (data.funding) article.funding = data.funding;
+    if (data.ethicalApprovals) article.ethicalApprovals = data.ethicalApprovals;
+    if (data.dataAvailability) article.dataAvailability = data.dataAvailability;
+    if (data.conflictsOfInterest) article.conflicts = data.conflictsOfInterest;
+    if (data.license) article.license = data.license;
+    
+    articles.push(article);
+  });
+  
+  console.log(`ArticleService: Processed ${articles.length} valid articles`);
+  
+  // If no valid articles were found, return mock data for development
+  if (articles.length === 0 && process.env.NODE_ENV === 'development') {
+    console.log('ArticleService: No valid articles found, returning mock data for development');
+    return getMockArticles();
+  }
+  
+  return articles;
+}
+
+/**
+ * Get mock articles for development and testing
+ */
+function getMockArticles(): Article[] {
+  return [
+    {
+      id: 'mock-article-1',
+      title: 'Advances in Quantum Computing',
+      abstract: 'This paper explores recent advances in quantum computing and their implications for cryptography.',
+      category: 'Computer Science',
+      keywords: ['quantum computing', 'cryptography', 'algorithms'],
+      author: 'Dr. Jane Smith',
+      authorId: 'mock-author-1',
+      date: new Date().toISOString(),
+      compensation: 'Open Access',
+      status: 'published',
+      views: 1250
+    },
+    {
+      id: 'mock-article-2',
+      title: 'Climate Change Impact on Marine Ecosystems',
+      abstract: 'A comprehensive study of how climate change affects marine biodiversity and ecosystem health.',
+      category: 'Environmental Science',
+      keywords: ['climate change', 'marine biology', 'ecosystems'],
+      author: 'Prof. Michael Johnson',
+      authorId: 'mock-author-2',
+      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
+      compensation: 'Open Access',
+      status: 'published',
+      views: 843
+    },
+    {
+      id: 'mock-article-3',
+      title: 'Neural Networks in Medical Diagnosis',
+      abstract: 'This research demonstrates how neural networks can improve accuracy in medical diagnostics.',
+      category: 'Medicine',
+      keywords: ['neural networks', 'AI', 'medical diagnosis'],
+      author: 'Dr. Sarah Chen',
+      authorId: 'mock-author-3',
+      date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days ago
+      compensation: 'Open Access',
+      status: 'published',
+      views: 1567
+    }
+  ];
+}
