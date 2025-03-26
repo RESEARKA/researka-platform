@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -39,6 +39,7 @@ import { FiCheck, FiInfo, FiPlus, FiUser, FiMail, FiBookOpen, FiHash, FiLink, Fi
 import { useRouter } from 'next/router';
 import ResearchInterestSelector from './ResearchInterestSelector';
 import useAppToast from '../hooks/useAppToast';
+import { UserProfile } from '../hooks/useProfileData';
 
 // Mock data for institutions and departments
 const MOCK_INSTITUTIONS = [
@@ -80,35 +81,33 @@ const ACADEMIC_POSITIONS = [
   'Other',
 ];
 
+// Define the form data structure
 interface ProfileFormData {
   firstName: string;
   lastName: string;
   email: string;
-  secondaryEmail: string;
-  emailVerified: boolean;
   institution: string;
   department: string;
   position: string;
-  orcidId: string;
   researchInterests: string[];
-  wantsToBeEditor: boolean;
-  personalWebsite: string;
-  socialMedia: {
-    twitter: string;
-    linkedin: string;
-  };
-  [key: string]: any; // Index signature to allow dynamic access
+  role: string;
+  twitter?: string;
+  linkedin?: string;
+  personalWebsite?: string;
+  orcidId?: string;
+  wantsToBeEditor?: boolean;
 }
 
-interface ProfileCompletionFormProps {
-  onComplete: (profileData: any) => void;
-  initialData?: any;
+// Define component props
+export interface ProfileCompletionFormProps {
+  onSave: (profileData: Partial<UserProfile>) => Promise<boolean>;
+  initialData?: UserProfile;
   isEditMode?: boolean;
   onCancel?: () => void;
 }
 
 const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ 
-  onComplete, 
+  onSave, 
   initialData, 
   isEditMode = false, 
   onCancel,
@@ -126,65 +125,89 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     { title: 'Platform Roles & Optional Details', description: 'Additional information' }
   ];
 
-  // Form state
-  const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<ProfileFormData>({
-    // Basic Identity & Contact
-    firstName: initialData?.firstName || '',
-    lastName: initialData?.lastName || '',
-    email: initialData?.email || '',
-    secondaryEmail: initialData?.secondaryEmail || '',
-    emailVerified: initialData?.emailVerified || false,
+  // Initialize form data with defaults or provided initialData
+  const [formData, setFormData] = useState<ProfileFormData>(() => {
+    // If initialData is provided, parse the name into firstName and lastName
+    if (initialData) {
+      const nameParts = (initialData.name || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      return {
+        firstName,
+        lastName,
+        email: initialData.email || '',
+        institution: initialData.institution || '',
+        department: initialData.department || '',
+        position: initialData.position || '',
+        researchInterests: initialData.researchInterests || [],
+        role: initialData.role || 'Researcher',
+        // Optional fields
+        personalWebsite: '',
+        orcidId: '',
+        wantsToBeEditor: false
+      };
+    }
     
-    // Institutional Affiliation
-    institution: initialData?.institution || '',
-    department: initialData?.department || '',
-    position: initialData?.position || '',
-    
-    // Academic & Professional Details
-    orcidId: initialData?.orcidId || '',
-    researchInterests: initialData?.researchInterests || [] as string[],
-    
-    // Platform Roles & Activity
-    wantsToBeEditor: initialData?.wantsToBeEditor || false,
-    
-    // Optional Extras
-    personalWebsite: initialData?.personalWebsite || '',
-    socialMedia: {
-      twitter: initialData?.socialMedia?.twitter || '',
-      linkedin: initialData?.socialMedia?.linkedin || '',
-    },
+    // Default empty form
+    return {
+      firstName: '',
+      lastName: '',
+      email: '',
+      institution: '',
+      department: '',
+      position: '',
+      researchInterests: [],
+      role: 'Researcher',
+      personalWebsite: '',
+      orcidId: '',
+      wantsToBeEditor: false
+    };
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     
-    // Handle nested fields
+    // Handle checkbox inputs
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked
+      }));
+      return;
+    }
+    
+    // Handle nested properties (like socialMedia.twitter)
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         [parent]: {
-          ...(formData[parent] as Record<string, any>),
-          [child]: value,
-        },
-      });
-    } else {
-      setFormData({
-        ...formData,
-        [name]: value,
-      });
+          ...(prev as any)[parent],
+          [child]: value
+        }
+      }));
+      return;
     }
+    
+    // Handle regular inputs
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
     
     // Clear error for this field if it exists
     if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: '',
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
       });
     }
   };
@@ -192,10 +215,10 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   // Handle checkbox changes
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: checked,
-    });
+    setFormData(prev => ({
+      ...prev,
+      [name]: checked
+    }));
   };
 
   // Validate email format
@@ -215,85 +238,67 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     return /\S+@\S+\.(edu|ac(\.\w{2})?)$/.test(email);
   };
 
-  // Validate form for current step
-  const validateStep = (step: number) => {
-    let isValid = true;
+  // Validate form data for a specific step
+  const validateStep = (step: number): Record<string, string> => {
     const newErrors: Record<string, string> = {};
     
-    // Validate based on current step
     if (step === 0) {
       // Basic Identity & Contact validation
       if (!isEditMode) {
         // Only validate first name, last name, and email if not in edit mode
-        if (!formData.firstName) {
+        if (!formData.firstName.trim()) {
           newErrors.firstName = 'First name is required';
-          isValid = false;
         }
         
-        if (!formData.lastName) {
+        if (!formData.lastName.trim()) {
           newErrors.lastName = 'Last name is required';
-          isValid = false;
         }
         
         if (!formData.email) {
           newErrors.email = 'Email is required';
-          isValid = false;
         } else if (!isValidEmail(formData.email)) {
           newErrors.email = 'Please enter a valid email address';
-          isValid = false;
         } else if (!isValidAcademicEmail(formData.email)) {
           newErrors.email = 'Please use an academic email (.edu or .ac.xx domain)';
-          isValid = false;
         }
-      }
-      
-      // Always validate secondary email if provided
-      if (formData.secondaryEmail && !isValidEmail(formData.secondaryEmail)) {
-        newErrors.secondaryEmail = 'Please enter a valid email address';
-        isValid = false;
       }
     } else if (step === 1) {
       // Institutional Affiliation validation
       if (!isEditMode) {
         // Only validate institution if not in edit mode
-        if (!formData.institution) {
+        if (!formData.institution.trim()) {
           newErrors.institution = 'Institution is required';
-          isValid = false;
         }
       }
       
       // Always validate department and position
-      if (!formData.department) {
+      if (!formData.department.trim()) {
         newErrors.department = 'Department is required';
-        isValid = false;
       }
       
-      if (!formData.position) {
+      if (!formData.position.trim()) {
         newErrors.position = 'Position is required';
-        isValid = false;
       }
     } else if (step === 2) {
       // Academic & Professional Details validation
       if (formData.orcidId && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formData.orcidId)) {
         newErrors.orcidId = 'Please enter a valid ORCID ID (format: 0000-0000-0000-0000)';
-        isValid = false;
       }
       
-      if (formData.researchInterests.length === 0) {
-        newErrors.researchInterests = 'At least one research interest is required';
-        isValid = false;
+      if (!formData.researchInterests || formData.researchInterests.length === 0) {
+        newErrors.researchInterests = 'Please select at least one research interest';
       }
     }
     
     // Update errors state
     setErrors(newErrors);
     
-    return isValid;
+    return newErrors;
   };
 
   // Move to next step
   const handleNext = () => {
-    if (validateStep(currentStep)) {
+    if (Object.keys(validateStep(currentStep)).length === 0) {
       setCurrentStep(currentStep + 1);
     } else {
       showToast({
@@ -311,72 +316,71 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     setCurrentStep(currentStep - 1);
   };
 
-  // Submit form
-  const handleSubmit = async () => {
-    // Validate all steps
-    const allValid = validateStep(currentStep);
-    
-    if (!allValid) {
-      showToast({
-        id: 'validation-error',
-        title: 'Validation Error',
-        description: 'Please fix the errors before submitting.',
-        status: 'error',
-        duration: 5000,
-      });
-      return;
-    }
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
     setIsSubmitting(true);
+    
     try {
-      // Create user profile object
-      const userProfile = {
-        name: `${formData.firstName} ${formData.lastName}`,
+      // Validate form
+      const validationErrors = validateStep(currentStep);
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Combine first and last name for the API
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      
+      // Prepare data for API - only include fields that exist in UserProfile
+      const profileData: Partial<UserProfile> = {
+        name: fullName,
         email: formData.email,
-        secondaryEmail: formData.secondaryEmail,
-        emailVerified: true, // In a real app, this would be set after verification
         institution: formData.institution,
         department: formData.department,
         position: formData.position,
-        orcidId: formData.orcidId,
         researchInterests: formData.researchInterests,
-        wantsToBeEditor: formData.wantsToBeEditor,
-        personalWebsite: formData.personalWebsite,
-        socialMedia: formData.socialMedia,
-        role: 'Researcher',
-        articles: 0,
-        reviews: 0,
-        reputation: 0,
-        profileComplete: true,
+        role: formData.role,
+        // Additional fields can be added here if they're added to UserProfile type
       };
       
-      // Save to localStorage (in a real app, this would be saved to a database)
-      localStorage.setItem('userProfile', JSON.stringify(userProfile));
-      localStorage.setItem('profileComplete', 'true');
+      console.log('ProfileCompletionForm: Submitting profile data:', profileData);
       
-      // Show toast with unique ID based on mode
-      showToast({
-        id: isEditMode ? 'profile-updated' : 'profile-completed',
-        title: isEditMode ? 'Profile Updated' : 'Profile Completed',
-        description: isEditMode 
-          ? 'Your profile has been successfully updated.' 
-          : 'Your profile has been successfully set up.',
-        status: 'success',
-        duration: 5000,
-      });
+      // Call the onSave function passed from parent
+      const success = await onSave(profileData);
       
-      console.log('[ProfileCompletionForm] Profile data prepared, calling onComplete');
-      
-      // Call the onComplete callback and await it in case it's async
-      await onComplete(userProfile);
-      
-      console.log('[ProfileCompletionForm] onComplete callback finished');
+      if (success) {
+        showToast({
+          id: isEditMode ? 'profile-updated' : 'profile-completed',
+          title: isEditMode ? 'Profile Updated' : 'Profile Completed',
+          description: isEditMode 
+            ? 'Your profile has been successfully updated.' 
+            : 'Your profile has been successfully set up.',
+          status: 'success',
+          duration: 5000,
+        });
+        
+        // If not in edit mode, redirect to home page
+        if (!isEditMode) {
+          router.push('/');
+        }
+      } else {
+        showToast({
+          id: 'profile-submission-error',
+          title: 'Error',
+          description: 'Failed to save profile. Please try again.',
+          status: 'error',
+          duration: 3000,
+        });
+      }
     } catch (error) {
       console.error('[ERROR] Error in handleSubmit:', error);
       showToast({
         id: 'profile-submission-error',
         title: 'Error',
-        description: 'Failed to complete profile. Please try again.',
+        description: 'Failed to save profile. Please try again.',
         status: 'error',
         duration: 3000,
       });
@@ -490,32 +494,6 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                     )}
                     <FormErrorMessage>{errors.email}</FormErrorMessage>
                   </FormControl>
-                  
-                  <FormControl isInvalid={!!errors.secondaryEmail}>
-                    <FormLabel>Secondary Email (Optional)</FormLabel>
-                    <Input 
-                      name="secondaryEmail"
-                      type="email"
-                      value={formData.secondaryEmail}
-                      onChange={handleChange}
-                      placeholder="your.personal@email.com"
-                    />
-                    <FormHelperText>
-                      For password recovery or non-academic communication
-                    </FormHelperText>
-                    <FormErrorMessage>{errors.secondaryEmail}</FormErrorMessage>
-                  </FormControl>
-                  
-                  <Box mt={2} p={3} bg="blue.50" borderRadius="md">
-                    <Flex align="center">
-                      <Box display="inline-block">
-                        <Icon as={FiInfo} color="blue.500" mr={2} />
-                      </Box>
-                      <Text fontSize="sm" color="blue.700">
-                        Email verification will be required after submission. You'll receive a verification link at your academic email address.
-                      </Text>
-                    </Flex>
-                  </Box>
                 </VStack>
               </TabPanel>
               
@@ -617,7 +595,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                     <FormLabel>Research Interests / Keywords</FormLabel>
                     <ResearchInterestSelector
                       selectedInterests={formData.researchInterests}
-                      onChange={(interests) => setFormData({ ...formData, researchInterests: interests })}
+                      onChange={(interests) => setFormData(prev => ({ ...prev, researchInterests: interests }))}
                       isRequired={true}
                       error={errors.researchInterests}
                       maxInterests={5}
@@ -661,40 +639,6 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                       placeholder="https://your-website.com"
                     />
                   </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel>Twitter/X Profile</FormLabel>
-                    <InputGroup>
-                      <Input 
-                        name="socialMedia.twitter"
-                        value={formData.socialMedia.twitter}
-                        onChange={handleChange}
-                        placeholder="username"
-                      />
-                      <InputRightElement pointerEvents="none" color="gray.400">
-                        @
-                      </InputRightElement>
-                    </InputGroup>
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel>LinkedIn Profile</FormLabel>
-                    <Input 
-                      name="socialMedia.linkedin"
-                      value={formData.socialMedia.linkedin}
-                      onChange={handleChange}
-                      placeholder="https://linkedin.com/in/username"
-                    />
-                  </FormControl>
-                  
-                  <Box mt={4} p={3} bg="green.50" borderRadius="md">
-                    <Flex align="center">
-                      <Icon as={FiCheck} color="green.500" mr={2} />
-                      <Text fontSize="sm" color="green.700">
-                        You're almost done! Review your information and click "Complete Profile" to finish.
-                      </Text>
-                    </Flex>
-                  </Box>
                 </VStack>
               </TabPanel>
             </TabPanels>
