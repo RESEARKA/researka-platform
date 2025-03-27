@@ -53,6 +53,12 @@ const MobileNav = dynamic(() => import('../components/MobileNav'), {
   ssr: false
 });
 
+// Using dynamic import with ssr: false for ClientOnlyArticles to prevent hydration issues
+const ClientOnlyArticlesComponent = dynamic(() => import('../components/ClientOnlyArticles'), {
+  ssr: false,
+  loading: () => null
+});
+
 // Using ssr: false for featured article to prevent hydration mismatch
 const FeaturedArticle = dynamic(
   () => import('../frontend/src/components/articles/FeaturedArticle').then(mod => mod),
@@ -161,62 +167,36 @@ const Home: React.FC = () => {
   // Use useRef for values that shouldn't trigger re-renders
   const searchCacheRef = React.useRef(new Map());
   
-  useEffect(() => {
-    const loadArticles = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const { getAllArticles } = await import('../services/articleService');
-        
-        const firebaseArticles = await getAllArticles();
-        console.log('Home: Articles loaded from Firebase:', firebaseArticles);
-        
-        if (firebaseArticles.length === 0) {
-          console.warn('Home: No articles found in the database');
-          setArticles([]);
-          setFeaturedArticle(null);
-          setRecentArticles([]);
-          return;
-        }
-        
-        setArticles(firebaseArticles);
-        
-        const sortedByViews = [...firebaseArticles].sort((a, b) => {
-          const aViews = typeof a.views === 'number' ? a.views : 0;
-          const bViews = typeof b.views === 'number' ? b.views : 0;
-          return bViews - aViews;
-        });
-        
-        if (sortedByViews.length > 0) {
-          setFeaturedArticle(sortedByViews[0]);
-        }
-        
-        const remainingArticles = sortedByViews.length > 0 
-          ? firebaseArticles.filter(article => article.id !== sortedByViews[0].id)
-          : firebaseArticles;
-        
-        const shuffled = [...remainingArticles].sort(() => 0.5 - Math.random());
-        
-        setRecentArticles(shuffled.slice(0, 3));
-        
-      } catch (error) {
-        console.error('Home: Error loading articles from Firebase:', error);
-        setError('Failed to load articles');
-        toast({
-          title: 'Error',
-          description: 'Failed to load articles from the database',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Handle articles loaded from ClientOnlyArticles component
+  const handleArticlesLoaded = useCallback((
+    loadedArticles: Article[], 
+    loadedFeaturedArticle: Article | null, 
+    loadedRecentArticles: Article[]
+  ) => {
+    console.log('Home: Articles loaded from ClientOnlyArticles:', 
+      loadedArticles.length, 
+      loadedFeaturedArticle ? 'Featured: Yes' : 'Featured: No', 
+      'Recent:', loadedRecentArticles.length
+    );
     
-    loadArticles();
-  }, [toast]);
+    setArticles(loadedArticles);
+    setFeaturedArticle(loadedFeaturedArticle);
+    setRecentArticles(loadedRecentArticles);
+  }, []);
+  
+  // Handle loading state changes from ClientOnlyArticles component
+  const handleLoadingChange = useCallback((loading: boolean) => {
+    setIsLoading(loading);
+  }, []);
+  
+  // Handle errors from ClientOnlyArticles component
+  const handleError = useCallback((errorMessage: string | null) => {
+    setError(errorMessage);
+    
+    if (errorMessage) {
+      console.error('Home: Error from ClientOnlyArticles:', errorMessage);
+    }
+  }, []);
   
   const handleLoginClick = useCallback((redirectPath?: string) => {
     if (redirectPath) {
@@ -529,6 +509,13 @@ const Home: React.FC = () => {
           </VStack>
         </Container>
       </Box>
+
+      {/* Use ClientOnlyArticles component to handle articles loading */}
+      <ClientOnlyArticlesComponent
+        onArticlesLoaded={handleArticlesLoaded}
+        onLoadingChange={handleLoadingChange}
+        onError={handleError}
+      />
 
       {isOpen && (
         <Suspense fallback={<Box>Loading login modal...</Box>}>
