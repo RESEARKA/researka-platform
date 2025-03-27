@@ -104,6 +104,7 @@ export interface ProfileCompletionFormProps {
   initialData?: UserProfile;
   isEditMode?: boolean;
   onCancel?: () => void;
+  isDisabled?: boolean;
 }
 
 const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ 
@@ -111,6 +112,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   initialData, 
   isEditMode = false, 
   onCancel,
+  isDisabled = false,
 }) => {
   const router = useRouter();
   const showToast = useAppToast();
@@ -482,7 +484,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                     value={formData.firstName} 
                     onChange={handleChange} 
                     placeholder="Enter your first name"
-                    isDisabled={isSubmitting}
+                    isDisabled={isSubmitting || isDisabled}
                   />
                   {errors.firstName && (
                     <FormErrorMessage>{errors.firstName}</FormErrorMessage>
@@ -496,7 +498,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                     value={formData.lastName} 
                     onChange={handleChange} 
                     placeholder="Enter your last name"
-                    isDisabled={isSubmitting}
+                    isDisabled={isSubmitting || isDisabled}
                   />
                   {errors.lastName && (
                     <FormErrorMessage>{errors.lastName}</FormErrorMessage>
@@ -512,7 +514,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   value={formData.email} 
                   onChange={handleChange} 
                   placeholder="Enter your academic email"
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 />
                 <FormHelperText>
                   We recommend using your institutional email (.edu or .ac domains)
@@ -535,7 +537,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   onChange={handleChange} 
                   placeholder="Enter your institution"
                   list="institutions"
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 />
                 <datalist id="institutions">
                   {MOCK_INSTITUTIONS.map((inst, index) => (
@@ -555,7 +557,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   onChange={handleChange} 
                   placeholder="Enter your department"
                   list="departments"
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 />
                 <datalist id="departments">
                   {MOCK_DEPARTMENTS.map((dept, index) => (
@@ -574,7 +576,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   value={formData.position} 
                   onChange={handleChange}
                   placeholder="Select your position"
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 >
                   {ACADEMIC_POSITIONS.map((pos, index) => (
                     <option key={index} value={pos}>{pos}</option>
@@ -609,7 +611,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                       });
                     }
                   }}
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 />
                 {errors.researchInterests && (
                   <FormErrorMessage>{errors.researchInterests}</FormErrorMessage>
@@ -628,7 +630,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   value={formData.orcidId || ''} 
                   onChange={handleChange} 
                   placeholder="0000-0000-0000-0000"
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 />
                 <FormHelperText>
                   Optional. Format: 0000-0000-0000-0000
@@ -649,7 +651,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   name="role" 
                   value={formData.role} 
                   onChange={handleChange}
-                  isDisabled={isSubmitting}
+                  isDisabled={isSubmitting || isDisabled}
                 >
                   <option value="Researcher">Researcher</option>
                   <option value="Professor">Professor</option>
@@ -664,7 +666,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                     name="wantsToBeEditor" 
                     isChecked={formData.wantsToBeEditor} 
                     onChange={handleCheckboxChange}
-                    isDisabled={isSubmitting}
+                    isDisabled={isSubmitting || isDisabled}
                   >
                     I'm interested in becoming an editor
                   </Checkbox>
@@ -683,7 +685,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                 leftIcon={<FiArrowLeft />} 
                 onClick={handlePrevStep}
                 variant="outline"
-                isDisabled={isSubmitting}
+                isDisabled={isSubmitting || isDisabled}
               >
                 Previous
               </Button>
@@ -692,7 +694,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                 leftIcon={<FiX />} 
                 onClick={onCancel || (() => router.push('/'))}
                 variant="outline"
-                isDisabled={isSubmitting}
+                isDisabled={isSubmitting || isDisabled}
               >
                 Cancel
               </Button>
@@ -703,7 +705,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                 rightIcon={<FiArrowRight />} 
                 onClick={handleNext}
                 colorScheme="blue"
-                isDisabled={isSubmitting}
+                isDisabled={isSubmitting || isDisabled}
               >
                 Next
               </Button>
@@ -714,7 +716,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                 rightIcon={<FiCheck />}
                 isLoading={isSubmitting}
                 loadingText="Saving..."
-                isDisabled={isSubmitting}
+                isDisabled={isSubmitting || isDisabled}
               >
                 {isEditMode ? 'Save Changes' : 'Complete Profile'}
               </Button>

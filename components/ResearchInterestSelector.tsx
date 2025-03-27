@@ -32,6 +32,7 @@ interface ResearchInterestSelectorProps {
   isRequired?: boolean;
   error?: string;
   isReadOnly?: boolean;
+  isDisabled?: boolean;
 }
 
 const ResearchInterestSelector: React.FC<ResearchInterestSelectorProps> = ({
@@ -41,6 +42,7 @@ const ResearchInterestSelector: React.FC<ResearchInterestSelectorProps> = ({
   isRequired = false,
   error,
   isReadOnly = false,
+  isDisabled = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -159,7 +161,7 @@ const ResearchInterestSelector: React.FC<ResearchInterestSelectorProps> = ({
                   setIsDropdownOpen(true);
                 }
               }}
-              isDisabled={selectedInterests.length >= maxInterests}
+              isDisabled={selectedInterests.length >= maxInterests || isDisabled}
             />
             <InputRightElement>
               <FiSearch color="gray.300" />

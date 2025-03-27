@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box,
   Spinner,
@@ -88,9 +88,13 @@ const PaginationControl: React.FC<PaginationProps> = ({
  * This ensures Firebase is only initialized on the client side
  */
 const ClientOnlyProfile: React.FC = () => {
+  // Component state
   const [activeTab, setActiveTab] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [localLoadingState, setLocalLoadingState] = useState(false);
+  
+  // UI helpers
   const showToast = useAppToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -99,7 +103,9 @@ const ClientOnlyProfile: React.FC = () => {
   // Create refs to prevent duplicate operations
   const isUpdatingProfile = useRef(false);
   const profileUpdateTimeout = useRef<NodeJS.Timeout | null>(null);
+  const isMounted = useRef(true);
   
+  // Auth and profile data
   const { currentUser, authIsInitialized } = useAuth();
   const { 
     profile, 
@@ -112,23 +118,45 @@ const ClientOnlyProfile: React.FC = () => {
   } = useProfileData();
   const isClient = useClient();
 
-  // Function to toggle edit mode
-  const handleEditProfile = () => {
+  // Set up component mount/unmount tracking
+  useEffect(() => {
+    isMounted.current = true;
+    
+    return () => {
+      isMounted.current = false;
+      
+      // Clean up any timeouts on unmount
+      if (profileUpdateTimeout.current) {
+        clearTimeout(profileUpdateTimeout.current);
+        profileUpdateTimeout.current = null;
+      }
+    };
+  }, []);
+
+  // Function to toggle edit mode with debounce protection
+  const handleEditProfile = useCallback(() => {
+    if (isUpdatingProfile.current) {
+      console.log('ClientOnlyProfile: Update in progress, ignoring edit request');
+      return;
+    }
     setIsEditMode(true);
-  };
+  }, []);
   
   // Function to cancel edit mode
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setIsEditMode(false);
-  };
+  }, []);
   
-  // Function to save profile edits
-  const handleSaveProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
+  // Function to save profile edits with enhanced error handling and state management
+  const handleSaveProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
     // Prevent duplicate updates
     if (isUpdatingProfile.current) {
       console.log('ClientOnlyProfile: Update already in progress, skipping duplicate request');
       return false;
     }
+    
+    // Set local loading state for UI feedback
+    setLocalLoadingState(true);
     
     try {
       // Set the updating flag to prevent duplicate data loading
@@ -139,25 +167,60 @@ const ClientOnlyProfile: React.FC = () => {
         isLoadingData.current = true;
       }
       
+      // Create a complete profile update object with all necessary fields
+      const completeProfileUpdate = { ...updatedProfile };
+      
       // Check if name or institution changed and handle special cases
       const nameChanged = profile?.name !== updatedProfile.name;
       const institutionChanged = profile?.institution !== updatedProfile.institution;
       
       // Apply business rules for name/institution changes
       if (nameChanged && profile?.hasChangedName !== true) {
-        updatedProfile.hasChangedName = true;
+        completeProfileUpdate.hasChangedName = true;
       }
       
       if (institutionChanged && profile?.hasChangedInstitution !== true) {
-        updatedProfile.hasChangedInstitution = true;
+        completeProfileUpdate.hasChangedInstitution = true;
       }
       
-      console.log('ClientOnlyProfile: Updating profile with data:', updatedProfile);
-      const success = await updateProfile(updatedProfile);
+      // Ensure profileComplete is set
+      if (!completeProfileUpdate.profileComplete) {
+        completeProfileUpdate.profileComplete = true;
+      }
+      
+      console.log('ClientOnlyProfile: Updating profile with data:', completeProfileUpdate);
+      
+      // Attempt to update the profile with retry logic
+      let success = false;
+      let attempts = 0;
+      const maxAttempts = 2;
+      
+      while (attempts < maxAttempts && !success) {
+        try {
+          success = await updateProfile(completeProfileUpdate);
+          if (success) break;
+          
+          // Wait before retrying
+          if (attempts < maxAttempts - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (error) {
+          console.error(`ClientOnlyProfile: Error in profile update attempt ${attempts + 1}:`, error);
+        }
+        attempts++;
+      }
       
       if (success) {
-        // Exit edit mode
-        setIsEditMode(false);
+        // Exit edit mode and show success message
+        // Use a batch update function to minimize renders
+        const batchStateUpdate = () => {
+          if (!isMounted.current) return;
+          setIsEditMode(false);
+          setLocalLoadingState(false);
+        };
+        
+        // Execute batch update
+        batchStateUpdate();
         
         // Clear any existing timeout
         if (profileUpdateTimeout.current) {
@@ -167,12 +230,13 @@ const ClientOnlyProfile: React.FC = () => {
         // Set a timeout to reset the updating flag after a delay
         // This prevents immediate re-fetching of profile data
         profileUpdateTimeout.current = setTimeout(() => {
+          if (!isMounted.current) return;
           isUpdatingProfile.current = false;
           if (isLoadingData) {
             isLoadingData.current = false;
           }
           profileUpdateTimeout.current = null;
-        }, 1000);
+        }, 1500); // Increased timeout to ensure all operations complete
         
         showToast({
           id: 'profile-updated',
@@ -184,24 +248,42 @@ const ClientOnlyProfile: React.FC = () => {
         
         return true;
       } else {
+        // Show error message for failed update
+        if (isMounted.current) {
+          setLocalLoadingState(false);
+        }
+        
         showToast({
           id: 'profile-save-error',
           title: "Error",
-          description: "Failed to update profile. Please try again.",
+          description: `Failed to update profile after ${maxAttempts} attempts. Please try again.`,
           status: "error",
-          duration: 3000,
+          duration: 5000,
         });
         
         return false;
       }
     } catch (error) {
       console.error('ClientOnlyProfile: Error saving profile:', error);
+      
+      // Enhanced error handling with more detailed messages
+      let errorMessage = "Failed to update profile. Please try again.";
+      
+      if (error instanceof Error) {
+        errorMessage = `Error: ${error.message}`;
+        console.error('ClientOnlyProfile: Error details:', error.stack);
+      }
+      
+      if (isMounted.current) {
+        setLocalLoadingState(false);
+      }
+      
       showToast({
         id: 'profile-save-error',
         title: "Error",
-        description: "Failed to update profile. Please try again.",
+        description: errorMessage,
         status: "error",
-        duration: 3000,
+        duration: 5000,
       });
       
       return false;
@@ -213,8 +295,13 @@ const ClientOnlyProfile: React.FC = () => {
           isLoadingData.current = false;
         }
       }
+      
+      // Ensure loading state is reset
+      if (isMounted.current) {
+        setLocalLoadingState(false);
+      }
     }
-  };
+  }, [profile, updateProfile, isLoadingData, showToast]);
 
   // Show loading state when not on client or auth is initializing
   if (!isClient || !authIsInitialized) {
@@ -229,18 +316,18 @@ const ClientOnlyProfile: React.FC = () => {
   }
   
   // Show loading state when profile data is loading
-  if (isLoading) {
+  if (isLoading || localLoadingState) {
     return (
       <Center py={10}>
         <VStack spacing={4}>
           <Spinner size="xl" />
-          <Text>Loading profile data...</Text>
+          <Text>{localLoadingState ? "Updating profile..." : "Loading profile data..."}</Text>
         </VStack>
       </Center>
     );
   }
 
-  // Show error state
+  // Show error state with retry button
   if (error) {
     return (
       <Box p={5} borderWidth={1} borderRadius="md" bg="red.50" color="red.800">
@@ -250,6 +337,8 @@ const ClientOnlyProfile: React.FC = () => {
           <Button 
             onClick={retryLoading}
             colorScheme="blue"
+            isLoading={isLoading}
+            loadingText="Retrying..."
           >
             Retry
           </Button>
@@ -279,6 +368,7 @@ const ClientOnlyProfile: React.FC = () => {
       <ProfileCompletionForm 
         initialData={profile || undefined} 
         onSave={handleSaveProfile}
+        isDisabled={isUpdatingProfile.current || localLoadingState}
       />
     );
   }
@@ -293,6 +383,7 @@ const ClientOnlyProfile: React.FC = () => {
             leftIcon={<FiX />} 
             variant="ghost" 
             onClick={handleCancelEdit}
+            isDisabled={isUpdatingProfile.current || localLoadingState}
           >
             Cancel
           </Button>
@@ -302,6 +393,7 @@ const ClientOnlyProfile: React.FC = () => {
           initialData={profile || undefined}
           isEditMode={true}
           onCancel={handleCancelEdit}
+          isDisabled={isUpdatingProfile.current || localLoadingState}
         />
       </Box>
     );
@@ -352,7 +444,9 @@ const ClientOnlyProfile: React.FC = () => {
           colorScheme="blue" 
           variant="outline"
           onClick={handleEditProfile}
-          isDisabled={isUpdatingProfile.current}
+          isDisabled={isUpdatingProfile.current || localLoadingState}
+          isLoading={localLoadingState}
+          loadingText="Updating..."
         >
           Edit Profile
         </Button>
@@ -417,24 +511,20 @@ const ClientOnlyProfile: React.FC = () => {
           </TabPanel>
           
           {/* Articles tab */}
-          <TabPanel p={0} pt={6}>
+          <TabPanel>
             <ArticlesPanel 
-              articlesData={{ articles: [], totalPages: 0, lastVisible: null, hasMore: false }}
+              userId={currentUser?.uid} 
               currentPage={currentPage}
               onPageChange={setCurrentPage}
-              EmptyState={EmptyState}
-              PaginationControl={PaginationControl}
             />
           </TabPanel>
           
           {/* Reviews tab */}
-          <TabPanel p={0} pt={6}>
+          <TabPanel>
             <ReviewsPanel 
-              reviewsData={{ reviews: [], totalPages: 0, lastVisible: null, hasMore: false }}
+              userId={currentUser?.uid}
               currentPage={currentPage}
               onPageChange={setCurrentPage}
-              EmptyState={EmptyState}
-              PaginationControl={PaginationControl}
             />
           </TabPanel>
         </TabPanels>

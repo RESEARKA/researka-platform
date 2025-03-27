@@ -15,6 +15,8 @@ import {
   Divider,
   useColorModeValue,
   Link as ChakraLink,
+  Spinner,
+  Center,
 } from '@chakra-ui/react';
 import { FiCalendar, FiStar, FiExternalLink } from 'react-icons/fi';
 import ResponsiveText from '../ResponsiveText';
@@ -22,12 +24,54 @@ import { Review, ReviewsResponse, SortOption, FilterOptions } from '../../hooks/
 import Link from 'next/link';
 import ReviewFilters from './ReviewFilters';
 
+// Define default empty state component
+const DefaultEmptyState: React.FC<{ type: string }> = ({ type }) => (
+  <Box textAlign="center" py={10}>
+    <Text fontSize="lg" fontWeight="medium" mb={2}>No {type} Found</Text>
+    <Text color="gray.500">You haven't created any {type.toLowerCase()} yet.</Text>
+  </Box>
+);
+
+// Define default pagination component
+const DefaultPaginationControl: React.FC<{
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}> = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <Flex justify="center" mt={6}>
+      <Button 
+        size="sm" 
+        onClick={() => onPageChange(currentPage - 1)} 
+        isDisabled={currentPage === 1}
+        mr={2}
+      >
+        Previous
+      </Button>
+      <Text alignSelf="center" mx={2}>
+        Page {currentPage} of {totalPages}
+      </Text>
+      <Button 
+        size="sm" 
+        onClick={() => onPageChange(currentPage + 1)} 
+        isDisabled={currentPage === totalPages}
+        ml={2}
+      >
+        Next
+      </Button>
+    </Flex>
+  );
+};
+
 interface ReviewsPanelProps {
-  reviewsData: ReviewsResponse | undefined;
+  userId?: string;
+  reviewsData?: ReviewsResponse;
   currentPage: number;
   onPageChange: (page: number) => void;
-  EmptyState: React.FC<{ type: string }>;
-  PaginationControl: React.FC<{
+  EmptyState?: React.FC<{ type: string }>;
+  PaginationControl?: React.FC<{
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
@@ -39,11 +83,12 @@ interface ReviewsPanelProps {
 }
 
 const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
-  reviewsData,
+  userId,
+  reviewsData: propReviewsData,
   currentPage,
   onPageChange,
-  EmptyState,
-  PaginationControl,
+  EmptyState = DefaultEmptyState,
+  PaginationControl = DefaultPaginationControl,
   onFilterChange,
   onSortChange,
   currentSort = 'date_desc',
@@ -52,13 +97,39 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   
-  // Debug logging
-  console.log('ReviewsPanel: Rendering with data:', reviewsData);
+  // Since we don't have a proper useReviews hook implementation, we'll just use the provided data
+  // In a real implementation, we would use the hook like this:
+  // const { data: reviews, isLoading, error } = useReviews(userId, currentPage, currentSort, currentFilters);
+  
+  // For now, we'll just use the prop data
+  const reviewsData = propReviewsData || { reviews: [], totalPages: 0 };
+  const isLoading = false;
+  const error = null;
+  
+  if (isLoading) {
+    return (
+      <Center py={10}>
+        <VStack spacing={4}>
+          <Spinner size="xl" />
+          <Text>Loading reviews...</Text>
+        </VStack>
+      </Center>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Box p={5} borderWidth={1} borderRadius="md" bg="red.50" color="red.800">
+        <Box fontWeight="bold" mb={2}>Error loading reviews</Box>
+        <Box>{String(error)}</Box>
+      </Box>
+    );
+  }
   
   return (
     <VStack spacing={4} align="stretch">
       {onFilterChange && onSortChange && (
-        <ReviewFilters
+        <ReviewFilters 
           onFilterChange={onFilterChange}
           onSortChange={onSortChange}
           currentSort={currentSort}
@@ -72,77 +143,73 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
             <Card 
               key={review.id} 
               borderWidth="1px" 
+              borderRadius="lg" 
+              overflow="hidden"
+              bg={cardBg}
               borderColor={borderColor}
-              bg={cardBg} 
               boxShadow="sm"
-              transition="all 0.2s"
-              _hover={{ boxShadow: 'md', borderColor: 'purple.300' }}
             >
-              <CardHeader pb={2}>
-                <Flex justify="space-between" align="center">
-                  <Heading as="h3" size="md" fontWeight="600">
-                    {review.articleTitle || 'Review'}
-                  </Heading>
-                  <HStack spacing={2}>
-                    <Badge colorScheme="blue">
-                      {review.recommendation ? 
-                        review.recommendation.replace('_', ' ').charAt(0).toUpperCase() + 
-                        review.recommendation.replace('_', ' ').slice(1) : 
-                        'Completed'}
-                    </Badge>
-                    {review.score && (
-                      <Badge colorScheme="green">
-                        Score: {review.score}/5
-                      </Badge>
-                    )}
-                  </HStack>
-                </Flex>
+              <CardHeader pb={0}>
+                <Link href={`/reviews/${review.id}`} passHref>
+                  <ChakraLink _hover={{ textDecoration: 'none' }}>
+                    <ResponsiveText variant="h3" mb={2}>
+                      {review.title}
+                    </ResponsiveText>
+                  </ChakraLink>
+                </Link>
+                <Text fontSize="sm" color="gray.500" mb={2}>
+                  Review of: {review.articleTitle}
+                </Text>
               </CardHeader>
               
-              <CardBody py={2}>
+              <CardBody py={3}>
                 <Text noOfLines={2} color="gray.600">
-                  {review.content}
+                  {review.content?.substring(0, 150)}
+                  {review.content && review.content.length > 150 ? '...' : ''}
                 </Text>
               </CardBody>
               
-              <Divider borderColor={borderColor} />
-              
-              <CardFooter pt={2}>
-                <Flex justify="space-between" width="100%" align="center">
-                  <HStack spacing={2} color="gray.500">
-                    <FiCalendar size={14} />
-                    <Text fontSize="sm">{review.date}</Text>
+              <CardFooter pt={0}>
+                <Flex width="100%" justifyContent="space-between" alignItems="center">
+                  <HStack spacing={4}>
+                    <Flex align="center">
+                      <Box as={FiCalendar} mr={1} />
+                      <Text fontSize="sm">
+                        {new Date(review.createdAt).toLocaleDateString()}
+                      </Text>
+                    </Flex>
+                    
+                    <Flex align="center">
+                      <Box as={FiStar} mr={1} />
+                      <Text fontSize="sm">
+                        {review.score || 0}/5
+                      </Text>
+                    </Flex>
                   </HStack>
                   
-                  {review.articleId && review.articleId !== 'test-article-id' && (
+                  <Link href={`/reviews/${review.id}`} passHref>
                     <Button
-                      as={Link}
-                      href={`/articles/${review.articleId}`}
+                      as={ChakraLink}
                       size="sm"
-                      variant="ghost"
-                      colorScheme="purple"
-                      rightIcon={<FiExternalLink size={14} />}
+                      rightIcon={<FiExternalLink />}
+                      variant="outline"
                     >
-                      View Article
+                      View
                     </Button>
-                  )}
+                  </Link>
                 </Flex>
               </CardFooter>
             </Card>
           ))}
           
-          {reviewsData.totalPages > 1 && (
-            <Box mt={4}>
-              <PaginationControl
-                currentPage={currentPage}
-                totalPages={reviewsData.totalPages}
-                onPageChange={onPageChange}
-              />
-            </Box>
-          )}
+          <PaginationControl 
+            currentPage={currentPage} 
+            totalPages={reviewsData.totalPages || 1} 
+            onPageChange={onPageChange} 
+          />
         </>
       ) : (
-        <EmptyState type="reviews" />
+        <EmptyState type="Reviews" />
       )}
     </VStack>
   );

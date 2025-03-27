@@ -21,12 +21,54 @@ import ResponsiveText from '../ResponsiveText';
 import { Article, ArticlesResponse } from '../../hooks/useArticles';
 import Link from 'next/link';
 
+// Define default empty state component
+const DefaultEmptyState: React.FC<{ type: string }> = ({ type }) => (
+  <Box textAlign="center" py={10}>
+    <Text fontSize="lg" fontWeight="medium" mb={2}>No {type} Found</Text>
+    <Text color="gray.500">You haven't created any {type.toLowerCase()} yet.</Text>
+  </Box>
+);
+
+// Define default pagination component
+const DefaultPaginationControl: React.FC<{
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}> = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <Flex justify="center" mt={6}>
+      <Button 
+        size="sm" 
+        onClick={() => onPageChange(currentPage - 1)} 
+        isDisabled={currentPage === 1}
+        mr={2}
+      >
+        Previous
+      </Button>
+      <Text alignSelf="center" mx={2}>
+        Page {currentPage} of {totalPages}
+      </Text>
+      <Button 
+        size="sm" 
+        onClick={() => onPageChange(currentPage + 1)} 
+        isDisabled={currentPage === totalPages}
+        ml={2}
+      >
+        Next
+      </Button>
+    </Flex>
+  );
+};
+
 interface ArticlesPanelProps {
-  articlesData: ArticlesResponse | undefined;
+  userId?: string;
+  articlesData?: ArticlesResponse;
   currentPage: number;
   onPageChange: (page: number) => void;
-  EmptyState: React.FC<{ type: string }>;
-  PaginationControl: React.FC<{
+  EmptyState?: React.FC<{ type: string }>;
+  PaginationControl?: React.FC<{
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
@@ -34,11 +76,12 @@ interface ArticlesPanelProps {
 }
 
 const ArticlesPanel: React.FC<ArticlesPanelProps> = ({
+  userId,
   articlesData,
   currentPage,
   onPageChange,
-  EmptyState,
-  PaginationControl,
+  EmptyState = DefaultEmptyState,
+  PaginationControl = DefaultPaginationControl,
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
