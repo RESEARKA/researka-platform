@@ -80,6 +80,7 @@ interface ReviewsPanelProps {
   onSortChange?: (sortOption: SortOption) => void;
   currentSort?: SortOption;
   currentFilters?: FilterOptions;
+  isLoading?: boolean;
 }
 
 const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
@@ -93,6 +94,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   onSortChange,
   currentSort = 'date_desc',
   currentFilters = {},
+  isLoading = false,
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -103,7 +105,6 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   
   // For now, we'll just use the prop data
   const reviewsData = propReviewsData || { reviews: [], totalPages: 0 };
-  const isLoading = false;
   const error = null;
   
   if (isLoading) {
