@@ -243,6 +243,10 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
  * Get all articles from Firestore
  */
 export const getAllArticles = async (): Promise<Article[]> => {
+  const startTime = performance.now();
+  let queryExecutionTime = 0;
+  let processingTime = 0;
+  
   try {
     console.log('ArticleService: Starting getAllArticles');
     
@@ -253,16 +257,18 @@ export const getAllArticles = async (): Promise<Article[]> => {
     }
     
     // Import Firebase functions to get Firestore
-    const { getFirebaseFirestore, initializeFirebaseOnClient } = await import('../config/firebase');
+    console.log('ArticleService: Importing Firebase modules');
+    const { getFirebaseFirestore, initializeFirebase } = await import('../config/firebase');
     
     // Get Firestore instance
+    console.log('ArticleService: Getting Firestore instance');
     const db = getFirebaseFirestore();
     if (!db) {
       console.error('ArticleService: Firestore not initialized');
       
       // Try to initialize Firebase again
       console.log('ArticleService: Attempting to initialize Firebase');
-      const initialized = await initializeFirebaseOnClient();
+      const initialized = await initializeFirebase();
       
       if (!initialized) {
         console.error('ArticleService: Failed to initialize Firebase after retry');
@@ -291,6 +297,7 @@ export const getAllArticles = async (): Promise<Article[]> => {
       }
       
       // Create query for all articles, ordered by creation date
+      console.log('ArticleService: Creating Firestore query after retry');
       const q = query(
         collection(dbRetry, articlesCollection),
         orderBy('createdAt', 'desc')
@@ -298,16 +305,54 @@ export const getAllArticles = async (): Promise<Article[]> => {
       
       console.log('ArticleService: Executing query after retry...');
       
-      // Execute query
-      const querySnapshot = await getDocs(q);
-      
-      console.log(`ArticleService: Query executed after retry, found ${querySnapshot.size} documents`);
-      
-      // Process results
-      return processQueryResults(querySnapshot);
+      // Execute query with timing
+      const queryStartTime = performance.now();
+      try {
+        const querySnapshot = await getDocs(q);
+        queryExecutionTime = performance.now() - queryStartTime;
+        
+        console.log(`ArticleService: Query executed after retry in ${queryExecutionTime.toFixed(2)}ms, found ${querySnapshot.size} documents`);
+        
+        // Process results with timing
+        const processingStartTime = performance.now();
+        const results = processQueryResults(querySnapshot);
+        processingTime = performance.now() - processingStartTime;
+        
+        console.log(`ArticleService: Results processed in ${processingTime.toFixed(2)}ms`);
+        
+        return results;
+      } catch (queryError) {
+        // Check for permission errors specifically
+        const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
+        
+        if (errorMessage.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
+          console.error('ArticleService: Firestore permission error. Check security rules:', {
+            collection: articlesCollection,
+            error: errorMessage,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Log the security rule issue with more details
+          console.error(`
+            Potential Firestore Security Rule Issue:
+            --------------------------------------
+            Collection: ${articlesCollection}
+            Operation: read (getDocs)
+            Error: ${errorMessage}
+            
+            Possible solutions:
+            1. Check if your Firestore security rules allow reading the '${articlesCollection}' collection
+            2. Verify that you're properly authenticated if authentication is required
+            3. Ensure the collection exists and is spelled correctly
+          `);
+        }
+        
+        throw queryError;
+      }
     }
     
     // Create query for all articles, ordered by creation date
+    console.log('ArticleService: Creating Firestore query');
     const q = query(
       collection(db, articlesCollection),
       orderBy('createdAt', 'desc')
@@ -315,16 +360,60 @@ export const getAllArticles = async (): Promise<Article[]> => {
     
     console.log('ArticleService: Executing query...');
     
-    // Execute query
-    const querySnapshot = await getDocs(q);
-    
-    console.log(`ArticleService: Query executed, found ${querySnapshot.size} documents`);
-    
-    // Process results
-    return processQueryResults(querySnapshot);
+    // Execute query with timing
+    const queryStartTime = performance.now();
+    try {
+      const querySnapshot = await getDocs(q);
+      queryExecutionTime = performance.now() - queryStartTime;
+      
+      console.log(`ArticleService: Query executed in ${queryExecutionTime.toFixed(2)}ms, found ${querySnapshot.size} documents`);
+      
+      // Process results with timing
+      const processingStartTime = performance.now();
+      const results = processQueryResults(querySnapshot);
+      processingTime = performance.now() - processingStartTime;
+      
+      console.log(`ArticleService: Results processed in ${processingTime.toFixed(2)}ms`);
+      
+      return results;
+    } catch (queryError) {
+      // Check for permission errors specifically
+      const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
+      
+      if (errorMessage.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
+        console.error('ArticleService: Firestore permission error. Check security rules:', {
+          collection: articlesCollection,
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Log the security rule issue with more details
+        console.error(`
+          Potential Firestore Security Rule Issue:
+          --------------------------------------
+          Collection: ${articlesCollection}
+          Operation: read (getDocs)
+          Error: ${errorMessage}
+          
+          Possible solutions:
+          1. Check if your Firestore security rules allow reading the '${articlesCollection}' collection
+          2. Verify that you're properly authenticated if authentication is required
+          3. Ensure the collection exists and is spelled correctly
+        `);
+      }
+      
+      throw queryError;
+    }
     
   } catch (error) {
-    console.error('ArticleService: Error getting all articles:', error);
+    const totalTime = performance.now() - startTime;
+    console.error('ArticleService: Error getting all articles:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      totalTime: `${totalTime.toFixed(2)}ms`,
+      queryTime: `${queryExecutionTime.toFixed(2)}ms`,
+      processingTime: `${processingTime.toFixed(2)}ms`
+    });
     
     // In development, return mock data on error
     if (process.env.NODE_ENV === 'development') {
@@ -332,7 +421,9 @@ export const getAllArticles = async (): Promise<Article[]> => {
       return getMockArticles();
     }
     
-    throw new Error('Failed to get articles');
+    throw new Error(error instanceof Error ? 
+      `Failed to get articles: ${error.message}` : 
+      'Failed to get articles');
   }
 };
 

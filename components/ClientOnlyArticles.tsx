@@ -1,6 +1,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useToast } from '@chakra-ui/react';
 import { Article } from '../services/articleService';
+import { validateCollectionReadAccess } from '../utils/firestoreRuleValidator';
+
+// Define loading states for better tracking
+enum ArticleLoadingState {
+  IDLE = 'idle',
+  INITIALIZING = 'initializing',
+  LOADING = 'loading',
+  RETRYING = 'retrying',
+  SUCCESS = 'success',
+  ERROR = 'error',
+  FALLBACK = 'fallback'
+}
 
 export interface ClientOnlyArticlesProps {
   onArticlesLoaded: (
@@ -28,15 +40,19 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
   const retryCountRef = useRef(0);
   const maxRetries = 3;
   const isLoadingRef = useRef(false);
+  const loadingStateRef = useRef<ArticleLoadingState>(ArticleLoadingState.IDLE);
+  const loadStartTimeRef = useRef<number>(0);
   
   // Track if we've shown fallback content
   const [hasFallbackContent, setHasFallbackContent] = useState(false);
 
   // Set up and clean up the isMounted ref
   useEffect(() => {
+    console.log('ClientOnlyArticles: Component mounted');
     isMounted.current = true;
     
     return () => {
+      console.log('ClientOnlyArticles: Component unmounting');
       isMounted.current = false;
       
       // Clean up any pending timeouts
@@ -56,6 +72,7 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
   const getFallbackArticles = useCallback((): Article[] => {
     console.log('ClientOnlyArticles: Using fallback articles');
     setHasFallbackContent(true);
+    loadingStateRef.current = ArticleLoadingState.FALLBACK;
     
     return [
       {
@@ -100,43 +117,6 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
     ];
   }, []);
 
-  // Function to retry loading articles
-  const retryLoadArticles = useCallback(() => {
-    if (retryCountRef.current < maxRetries) {
-      retryCountRef.current++;
-      console.log(`ClientOnlyArticles: Retrying article load (${retryCountRef.current}/${maxRetries})`);
-      
-      // Clear any existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      
-      // Add a small delay before retrying
-      delayedLoadRef.current = setTimeout(() => {
-        loadArticles();
-      }, 1000);
-    } else {
-      console.error(`ClientOnlyArticles: Maximum retries (${maxRetries}) reached, using fallback content`);
-      
-      // Use fallback content after max retries
-      const fallbackArticles = getFallbackArticles();
-      processArticles(fallbackArticles);
-      
-      if (isMounted.current) {
-        onError('Failed to load articles after multiple attempts. Showing fallback content.');
-        
-        toast({
-          title: 'Loading Error',
-          description: 'Could not load articles from the database. Showing sample content instead.',
-          status: 'warning',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    }
-  }, [getFallbackArticles, onError, toast]);
-
   // Process articles for featured and recent sections
   const processArticles = useCallback((articles: Article[]) => {
     if (!Array.isArray(articles) || articles.length === 0) {
@@ -165,6 +145,45 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
     onArticlesLoaded(articles, featuredArticle, recentArticles);
   }, [onArticlesLoaded]);
 
+  // Function to retry loading articles
+  const retryLoadArticles = useCallback(() => {
+    if (retryCountRef.current < maxRetries) {
+      retryCountRef.current++;
+      loadingStateRef.current = ArticleLoadingState.RETRYING;
+      console.log(`ClientOnlyArticles: Retrying article load (${retryCountRef.current}/${maxRetries})`);
+      
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
+      // Add a small delay before retrying
+      delayedLoadRef.current = setTimeout(() => {
+        loadArticles();
+      }, 1000);
+    } else {
+      console.error(`ClientOnlyArticles: Maximum retries (${maxRetries}) reached, using fallback content`);
+      loadingStateRef.current = ArticleLoadingState.FALLBACK;
+      
+      // Use fallback content after max retries
+      const fallbackArticles = getFallbackArticles();
+      processArticles(fallbackArticles);
+      
+      if (isMounted.current) {
+        onError('Failed to load articles after multiple attempts. Showing fallback content.');
+        
+        toast({
+          title: 'Loading Error',
+          description: 'Could not load articles from the database. Showing sample content instead.',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    }
+  }, [getFallbackArticles, onError, toast, processArticles]);
+
   // Load articles from Firebase
   const loadArticles = useCallback(async () => {
     // Prevent duplicate loading
@@ -178,6 +197,9 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
 
     // Set loading state
     isLoadingRef.current = true;
+    loadingStateRef.current = ArticleLoadingState.INITIALIZING;
+    loadStartTimeRef.current = Date.now();
+    console.log('ClientOnlyArticles: Starting article load process');
     onLoadingChange(true);
     onError(null);
     
@@ -213,6 +235,7 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
       
       try {
         // Dynamically import Firebase modules to ensure client-side only execution
+        console.log('ClientOnlyArticles: Importing Firebase modules');
         const firebaseModule = await import('../config/firebase');
         
         // Initialize Firebase if needed
@@ -225,13 +248,74 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
           }
         }
         
+        loadingStateRef.current = ArticleLoadingState.LOADING;
+        console.log('ClientOnlyArticles: Firebase initialized, loading articles...');
+        
+        // Check if Firestore is accessible by getting the instance
+        const db = firebaseModule.getFirebaseFirestore();
+        if (!db) {
+          throw new Error('Firestore instance is not available');
+        }
+        
+        // Validate Firestore security rules for articles collection
+        console.log('ClientOnlyArticles: Validating Firestore security rules for articles collection');
+        const validationResult = await validateCollectionReadAccess('articles');
+        
+        if (!validationResult.success) {
+          console.error('ClientOnlyArticles: Firestore security rule validation failed:', validationResult);
+          throw new Error(`Firestore security rules prevent reading articles: ${validationResult.error}`);
+        }
+        
+        console.log('ClientOnlyArticles: Firestore security rules validation successful, proceeding to load articles');
+        
         // Import and call the article service
         const articleService = await import('../services/articleService');
-        firebaseArticles = await articleService.getAllArticles();
         
-        console.log('ClientOnlyArticles: Articles loaded from Firebase:', firebaseArticles?.length || 0);
+        // Start loading articles with performance tracking
+        const startTime = performance.now();
+        firebaseArticles = await articleService.getAllArticles();
+        const endTime = performance.now();
+        
+        console.log(`ClientOnlyArticles: Articles loaded from Firebase in ${(endTime - startTime).toFixed(2)}ms:`, {
+          count: firebaseArticles?.length || 0,
+          hasData: Array.isArray(firebaseArticles) && firebaseArticles.length > 0,
+          firstArticleId: firebaseArticles?.[0]?.id || 'none'
+        });
+        
+        // Check if we received valid data
+        if (!Array.isArray(firebaseArticles)) {
+          console.error('ClientOnlyArticles: Invalid data format received from Firestore:', firebaseArticles);
+          throw new Error('Invalid data format received from Firestore');
+        }
+        
+        loadingStateRef.current = ArticleLoadingState.SUCCESS;
       } catch (firebaseError) {
         console.error('ClientOnlyArticles: Error with Firebase:', firebaseError);
+        
+        // Check for specific Firestore permission errors
+        const errorMessage = firebaseError instanceof Error ? firebaseError.message : String(firebaseError);
+        const isPermissionError = errorMessage.includes('permission-denied') || 
+                                 errorMessage.includes('Missing or insufficient permissions');
+        
+        if (isPermissionError) {
+          console.error('ClientOnlyArticles: Firestore permission error detected. Check security rules.');
+          // Log detailed error information for debugging
+          console.error({
+            errorType: 'permission-denied',
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+            retryCount: retryCountRef.current
+          });
+          
+          // Show a more specific error message for permission issues
+          toast({
+            title: "Firestore Permission Error",
+            description: "You don't have permission to access articles. Please check Firestore security rules.",
+            status: "error",
+            duration: 7000,
+            isClosable: true,
+          });
+        }
         
         // Check if we should retry or use fallback
         if (retryCountRef.current < maxRetries) {
@@ -248,6 +332,7 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
       
       // Handle empty articles array
       if (!Array.isArray(firebaseArticles) || firebaseArticles.length === 0) {
+        console.warn('ClientOnlyArticles: No articles found or empty array returned');
         onArticlesLoaded([], null, []);
         
         if (isMounted.current) {
@@ -278,7 +363,15 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
         }
         
         // If we've exhausted retries, show error and fallback content
-        onError(error instanceof Error ? error.message : "Failed to load articles");
+        const errorMessage = error instanceof Error ? error.message : "Failed to load articles";
+        console.error('ClientOnlyArticles: Error details:', {
+          message: errorMessage,
+          stack: error instanceof Error ? error.stack : 'No stack trace available',
+          loadingTime: Date.now() - loadStartTimeRef.current,
+          loadingState: loadingStateRef.current
+        });
+        
+        onError(errorMessage);
         
         // Use fallback content
         if (!hasFallbackContent) {
@@ -302,12 +395,15 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
           timeoutRef.current = null;
         }
         
+        const loadDuration = Date.now() - loadStartTimeRef.current;
+        console.log(`ClientOnlyArticles: Article loading process completed in ${loadDuration}ms with state: ${loadingStateRef.current}`);
+        
         isLoadingRef.current = false;
         onLoadingChange(false);
       }
     }
   }, [getFallbackArticles, hasFallbackContent, onArticlesLoaded, onError, onLoadingChange, processArticles, retryLoadArticles, toast]);
-  
+
   // Start loading articles with a small delay
   useEffect(() => {
     // Add a small delay before loading to ensure the component is fully mounted
