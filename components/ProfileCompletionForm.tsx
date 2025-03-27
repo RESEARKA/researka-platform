@@ -105,6 +105,7 @@ export interface ProfileCompletionFormProps {
   isEditMode?: boolean;
   onCancel?: () => void;
   isDisabled?: boolean;
+  isLoading?: boolean;
 }
 
 const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({ 
@@ -113,6 +114,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   isEditMode = false, 
   onCancel,
   isDisabled = false,
+  isLoading = false,
 }) => {
   const router = useRouter();
   const showToast = useAppToast();
