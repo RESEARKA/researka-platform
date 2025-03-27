@@ -93,6 +93,7 @@ const ClientOnlyProfile: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
   const [localLoadingState, setLocalLoadingState] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'updating' | 'success' | 'error'>('idle');
   
   // UI helpers
   const showToast = useAppToast();
@@ -104,6 +105,7 @@ const ClientOnlyProfile: React.FC = () => {
   const isUpdatingProfile = useRef(false);
   const profileUpdateTimeout = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
+  const lastUpdateTime = useRef<number>(0);
   
   // Auth and profile data
   const { currentUser, authIsInitialized } = useAuth();
@@ -120,9 +122,11 @@ const ClientOnlyProfile: React.FC = () => {
 
   // Set up component mount/unmount tracking
   useEffect(() => {
+    console.log('ClientOnlyProfile: Component mounted');
     isMounted.current = true;
     
     return () => {
+      console.log('ClientOnlyProfile: Component unmounting');
       isMounted.current = false;
       
       // Clean up any timeouts on unmount
@@ -133,17 +137,41 @@ const ClientOnlyProfile: React.FC = () => {
     };
   }, []);
 
+  // Batch state updates to minimize renders
+  const batchStateUpdate = useCallback((updates: () => void) => {
+    if (isMounted.current) {
+      updates();
+    }
+  }, []);
+
   // Function to toggle edit mode with debounce protection
   const handleEditProfile = useCallback(() => {
     if (isUpdatingProfile.current) {
       console.log('ClientOnlyProfile: Update in progress, ignoring edit request');
       return;
     }
+    
+    // Prevent rapid toggling of edit mode
+    const now = Date.now();
+    if (now - lastUpdateTime.current < 1000) {
+      console.log('ClientOnlyProfile: Edit request too soon after last action, ignoring');
+      return;
+    }
+    
+    lastUpdateTime.current = now;
     setIsEditMode(true);
   }, []);
   
   // Function to cancel edit mode
   const handleCancelEdit = useCallback(() => {
+    // Prevent rapid toggling of edit mode
+    const now = Date.now();
+    if (now - lastUpdateTime.current < 1000) {
+      console.log('ClientOnlyProfile: Cancel request too soon after last action, ignoring');
+      return;
+    }
+    
+    lastUpdateTime.current = now;
     setIsEditMode(false);
   }, []);
   
@@ -155,8 +183,20 @@ const ClientOnlyProfile: React.FC = () => {
       return false;
     }
     
+    // Prevent rapid save operations
+    const now = Date.now();
+    if (now - lastUpdateTime.current < 1000) {
+      console.log('ClientOnlyProfile: Save request too soon after last action, ignoring');
+      return false;
+    }
+    
+    lastUpdateTime.current = now;
+    
     // Set local loading state for UI feedback
-    setLocalLoadingState(true);
+    batchStateUpdate(() => {
+      setLocalLoadingState(true);
+      setUpdateStatus('updating');
+    });
     
     try {
       // Set the updating flag to prevent duplicate data loading
@@ -213,14 +253,11 @@ const ClientOnlyProfile: React.FC = () => {
       if (success) {
         // Exit edit mode and show success message
         // Use a batch update function to minimize renders
-        const batchStateUpdate = () => {
-          if (!isMounted.current) return;
+        batchStateUpdate(() => {
           setIsEditMode(false);
           setLocalLoadingState(false);
-        };
-        
-        // Execute batch update
-        batchStateUpdate();
+          setUpdateStatus('success');
+        });
         
         // Clear any existing timeout
         if (profileUpdateTimeout.current) {
@@ -231,11 +268,18 @@ const ClientOnlyProfile: React.FC = () => {
         // This prevents immediate re-fetching of profile data
         profileUpdateTimeout.current = setTimeout(() => {
           if (!isMounted.current) return;
+          
           isUpdatingProfile.current = false;
           if (isLoadingData) {
             isLoadingData.current = false;
           }
+          
+          batchStateUpdate(() => {
+            setUpdateStatus('idle');
+          });
+          
           profileUpdateTimeout.current = null;
+          console.log('ClientOnlyProfile: Update lock released after timeout');
         }, 1500); // Increased timeout to ensure all operations complete
         
         showToast({
@@ -249,9 +293,10 @@ const ClientOnlyProfile: React.FC = () => {
         return true;
       } else {
         // Show error message for failed update
-        if (isMounted.current) {
+        batchStateUpdate(() => {
           setLocalLoadingState(false);
-        }
+          setUpdateStatus('error');
+        });
         
         showToast({
           id: 'profile-save-error',
@@ -260,6 +305,26 @@ const ClientOnlyProfile: React.FC = () => {
           status: "error",
           duration: 5000,
         });
+        
+        // Reset the updating flag after a delay
+        if (profileUpdateTimeout.current) {
+          clearTimeout(profileUpdateTimeout.current);
+        }
+        
+        profileUpdateTimeout.current = setTimeout(() => {
+          if (!isMounted.current) return;
+          
+          isUpdatingProfile.current = false;
+          if (isLoadingData) {
+            isLoadingData.current = false;
+          }
+          
+          batchStateUpdate(() => {
+            setUpdateStatus('idle');
+          });
+          
+          profileUpdateTimeout.current = null;
+        }, 1000);
         
         return false;
       }
@@ -274,9 +339,10 @@ const ClientOnlyProfile: React.FC = () => {
         console.error('ClientOnlyProfile: Error details:', error.stack);
       }
       
-      if (isMounted.current) {
+      batchStateUpdate(() => {
         setLocalLoadingState(false);
-      }
+        setUpdateStatus('error');
+      });
       
       showToast({
         id: 'profile-save-error',
@@ -294,15 +360,14 @@ const ClientOnlyProfile: React.FC = () => {
         if (isLoadingData) {
           isLoadingData.current = false;
         }
-      }
-      
-      // Ensure loading state is reset
-      if (isMounted.current) {
-        setLocalLoadingState(false);
+        
+        batchStateUpdate(() => {
+          setLocalLoadingState(false);
+        });
       }
     }
-  }, [profile, updateProfile, isLoadingData, showToast]);
-
+  }, [profile, updateProfile, showToast, batchStateUpdate, isLoadingData]);
+  
   // Show loading state when not on client or auth is initializing
   if (!isClient || !authIsInitialized) {
     return (

@@ -45,12 +45,38 @@ export function useProfileData(): UseProfileDataReturn {
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
   const [retryCount, setRetryCount] = useState<number>(0);
   
+  // Get stable references to auth functions to prevent dependency changes
   const { currentUser, getUserProfile, updateUserData, authIsInitialized } = useAuth();
   const isClient = useClient();
   
   // Use refs to prevent duplicate operations
   const isLoadingData = useRef<boolean>(false);
   const isUpdating = useRef<boolean>(false);
+  const lastUserIdRef = useRef<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+
+  // Set up component mount/unmount tracking
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      
+      // Clean up any timeouts on unmount
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // Batch state updates to minimize renders
+  const batchStateUpdate = (updates: () => void) => {
+    if (isMountedRef.current) {
+      updates();
+    }
+  };
 
   // Function to create a default profile
   const createDefaultProfile = async (): Promise<boolean> => {
@@ -92,8 +118,10 @@ export function useProfileData(): UseProfileDataReturn {
       
       if (updateSuccess) {
         // Update local state
-        setProfile(defaultProfile);
-        setIsProfileComplete(false);
+        batchStateUpdate(() => {
+          setProfile(defaultProfile);
+          setIsProfileComplete(false);
+        });
         console.log('useProfileData: Default profile created successfully');
         return true;
       } else {
@@ -105,7 +133,18 @@ export function useProfileData(): UseProfileDataReturn {
       setError('Failed to create profile. Please try again.');
       return false;
     } finally {
-      isUpdating.current = false;
+      // Set a timeout before allowing new operations
+      // This prevents immediate re-fetching of profile data
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          isUpdating.current = false;
+          timeoutRef.current = null;
+        }
+      }, 1000);
     }
   };
 
@@ -127,8 +166,10 @@ export function useProfileData(): UseProfileDataReturn {
     }
 
     isUpdating.current = true;
-    setIsLoading(true);
-    setError(null);
+    batchStateUpdate(() => {
+      setIsLoading(true);
+      setError(null);
+    });
 
     try {
       console.log('[useProfileData] Updating profile for user:', currentUser.uid);
@@ -150,7 +191,10 @@ export function useProfileData(): UseProfileDataReturn {
       
       if (success) {
         // Update local state with the new data
-        setProfile(prev => prev ? { ...prev, ...profileData } : profileData as UserProfile);
+        batchStateUpdate(() => {
+          setProfile(prev => prev ? { ...prev, ...profileData } : profileData as UserProfile);
+          setIsProfileComplete(true);
+        });
         console.log('[useProfileData] Profile updated successfully');
       } else {
         setError('Failed to update profile. Please try again.');
@@ -163,15 +207,30 @@ export function useProfileData(): UseProfileDataReturn {
       setError('An error occurred while updating your profile. Please try again.');
       return false;
     } finally {
-      setIsLoading(false);
-      isUpdating.current = false;
+      // Set a timeout before allowing new operations
+      // This prevents immediate re-fetching of profile data
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          batchStateUpdate(() => {
+            setIsLoading(false);
+          });
+          isUpdating.current = false;
+          timeoutRef.current = null;
+        }
+      }, 1000);
     }
   };
 
   // Function to retry loading profile
   const retryLoading = () => {
-    setError(null);
-    setRetryCount(prev => prev + 1);
+    batchStateUpdate(() => {
+      setError(null);
+      setRetryCount(prev => prev + 1);
+    });
   };
 
   // Load user profile data
@@ -192,24 +251,35 @@ export function useProfileData(): UseProfileDataReturn {
     // Skip if no user is logged in
     if (!currentUser) {
       console.log('useProfileData: No user logged in, skipping profile fetch');
-      setIsLoading(false);
-      setProfile(null);
-      setError(null);
+      batchStateUpdate(() => {
+        setIsLoading(false);
+        setProfile(null);
+        setError(null);
+      });
+      return;
+    }
+
+    // Skip if we're already loading data or updating profile
+    if (isLoadingData.current || isUpdating.current) {
+      console.log('useProfileData: Profile fetch or update already in progress, skipping duplicate call');
+      return;
+    }
+
+    // Skip if we're already loaded this user's profile
+    if (lastUserIdRef.current === currentUser.uid && profile !== null) {
+      console.log('useProfileData: Profile already loaded for current user, skipping duplicate fetch');
       return;
     }
 
     const fetchUserProfile = async () => {
-      // Prevent duplicate fetch operations
-      if (isLoadingData.current || isUpdating.current) {
-        console.log('useProfileData: Profile fetch or update already in progress, skipping duplicate call');
-        return;
-      }
-      
       console.log('useProfileData: Starting to fetch user profile...');
       isLoadingData.current = true;
       setIsLoading(true);
       
       try {
+        // Store the current user ID to prevent duplicate fetches
+        lastUserIdRef.current = currentUser.uid;
+        
         // Add a small delay to ensure Firebase is fully initialized
         // This helps prevent race conditions with auth state changes
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -219,14 +289,11 @@ export function useProfileData(): UseProfileDataReturn {
         
         if (userProfile) {
           // Batch state updates to prevent multiple re-renders
-          const updates = () => {
+          batchStateUpdate(() => {
             setProfile(userProfile);
             setIsProfileComplete(userProfile?.profileComplete || false);
             setError(null);
-          };
-          
-          // Execute all state updates in one go
-          updates();
+          });
         } else {
           console.log('useProfileData: No user profile found, attempting to create default profile');
           
@@ -239,8 +306,15 @@ export function useProfileData(): UseProfileDataReturn {
             const retryDelay = Math.pow(2, retryCount) * 500;
             console.log(`useProfileData: Profile creation failed, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/3)`);
             
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+            }
+            
+            timeoutRef.current = setTimeout(() => {
+              if (isMountedRef.current) {
+                setRetryCount(prev => prev + 1);
+                timeoutRef.current = null;
+              }
             }, retryDelay);
           } else if (!profileCreated) {
             // If we've tried multiple times and still failed, show an error
@@ -263,19 +337,40 @@ export function useProfileData(): UseProfileDataReturn {
           const retryDelay = Math.pow(2, retryCount) * 1000;
           console.log(`useProfileData: Scheduling retry in ${retryDelay}ms (attempt ${retryCount + 1}/3)`);
           
-          setTimeout(() => {
-            setRetryCount(prev => prev + 1);
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+          
+          timeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              setRetryCount(prev => prev + 1);
+              timeoutRef.current = null;
+            }
           }, retryDelay);
         }
       } finally {
         // Batch state updates in finally block
-        setIsLoading(false);
-        isLoadingData.current = false;
+        batchStateUpdate(() => {
+          setIsLoading(false);
+        });
+        
+        // Set a timeout before allowing new operations
+        // This prevents immediate re-fetching of profile data
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        
+        timeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            isLoadingData.current = false;
+            timeoutRef.current = null;
+          }
+        }, 1000);
       }
     };
 
     fetchUserProfile();
-  }, [currentUser, authIsInitialized, isClient, retryCount, getUserProfile]);
+  }, [currentUser?.uid, authIsInitialized, isClient, retryCount]); // Optimized dependency array
 
   return {
     profile,
