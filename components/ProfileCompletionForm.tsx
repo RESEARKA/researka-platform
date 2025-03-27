@@ -611,7 +611,10 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                       });
                     }
                   }}
-                  isDisabled={isSubmitting || isDisabled}
+                  maxInterests={5}
+                  isRequired={true}
+                  error={errors.researchInterests}
+                  isDisabled={isDisabled}
                 />
                 {errors.researchInterests && (
                   <FormErrorMessage>{errors.researchInterests}</FormErrorMessage>
