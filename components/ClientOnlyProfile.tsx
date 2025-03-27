@@ -29,7 +29,7 @@ import {
 } from '@chakra-ui/react';
 import { FiEdit, FiFileText, FiStar, FiUser, FiX } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
-import { useProfileData, UserProfile } from '../hooks/useProfileData';
+import { useProfileData, UserProfile, ProfileLoadingState } from '../hooks/useProfileData';
 import ProfileCompletionForm from './ProfileCompletionForm';
 import useClient from '../hooks/useClient';
 import ResponsiveText from './ResponsiveText';
@@ -93,7 +93,6 @@ const ClientOnlyProfile: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
   const [localLoadingState, setLocalLoadingState] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'updating' | 'success' | 'error'>('idle');
   
   // UI helpers
   const showToast = useAppToast();
@@ -106,6 +105,7 @@ const ClientOnlyProfile: React.FC = () => {
   const profileUpdateTimeout = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
   const lastUpdateTime = useRef<number>(0);
+  const operationStartTimeRef = useRef<number>(0);
   
   // Auth and profile data
   const { currentUser, authIsInitialized } = useAuth();
@@ -116,17 +116,44 @@ const ClientOnlyProfile: React.FC = () => {
     isProfileComplete, 
     updateProfile, 
     retryLoading,
-    isLoadingData
+    isLoadingData,
+    loadingState
   } = useProfileData();
   const isClient = useClient();
 
+  // Log component lifecycle events with performance metrics
+  const logOperation = useCallback((
+    operation: string, 
+    details?: Record<string, any>
+  ) => {
+    const now = Date.now();
+    const duration = operationStartTimeRef.current ? now - operationStartTimeRef.current : 0;
+    
+    console.log(`ClientOnlyProfile: ${operation} ${duration ? `in ${duration}ms` : ''}`, {
+      userId: currentUser?.uid?.substring(0, 8) || 'none',
+      loadingState,
+      isEditMode,
+      ...details
+    });
+    
+    // Reset operation start time for completed operations
+    if (operation.includes('completed') || operation.includes('failed')) {
+      operationStartTimeRef.current = 0;
+    } 
+    // Set start time for new operations
+    else if (operationStartTimeRef.current === 0 && 
+             (operation.includes('starting') || operation.includes('initiating'))) {
+      operationStartTimeRef.current = now;
+    }
+  }, [currentUser?.uid, loadingState, isEditMode]);
+
   // Set up component mount/unmount tracking
   useEffect(() => {
-    console.log('ClientOnlyProfile: Component mounted');
+    logOperation('Component mounted');
     isMounted.current = true;
     
     return () => {
-      console.log('ClientOnlyProfile: Component unmounting');
+      logOperation('Component unmounting');
       isMounted.current = false;
       
       // Clean up any timeouts on unmount
@@ -135,77 +162,98 @@ const ClientOnlyProfile: React.FC = () => {
         profileUpdateTimeout.current = null;
       }
     };
-  }, []);
+  }, [logOperation]);
 
   // Batch state updates to minimize renders
   const batchStateUpdate = useCallback((updates: () => void) => {
     if (isMounted.current) {
       updates();
+    } else {
+      console.log('ClientOnlyProfile: Skipping state update on unmounted component');
     }
   }, []);
 
+  // Helper function to check if the loading state is in a specific set of states
+  const isInLoadingState = (states: ProfileLoadingState[]) => {
+    return states.includes(loadingState);
+  };
+
   // Function to toggle edit mode with debounce protection
   const handleEditProfile = useCallback(() => {
-    if (isUpdatingProfile.current) {
-      console.log('ClientOnlyProfile: Update in progress, ignoring edit request');
+    // Prevent edit mode when profile is being updated
+    if (isUpdatingProfile.current || isInLoadingState([ProfileLoadingState.UPDATING])) {
+      logOperation('Edit request ignored - update in progress', {
+        isUpdatingProfile: isUpdatingProfile.current,
+        loadingState
+      });
       return;
     }
     
     // Prevent rapid toggling of edit mode
     const now = Date.now();
     if (now - lastUpdateTime.current < 1000) {
-      console.log('ClientOnlyProfile: Edit request too soon after last action, ignoring');
+      logOperation('Edit request ignored - too soon after last action', {
+        timeSinceLastAction: now - lastUpdateTime.current
+      });
       return;
     }
     
     lastUpdateTime.current = now;
+    logOperation('Entering edit mode');
     setIsEditMode(true);
-  }, []);
+  }, [loadingState, logOperation]);
   
   // Function to cancel edit mode
   const handleCancelEdit = useCallback(() => {
     // Prevent rapid toggling of edit mode
     const now = Date.now();
     if (now - lastUpdateTime.current < 1000) {
-      console.log('ClientOnlyProfile: Cancel request too soon after last action, ignoring');
+      logOperation('Cancel request ignored - too soon after last action', {
+        timeSinceLastAction: now - lastUpdateTime.current
+      });
       return;
     }
     
     lastUpdateTime.current = now;
+    logOperation('Exiting edit mode (cancelled)');
     setIsEditMode(false);
-  }, []);
+  }, [logOperation]);
   
   // Function to save profile edits with enhanced error handling and state management
   const handleSaveProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
     // Prevent duplicate updates
-    if (isUpdatingProfile.current) {
-      console.log('ClientOnlyProfile: Update already in progress, skipping duplicate request');
+    if (isUpdatingProfile.current || isInLoadingState([ProfileLoadingState.UPDATING])) {
+      logOperation('Save request ignored - update already in progress', {
+        isUpdatingProfile: isUpdatingProfile.current,
+        loadingState
+      });
       return false;
     }
     
     // Prevent rapid save operations
     const now = Date.now();
     if (now - lastUpdateTime.current < 1000) {
-      console.log('ClientOnlyProfile: Save request too soon after last action, ignoring');
+      logOperation('Save request ignored - too soon after last action', {
+        timeSinceLastAction: now - lastUpdateTime.current
+      });
       return false;
     }
     
     lastUpdateTime.current = now;
+    operationStartTimeRef.current = now;
     
     // Set local loading state for UI feedback
     batchStateUpdate(() => {
       setLocalLoadingState(true);
-      setUpdateStatus('updating');
+    });
+    
+    logOperation('Starting profile update', {
+      fields: Object.keys(updatedProfile)
     });
     
     try {
       // Set the updating flag to prevent duplicate data loading
       isUpdatingProfile.current = true;
-      
-      // If the hook also has a loading flag, set it
-      if (isLoadingData) {
-        isLoadingData.current = true;
-      }
       
       // Create a complete profile update object with all necessary fields
       const completeProfileUpdate = { ...updatedProfile };
@@ -228,7 +276,9 @@ const ClientOnlyProfile: React.FC = () => {
         completeProfileUpdate.profileComplete = true;
       }
       
-      console.log('ClientOnlyProfile: Updating profile with data:', completeProfileUpdate);
+      logOperation('Sending profile update to server', {
+        updatedFields: Object.keys(completeProfileUpdate)
+      });
       
       // Attempt to update the profile with retry logic
       let success = false;
@@ -242,10 +292,13 @@ const ClientOnlyProfile: React.FC = () => {
           
           // Wait before retrying
           if (attempts < maxAttempts - 1) {
+            logOperation(`Retrying profile update (attempt ${attempts + 1}/${maxAttempts})`);
             await new Promise(resolve => setTimeout(resolve, 500));
           }
         } catch (error) {
-          console.error(`ClientOnlyProfile: Error in profile update attempt ${attempts + 1}:`, error);
+          logOperation(`Error in profile update attempt ${attempts + 1}`, {
+            error: error instanceof Error ? error.message : String(error)
+          });
         }
         attempts++;
       }
@@ -256,7 +309,10 @@ const ClientOnlyProfile: React.FC = () => {
         batchStateUpdate(() => {
           setIsEditMode(false);
           setLocalLoadingState(false);
-          setUpdateStatus('success');
+        });
+        
+        logOperation('Profile update completed successfully', {
+          attempts
         });
         
         // Clear any existing timeout
@@ -270,17 +326,10 @@ const ClientOnlyProfile: React.FC = () => {
           if (!isMounted.current) return;
           
           isUpdatingProfile.current = false;
-          if (isLoadingData) {
-            isLoadingData.current = false;
-          }
-          
-          batchStateUpdate(() => {
-            setUpdateStatus('idle');
-          });
-          
           profileUpdateTimeout.current = null;
-          console.log('ClientOnlyProfile: Update lock released after timeout');
-        }, 1500); // Increased timeout to ensure all operations complete
+          
+          logOperation('Update lock released after timeout');
+        }, 2000); // Increased timeout to ensure all operations complete
         
         showToast({
           id: 'profile-updated',
@@ -295,7 +344,10 @@ const ClientOnlyProfile: React.FC = () => {
         // Show error message for failed update
         batchStateUpdate(() => {
           setLocalLoadingState(false);
-          setUpdateStatus('error');
+        });
+        
+        logOperation('Profile update failed after multiple attempts', {
+          attempts
         });
         
         showToast({
@@ -315,21 +367,17 @@ const ClientOnlyProfile: React.FC = () => {
           if (!isMounted.current) return;
           
           isUpdatingProfile.current = false;
-          if (isLoadingData) {
-            isLoadingData.current = false;
-          }
-          
-          batchStateUpdate(() => {
-            setUpdateStatus('idle');
-          });
-          
           profileUpdateTimeout.current = null;
-        }, 1000);
+          
+          logOperation('Update lock released after error timeout');
+        }, 2000);
         
         return false;
       }
     } catch (error) {
-      console.error('ClientOnlyProfile: Error saving profile:', error);
+      logOperation('Error saving profile', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       
       // Enhanced error handling with more detailed messages
       let errorMessage = "Failed to update profile. Please try again.";
@@ -341,7 +389,6 @@ const ClientOnlyProfile: React.FC = () => {
       
       batchStateUpdate(() => {
         setLocalLoadingState(false);
-        setUpdateStatus('error');
       });
       
       showToast({
@@ -357,16 +404,15 @@ const ClientOnlyProfile: React.FC = () => {
       // If there's no timeout active, reset the flags immediately
       if (!profileUpdateTimeout.current) {
         isUpdatingProfile.current = false;
-        if (isLoadingData) {
-          isLoadingData.current = false;
-        }
         
         batchStateUpdate(() => {
           setLocalLoadingState(false);
         });
+        
+        logOperation('Update flags reset in finally block');
       }
     }
-  }, [profile, updateProfile, showToast, batchStateUpdate, isLoadingData]);
+  }, [profile, updateProfile, showToast, batchStateUpdate, loadingState, logOperation]);
   
   // Show loading state when not on client or auth is initializing
   if (!isClient || !authIsInitialized) {
@@ -381,29 +427,35 @@ const ClientOnlyProfile: React.FC = () => {
   }
   
   // Show loading state when profile data is loading
-  if (isLoading || localLoadingState) {
+  if (isLoading || localLoadingState || isInLoadingState([ProfileLoadingState.LOADING, ProfileLoadingState.UPDATING, ProfileLoadingState.INITIALIZING])) {
     return (
       <Center py={10}>
         <VStack spacing={4}>
           <Spinner size="xl" />
-          <Text>{localLoadingState ? "Updating profile..." : "Loading profile data..."}</Text>
+          <Text>
+            {isInLoadingState([ProfileLoadingState.UPDATING]) ? "Updating profile..." : 
+             localLoadingState ? "Saving changes..." : 
+             "Loading profile data..."}
+          </Text>
         </VStack>
       </Center>
     );
   }
 
   // Show error state with retry button
-  if (error) {
+  if (error || isInLoadingState([ProfileLoadingState.ERROR])) {
     return (
       <Box p={5} borderWidth={1} borderRadius="md" bg="red.50" color="red.800">
         <Box fontWeight="bold" mb={2}>Error loading profile</Box>
         <Box>{error}</Box>
         <Box mt={4}>
           <Button 
-            onClick={retryLoading}
-            colorScheme="blue"
-            isLoading={isLoading}
-            loadingText="Retrying..."
+            colorScheme="red" 
+            size="sm" 
+            onClick={() => {
+              logOperation('Retrying profile load after error');
+              retryLoading();
+            }}
           >
             Retry
           </Button>
@@ -412,188 +464,248 @@ const ClientOnlyProfile: React.FC = () => {
     );
   }
 
-  // If user is not logged in
-  if (!currentUser) {
+  // Show profile completion form if profile is not complete
+  if (!isProfileComplete && profile) {
     return (
-      <Alert status="warning" borderRadius="md" mb={6}>
-        <AlertIcon />
-        <Box>
-          <AlertTitle>Not logged in</AlertTitle>
-          <AlertDescription>
-            Please log in to view your profile.
-          </AlertDescription>
-        </Box>
-      </Alert>
-    );
-  }
-
-  // If profile is not complete, show completion form
-  if (!isProfileComplete && !isEditMode) {
-    return (
-      <ProfileCompletionForm 
-        initialData={profile || undefined} 
-        onSave={handleSaveProfile}
-        isDisabled={isUpdatingProfile.current || localLoadingState}
-      />
-    );
-  }
-
-  // Show edit form if in edit mode
-  if (isEditMode) {
-    return (
-      <Box mb={6}>
-        <Flex justify="space-between" align="center" mb={4}>
-          <ResponsiveText variant="h2">Edit Profile</ResponsiveText>
-          <Button 
-            leftIcon={<FiX />} 
-            variant="ghost" 
-            onClick={handleCancelEdit}
-            isDisabled={isUpdatingProfile.current || localLoadingState}
-          >
-            Cancel
-          </Button>
-        </Flex>
+      <Box p={5} maxW="800px" mx="auto">
+        <Alert status="info" mb={5}>
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Complete your profile</AlertTitle>
+            <AlertDescription>
+              Please complete your profile to access all features of the platform.
+            </AlertDescription>
+          </Box>
+        </Alert>
         <ProfileCompletionForm 
-          onSave={handleSaveProfile}
-          initialData={profile || undefined}
-          isEditMode={true}
-          onCancel={handleCancelEdit}
-          isDisabled={isUpdatingProfile.current || localLoadingState}
+          initialData={profile} 
+          onSave={handleSaveProfile} 
+          isLoading={localLoadingState || isInLoadingState([ProfileLoadingState.UPDATING, ProfileLoadingState.LOADING])}
         />
       </Box>
     );
   }
 
-  // If profile is complete, render profile content
+  // If no profile exists, show an error
+  if (!profile) {
+    return (
+      <Box p={5} borderWidth={1} borderRadius="md" bg="red.50" color="red.800">
+        <Box fontWeight="bold" mb={2}>Profile not found</Box>
+        <Box>Unable to load your profile. Please try refreshing the page.</Box>
+        <Box mt={4}>
+          <Button 
+            colorScheme="red" 
+            size="sm" 
+            onClick={() => {
+              logOperation('Retrying profile load - profile not found');
+              retryLoading();
+            }}
+          >
+            Retry
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Main profile view
   return (
-    <Box>
-      {/* Profile header */}
-      <Flex 
-        direction={{ base: 'column', md: 'row' }} 
-        align={{ base: 'center', md: 'flex-start' }} 
-        justify="space-between"
-        mb={6}
-        p={6}
-        bg={cardBg}
-        borderRadius="lg"
-        borderWidth="1px"
+    <Box p={{ base: 2, md: 5 }}>
+      {/* Profile Header */}
+      <Box 
+        borderWidth={1} 
+        borderRadius="lg" 
+        overflow="hidden" 
+        bg={bgColor} 
         borderColor={borderColor}
-        boxShadow="sm"
+        mb={5}
       >
-        {/* Profile info */}
-        <Flex direction={{ base: 'column', md: 'row' }} align="center" mb={{ base: 4, md: 0 }}>
-          <Avatar 
-            size="xl" 
-            name={profile?.name || 'User'} 
-            src="/images/default-avatar.png" 
-            mr={{ base: 0, md: 6 }}
-            mb={{ base: 4, md: 0 }}
-          />
-          <Box textAlign={{ base: 'center', md: 'left' }}>
-            <ResponsiveText variant="h2" mb={1}>
-              {profile?.name || 'User'}
-            </ResponsiveText>
-            <Text color="gray.500" mb={2}>
-              {profile?.role || 'Researcher'} at {profile?.institution || 'Institution'}
-            </Text>
-            <Flex gap={2} justify={{ base: 'center', md: 'flex-start' }}>
-              <Badge colorScheme="blue">{profile?.department || 'Department'}</Badge>
-              <Badge colorScheme="green">{profile?.position || 'Position'}</Badge>
-            </Flex>
-          </Box>
-        </Flex>
-        
-        {/* Edit button */}
-        <Button 
-          leftIcon={<FiEdit />} 
-          colorScheme="blue" 
-          variant="outline"
-          onClick={handleEditProfile}
-          isDisabled={isUpdatingProfile.current || localLoadingState}
-          isLoading={localLoadingState}
-          loadingText="Updating..."
-        >
-          Edit Profile
-        </Button>
-      </Flex>
-      
-      {/* Profile content */}
-      <Tabs 
-        index={activeTab} 
-        onChange={setActiveTab} 
-        variant="enclosed" 
-        colorScheme="blue"
-        isLazy
-      >
-        <TabList>
-          <Tab><Box as={FiUser} mr={2} /> Profile</Tab>
-          <Tab><Box as={FiFileText} mr={2} /> Articles</Tab>
-          <Tab><Box as={FiStar} mr={2} /> Reviews</Tab>
-        </TabList>
-        
-        <TabPanels>
-          {/* Profile tab */}
-          <TabPanel p={0} pt={6}>
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-              {/* Research interests */}
-              <Card>
-                <CardHeader>
-                  <ResponsiveText variant="h3">Research Interests</ResponsiveText>
-                </CardHeader>
-                <CardBody>
-                  <Flex wrap="wrap" gap={2}>
-                    {profile?.researchInterests?.map((interest, index) => (
-                      <Badge key={index} colorScheme="blue">
+        <Box p={{ base: 4, md: 6 }}>
+          <Flex 
+            direction={{ base: 'column', md: 'row' }} 
+            align={{ base: 'center', md: 'flex-start' }}
+            justify="space-between"
+          >
+            <Flex 
+              direction={{ base: 'column', md: 'row' }} 
+              align={{ base: 'center', md: 'flex-start' }}
+            >
+              <Avatar 
+                size="xl" 
+                name={profile.name} 
+                mb={{ base: 4, md: 0 }} 
+                mr={{ base: 0, md: 6 }}
+              />
+              <Box textAlign={{ base: 'center', md: 'left' }}>
+                <Box display="flex" alignItems="center" flexDirection={{ base: "column", md: "row" }}>
+                  <ResponsiveText 
+                    variant="h2"
+                    fontSize={{ base: "xl", md: "2xl" }} 
+                    fontWeight="bold" 
+                    mb={{ base: 1, md: 0 }}
+                  >
+                    {profile.name}
+                  </ResponsiveText>
+                  <Badge 
+                    ml={{ base: 0, md: 2 }} 
+                    colorScheme="green"
+                    mb={{ base: 2, md: 0 }}
+                  >
+                    {profile.role}
+                  </Badge>
+                </Box>
+                <Text color="gray.600" fontSize="md" mb={2}>
+                  {profile.institution || 'No institution specified'}
+                </Text>
+                <Text color="gray.600" fontSize="sm">
+                  {profile.department ? `${profile.department}` : ''}
+                  {profile.position && profile.department ? ` • ${profile.position}` : profile.position}
+                </Text>
+                {profile.researchInterests && profile.researchInterests.length > 0 && (
+                  <Box mt={2}>
+                    {profile.researchInterests.map((interest, index) => (
+                      <Badge key={index} mr={2} mb={2} colorScheme="blue">
                         {interest}
                       </Badge>
                     ))}
-                    {(!profile?.researchInterests || profile.researchInterests.length === 0) && (
-                      <Text color="gray.500">No research interests specified</Text>
-                    )}
-                  </Flex>
-                </CardBody>
-              </Card>
-              
-              {/* Stats */}
-              <Card>
-                <CardHeader>
-                  <ResponsiveText variant="h3">Activity</ResponsiveText>
-                </CardHeader>
-                <CardBody>
-                  <SimpleGrid columns={2} spacing={4}>
-                    <Stat>
-                      <StatLabel>Articles</StatLabel>
-                      <StatNumber>{profile?.articles || 0}</StatNumber>
-                    </Stat>
-                    <Stat>
-                      <StatLabel>Reviews</StatLabel>
-                      <StatNumber>{profile?.reviews || 0}</StatNumber>
-                    </Stat>
-                  </SimpleGrid>
-                </CardBody>
-              </Card>
-            </SimpleGrid>
-          </TabPanel>
+                  </Box>
+                )}
+              </Box>
+            </Flex>
+            
+            {/* Edit Profile Button */}
+            {isEditMode ? (
+              <Flex mt={{ base: 4, md: 0 }}>
+                <Button 
+                  leftIcon={<FiX />} 
+                  colorScheme="gray" 
+                  size="sm" 
+                  onClick={handleCancelEdit}
+                  mr={2}
+                >
+                  Cancel
+                </Button>
+              </Flex>
+            ) : (
+              <Button 
+                leftIcon={<FiEdit />} 
+                colorScheme="blue" 
+                size="sm" 
+                onClick={handleEditProfile}
+                mt={{ base: 4, md: 0 }}
+              >
+                Edit Profile
+              </Button>
+            )}
+          </Flex>
           
-          {/* Articles tab */}
-          <TabPanel>
-            <ArticlesPanel 
-              userId={currentUser?.uid} 
-              currentPage={currentPage}
-              onPageChange={setCurrentPage}
-            />
-          </TabPanel>
-          
-          {/* Reviews tab */}
-          <TabPanel>
-            <ReviewsPanel 
-              userId={currentUser?.uid}
-              currentPage={currentPage}
-              onPageChange={setCurrentPage}
-            />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+          {/* Profile Edit Form */}
+          {isEditMode && (
+            <Box mt={6}>
+              <ProfileCompletionForm 
+                initialData={profile} 
+                onSave={handleSaveProfile} 
+                isLoading={localLoadingState || isInLoadingState([ProfileLoadingState.UPDATING, ProfileLoadingState.LOADING])}
+              />
+            </Box>
+          )}
+        </Box>
+      </Box>
+      
+      {/* Profile Stats */}
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={5} mb={5}>
+        <Card bg={cardBg}>
+          <CardBody>
+            <Stat>
+              <StatLabel>Articles</StatLabel>
+              <StatNumber>{profile.articles || 0}</StatNumber>
+            </Stat>
+          </CardBody>
+        </Card>
+        <Card bg={cardBg}>
+          <CardBody>
+            <Stat>
+              <StatLabel>Reviews</StatLabel>
+              <StatNumber>{profile.reviews || 0}</StatNumber>
+            </Stat>
+          </CardBody>
+        </Card>
+        <Card bg={cardBg}>
+          <CardBody>
+            <Stat>
+              <StatLabel>Wallet</StatLabel>
+              <StatNumber>
+                {profile.walletAddress ? 
+                  `${profile.walletAddress.substring(0, 6)}...${profile.walletAddress.substring(profile.walletAddress.length - 4)}` : 
+                  'Not connected'}
+              </StatNumber>
+            </Stat>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+      
+      {/* Tabs for Articles, Reviews, etc. */}
+      <Box 
+        borderWidth={1} 
+        borderRadius="lg" 
+        overflow="hidden" 
+        bg={bgColor} 
+        borderColor={borderColor}
+      >
+        <Tabs 
+          isFitted 
+          variant="enclosed" 
+          onChange={(index) => setActiveTab(index)}
+          colorScheme="blue"
+        >
+          <TabList>
+            <Tab><Box as={FiFileText} mr={2} /> Articles</Tab>
+            <Tab><Box as={FiStar} mr={2} /> Reviews</Tab>
+            <Tab><Box as={FiUser} mr={2} /> About</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel>
+              <ArticlesPanel 
+                userId={currentUser?.uid || ''} 
+                EmptyState={() => <EmptyState type="Articles" />}
+                currentPage={1}
+                onPageChange={() => {}}
+                isLoading={isLoading || localLoadingState || isInLoadingState([ProfileLoadingState.LOADING, ProfileLoadingState.INITIALIZING])}
+              />
+            </TabPanel>
+            <TabPanel>
+              <ReviewsPanel 
+                userId={currentUser?.uid || ''} 
+                EmptyState={() => <EmptyState type="Reviews" />}
+                currentPage={1}
+                onPageChange={() => {}}
+                isLoading={isLoading || localLoadingState || isInLoadingState([ProfileLoadingState.LOADING, ProfileLoadingState.INITIALIZING])}
+              />
+            </TabPanel>
+            <TabPanel>
+              <Box>
+                <Text fontWeight="bold" fontSize="lg" mb={3}>About</Text>
+                <Text>
+                  {profile.name} is a {profile.role.toLowerCase()} 
+                  {profile.institution ? ` at ${profile.institution}` : ''}.
+                </Text>
+                {profile.researchInterests && profile.researchInterests.length > 0 && (
+                  <Box mt={4}>
+                    <Text fontWeight="bold" mb={2}>Research Interests</Text>
+                    <Box>
+                      {profile.researchInterests.map((interest, index) => (
+                        <Badge key={index} mr={2} mb={2} colorScheme="blue">
+                          {interest}
+                        </Badge>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </Box>
     </Box>
   );
 };
