@@ -25,7 +25,9 @@ import {
   useColorModeValue,
   LinkBox,
   LinkOverlay,
-  useToast
+  useToast,
+  Center,
+  Spinner
 } from '@chakra-ui/react';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -34,6 +36,7 @@ import dynamic from 'next/dynamic';
 import { FiSearch, FiChevronDown } from 'react-icons/fi';
 import { useModal } from '../contexts/ModalContext';
 import { Article } from '../services/articleService'; 
+import FirebaseClientOnly from '../components/FirebaseClientOnly';
 
 // Using dynamic import with ssr: false for components with client-side dependencies
 const LoginModal = dynamic(() => import('../components/LoginModal'), {
@@ -96,56 +99,35 @@ const MainCategories = dynamic(() => Promise.resolve({
 const SubCategories = dynamic(() => Promise.resolve({
   default({ onSelect }: { onSelect: (id: string) => void }) {
     const subCategories = [
-      { id: 'biology', name: 'BIOLOGY', color: 'gray.700' },
-      { id: 'chemistry', name: 'CHEMISTRY', color: 'gray.700' },
-      { id: 'data-science', name: 'DATA SCIENCE', color: 'gray.700' },
-      { id: 'physics', name: 'PHYSICS', color: 'gray.700' },
-      { id: 'mathematics', name: 'MATHEMATICS', color: 'gray.700' },
-      { id: 'earth-environmental', name: 'EARTH & ENVIRONMENTAL SCIENCES', color: 'gray.700' },
-      { id: 'astronomy', name: 'ASTRONOMY & ASTROPHYSICS', color: 'gray.700' },
-      { id: 'medicine', name: 'MEDICINE & HEALTH SCIENCES', color: 'gray.700' },
-      { id: 'neuroscience', name: 'NEUROSCIENCE', color: 'gray.700' },
-      { id: 'genetics', name: 'GENETICS', color: 'gray.700' },
-      { id: 'ecology', name: 'ECOLOGY & CONSERVATION', color: 'gray.700' },
-      { id: 'computer-science', name: 'COMPUTER SCIENCE', color: 'gray.700' },
-      { id: 'electrical', name: 'ELECTRICAL & ELECTRONIC ENGINEERING', color: 'gray.700' },
-      { id: 'mechanical', name: 'MECHANICAL ENGINEERING', color: 'gray.700' },
-      { id: 'materials', name: 'MATERIALS SCIENCE', color: 'gray.700' },
-      { id: 'ai', name: 'ARTIFICIAL INTELLIGENCE', color: 'gray.700' },
-      { id: 'blockchain', name: 'BLOCKCHAIN & DISTRIBUTED SYSTEMS', color: 'gray.700' },
-      { id: 'economics', name: 'ECONOMICS', color: 'gray.700' },
-      { id: 'psychology', name: 'PSYCHOLOGY', color: 'gray.700' },
-      { id: 'sociology', name: 'SOCIOLOGY', color: 'gray.700' },
-      { id: 'political', name: 'POLITICAL SCIENCE', color: 'gray.700' },
-      { id: 'education', name: 'EDUCATION', color: 'gray.700' },
-      { id: 'business', name: 'BUSINESS & MANAGEMENT', color: 'gray.700' },
-      { id: 'philosophy', name: 'PHILOSOPHY', color: 'gray.700' },
-      { id: 'literature', name: 'LITERATURE', color: 'gray.700' },
-      { id: 'history', name: 'HISTORY', color: 'gray.700' },
-      { id: 'cultural', name: 'CULTURAL STUDIES', color: 'gray.700' },
-      { id: 'linguistics', name: 'LINGUISTICS', color: 'gray.700' },
-      { id: 'visual', name: 'VISUAL & PERFORMING ARTS', color: 'gray.700' },
-      { id: 'sustainability', name: 'SUSTAINABILITY', color: 'gray.700' },
-      { id: 'cognitive', name: 'COGNITIVE SCIENCE', color: 'gray.700' },
-      { id: 'public-policy', name: 'PUBLIC POLICY', color: 'gray.700' },
+      { id: 'all', name: 'ALL', color: 'blue.500' },
+      { id: 'biology', name: 'BIOLOGY', color: 'green.500' },
+      { id: 'physics', name: 'PHYSICS', color: 'purple.500' },
+      { id: 'chemistry', name: 'CHEMISTRY', color: 'orange.500' },
+      { id: 'computer-science', name: 'COMPUTER SCIENCE', color: 'red.500' },
+      { id: 'mathematics', name: 'MATHEMATICS', color: 'yellow.500' },
+      { id: 'medicine', name: 'MEDICINE', color: 'teal.500' },
+      { id: 'psychology', name: 'PSYCHOLOGY', color: 'pink.500' },
+      { id: 'economics', name: 'ECONOMICS', color: 'cyan.500' },
+      { id: 'sociology', name: 'SOCIOLOGY', color: 'blue.300' },
       { id: 'ethics', name: 'ETHICS', color: 'gray.700' },
     ];
     return (
-      <Flex wrap="wrap" justify="center" gap={2} mb={6}>
-        {subCategories.map(category => (
-          <Button
-            key={category.id}
-            size="sm"
-            variant="outline"
+      <Flex wrap="wrap" gap={2} mb={4}>
+        {subCategories.map(cat => (
+          <Tag 
+            key={cat.id}
+            size="md" 
+            variant="outline" 
             colorScheme="blue"
-            borderRadius="full"
-            onClick={() => onSelect(category.id)}
+            cursor="pointer"
+            onClick={() => onSelect(cat.id)}
+            _hover={{ bg: 'blue.50', color: 'blue.600' }}
           >
-            {category.name}
-          </Button>
+            <TagLabel>{cat.name}</TagLabel>
+          </Tag>
         ))}
       </Flex>
-    )
+    );
   }
 }), { ssr: false });
 
@@ -557,4 +539,17 @@ const Home: React.FC = () => {
   );
 };
 
-export default Home;
+// Wrap the Home component with FirebaseClientOnly to ensure Firebase is initialized
+const HomeWithFirebase: React.FC = () => {
+  return (
+    <FirebaseClientOnly fallback={
+      <Center h="100vh">
+        <Spinner size="xl" />
+      </Center>
+    }>
+      <Home />
+    </FirebaseClientOnly>
+  );
+};
+
+export default HomeWithFirebase;

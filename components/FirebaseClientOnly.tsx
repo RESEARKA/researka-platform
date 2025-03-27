@@ -24,7 +24,7 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
     const initFirebase = async () => {
       try {
         // Dynamically import Firebase config to avoid SSR issues
-        const { initializeFirebaseOnClient, isFirebaseInitialized } = await import('../config/firebase');
+        const { initializeFirebase, isFirebaseInitialized } = await import('../config/firebase');
         
         // Check if Firebase is already initialized
         if (isFirebaseInitialized()) {
@@ -35,7 +35,7 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
         
         // Initialize Firebase
         console.log('FirebaseClientOnly: Initializing Firebase');
-        const success = await initializeFirebaseOnClient();
+        const success = initializeFirebase();
         
         if (success) {
           console.log('FirebaseClientOnly: Firebase initialization successful');
@@ -50,24 +50,33 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
       }
     };
 
+    // Initialize Firebase on client side
     initFirebase();
+
+    // Cleanup function
+    return () => {
+      console.log('FirebaseClientOnly: Component unmounted');
+    };
   }, []);
 
-  // Show error state if initialization failed
+  // If there's an error, show error message
   if (error) {
     return (
-      <ClientOnly fallback={fallback}>
-        <div className="p-4 text-center text-red-500">
-          <p>Error: {error}</p>
-          <p className="text-sm mt-2">Please try refreshing the page</p>
-        </div>
-      </ClientOnly>
+      <div className="p-4 text-center text-red-500">
+        <p>Error: {error}</p>
+        <button 
+          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          onClick={() => window.location.reload()}
+        >
+          Reload Page
+        </button>
+      </div>
     );
   }
 
-  // Render children only when Firebase is ready and we're on the client
+  // Use ClientOnly to ensure we're on the client side, then check if Firebase is ready
   return (
-    <ClientOnly fallback={fallback}>
+    <ClientOnly>
       {isFirebaseReady ? children : fallback}
     </ClientOnly>
   );

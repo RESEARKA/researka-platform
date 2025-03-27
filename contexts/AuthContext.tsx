@@ -9,7 +9,7 @@ import {
   User,
   signInAnonymously
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { app, auth, db } from '../config/firebase';
 import { FirebaseApp } from 'firebase/app';
 import { Auth } from 'firebase/auth';
@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authIsInitialized, setAuthIsInitialized] = useState(false);
   const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
   const isClient = useClient();
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // Initialize Firebase only on the client side
   useEffect(() => {
@@ -424,101 +425,139 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
-  // Update user data in Firestore
+  /**
+   * Updates user data in Firestore
+   * @param data User data to update
+   * @returns Promise resolving to a boolean indicating success
+   */
   async function updateUserData(data: any): Promise<boolean> {
-    console.log('AuthContext: Updating user data in Firestore:', data);
-    try {
-      // Wait for auth and database to be initialized
-      if (!authIsInitialized) {
-        console.log('AuthContext: Waiting for auth to initialize before updating user data...');
-        // Wait up to 5 seconds for auth to initialize
-        for (let i = 0; i < 10; i++) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          if (authIsInitialized) break;
-        }
+    console.log('AuthContext: Updating user data');
+    
+    // Wait for auth and database to be initialized
+    if (!authIsInitialized) {
+      console.log('AuthContext: Auth not initialized, waiting before update attempt');
+      
+      // Wait for auth initialization with a timeout
+      let waitAttempts = 0;
+      const maxWaitAttempts = 10;
+      
+      while (!authIsInitialized && waitAttempts < maxWaitAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        waitAttempts++;
+        console.log(`AuthContext: Wait attempt ${waitAttempts}/${maxWaitAttempts} for auth initialization`);
       }
       
-      // Check if database and user are initialized
-      if (!dbRef.current) {
-        console.error('AuthContext: Database not initialized, attempting to initialize...');
-        if (!app) {
-          console.error('AuthContext: Firebase app not available');
+      // Check again after waiting
+      if (!authIsInitialized) {
+        console.error('AuthContext: Auth not initialized after waiting, cannot update user data');
+        return false;
+      }
+    }
+    
+    // Check if user is available
+    if (!currentUser) {
+      // If we're still initializing, wait a bit more
+      if (isInitializing) {
+        console.log('AuthContext: User is still initializing, waiting before update attempt');
+        
+        // Wait for user initialization with a timeout
+        let waitAttempts = 0;
+        const maxWaitAttempts = 5;
+        
+        while (isInitializing && waitAttempts < maxWaitAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          waitAttempts++;
+          console.log(`AuthContext: Wait attempt ${waitAttempts}/${maxWaitAttempts} for user initialization`);
+          
+          // Check if user is available after waiting
+          if (currentUser) {
+            console.log('AuthContext: User is now available after waiting');
+            break;
+          }
+        }
+        
+        // Check again after waiting
+        if (!currentUser) {
+          console.error('AuthContext: User not initialized after waiting, cannot update user data');
           return false;
         }
-        // Try to initialize database if not already done
-        dbRef.current = getFirestore(app);
+      } else {
+        console.error('AuthContext: No user is signed in, cannot update user data');
+        return false;
       }
-      
-      // Check if user is available
-      if (!currentUser) {
-        console.error('AuthContext: User not initialized, cannot update user data');
+    }
+    
+    // Validate user data before saving
+    const { isValid, sanitizedData, errors } = validateUserData(data);
+    
+    if (!isValid) {
+      console.error('AuthContext: Invalid user data:', errors);
+      return false;
+    }
+    
+    try {
+      // Get a reference to the user's document
+      if (!dbRef.current) {
+        console.error('AuthContext: Database not initialized, cannot update user data');
         return false;
       }
       
-      // Validate user data before saving
-      const { isValid, sanitizedData, errors } = validateUserData(data);
-      if (!isValid) {
-        console.error('AuthContext: Invalid user data:', errors);
-        return false;
-      }
+      const userDocRef = doc(dbRef.current, 'users', currentUser.uid);
       
-      // Add retry logic for updating user data
-      let attempts = 0;
-      const maxAttempts = 3;
-      
-      while (attempts < maxAttempts) {
-        try {
-          await updateDoc(doc(dbRef.current, 'users', currentUser.uid), {
+      // Use a transaction to safely update the user document
+      await runTransaction(dbRef.current, async (transaction) => {
+        const userDoc = await transaction.get(userDocRef);
+        
+        if (!userDoc.exists()) {
+          // Create a new user document with the sanitized data
+          transaction.set(userDocRef, {
             ...sanitizedData,
-            updatedAt: new Date().toISOString()
+            // Add default fields for new users
+            hasChangedName: false,
+            hasChangedInstitution: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           });
+        } else {
+          // Update existing user document
+          const userData = userDoc.data();
           
-          console.log('AuthContext: User data updated successfully');
-          return true;
-        } catch (error) {
-          console.error(`AuthContext: Error updating user data (attempt ${attempts + 1}/${maxAttempts}):`, error);
-          attempts++;
-          
-          // If this is the first attempt and we get a "document not found" error, try to create it
-          if (attempts === 1 && error instanceof Error && error.toString().includes('not found')) {
-            try {
-              console.log('AuthContext: Document not found, attempting to create it...');
-              await setDoc(doc(dbRef.current, 'users', currentUser.uid), {
-                ...sanitizedData,
-                name: sanitizedData.name || currentUser.displayName || '',
-                email: sanitizedData.email || currentUser.email || '',
-                role: sanitizedData.role || 'Researcher',
-                institution: sanitizedData.institution || '',
-                department: sanitizedData.department || '',
-                position: sanitizedData.position || '',
-                researchInterests: sanitizedData.researchInterests || [],
-                articles: sanitizedData.articles || 0,
-                reviews: sanitizedData.reviews || 0,
-                reputation: sanitizedData.reputation || 0,
-                profileComplete: sanitizedData.profileComplete || false,
-                hasChangedName: sanitizedData.hasChangedName || false,
-                hasChangedInstitution: sanitizedData.hasChangedInstitution || false,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              });
-              console.log('AuthContext: User document created successfully');
-              return true;
-            } catch (createError) {
-              console.error('AuthContext: Error creating user document:', createError);
+          // Handle one-time name change
+          if (sanitizedData.name && userData.name !== sanitizedData.name) {
+            if (userData.hasChangedName === true) {
+              console.log('AuthContext: User has already changed their name once');
+              // Keep the existing name if they've already changed it once
+              delete sanitizedData.name;
+            } else {
+              console.log('AuthContext: Setting hasChangedName flag to true');
+              sanitizedData.hasChangedName = true;
             }
           }
           
-          if (attempts < maxAttempts) {
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, 500));
+          // Handle one-time institution change
+          if (sanitizedData.institution && userData.institution !== sanitizedData.institution) {
+            if (userData.hasChangedInstitution === true) {
+              console.log('AuthContext: User has already changed their institution once');
+              // Keep the existing institution if they've already changed it once
+              delete sanitizedData.institution;
+            } else {
+              console.log('AuthContext: Setting hasChangedInstitution flag to true');
+              sanitizedData.hasChangedInstitution = true;
+            }
           }
+          
+          // Update the document with the sanitized data
+          transaction.update(userDocRef, {
+            ...sanitizedData,
+            updatedAt: new Date().toISOString(),
+          });
         }
-      }
+      });
       
-      console.error('AuthContext: Max attempts reached, failed to update user data');
-      return false;
+      console.log('AuthContext: User data updated successfully');
+      return true;
     } catch (error) {
-      console.error('AuthContext: Error in updateUserData:', error);
+      console.error('AuthContext: Error updating user data:', error);
       return false;
     }
   }
@@ -544,7 +583,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider value={value}>
       {children}
-      {(isLoading || !authIsInitialized) && (
+      {(isLoading || !authIsInitialized) && isClient && (
         <Box
           position="fixed"
           top={0}
@@ -556,6 +595,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           alignItems="center"
           justifyContent="center"
           zIndex={9999}
+          data-testid="auth-loading-overlay"
         >
           <Spinner size="xl" color="white" />
         </Box>

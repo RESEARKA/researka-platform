@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, MutableRefObject } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User as FirebaseUser } from 'firebase/auth';
 import useClient from './useClient';
@@ -17,6 +17,7 @@ export interface UserProfile {
   walletAddress?: string;
   profileComplete?: boolean;
   createdAt?: string;
+  updatedAt?: string;
   hasChangedName?: boolean;
   hasChangedInstitution?: boolean;
 }
@@ -29,6 +30,7 @@ interface UseProfileDataReturn {
   updateProfile: (updatedProfile: Partial<UserProfile>) => Promise<boolean>;
   createDefaultProfile: () => Promise<boolean>;
   retryLoading: () => void;
+  isLoadingData: MutableRefObject<boolean>;
 }
 
 /**
@@ -48,16 +50,16 @@ export function useProfileData(): UseProfileDataReturn {
   
   // Use refs to prevent duplicate operations
   const isLoadingData = useRef<boolean>(false);
-  const isUpdatingProfile = useRef<boolean>(false);
+  const isUpdating = useRef<boolean>(false);
 
   // Function to create a default profile
   const createDefaultProfile = async (): Promise<boolean> => {
-    if (isUpdatingProfile.current) {
+    if (isUpdating.current) {
       console.log('useProfileData: Profile update already in progress, skipping duplicate call');
       return false;
     }
 
-    isUpdatingProfile.current = true;
+    isUpdating.current = true;
     
     try {
       console.log('useProfileData: Creating default profile');
@@ -103,74 +105,66 @@ export function useProfileData(): UseProfileDataReturn {
       setError('Failed to create profile. Please try again.');
       return false;
     } finally {
-      isUpdatingProfile.current = false;
+      isUpdating.current = false;
     }
   };
 
-  // Function to update user profile
-  const updateProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
-    if (isUpdatingProfile.current) {
-      console.log('useProfileData: Profile update already in progress, skipping duplicate call');
+  /**
+   * Updates the user profile in Firestore
+   * @param profileData Partial user profile data to update
+   * @returns Promise resolving to a boolean indicating success
+   */
+  const updateProfile = async (profileData: Partial<UserProfile>): Promise<boolean> => {
+    if (!currentUser) {
+      console.error('[useProfileData] Cannot update profile: No user is signed in');
       return false;
     }
-    
-    isUpdatingProfile.current = true;
-    
+
+    // Prevent multiple simultaneous update operations
+    if (isUpdating.current) {
+      console.log('[useProfileData] Update already in progress, skipping duplicate request');
+      return false;
+    }
+
+    isUpdating.current = true;
+    setIsLoading(true);
+    setError(null);
+
     try {
+      console.log('[useProfileData] Updating profile for user:', currentUser.uid);
+      
+      // Mark profile as complete if not already done
+      if (!profileData.profileComplete) {
+        profileData.profileComplete = true;
+      }
+
+      // Add timestamp for profile updates
+      profileData.updatedAt = new Date().toISOString();
+      
+      // Only set createdAt if this is a new profile
       if (!profile) {
-        console.error('useProfileData: No profile loaded when trying to update');
-        return false;
+        profileData.createdAt = new Date().toISOString();
       }
+
+      const success = await updateUserData(profileData);
       
-      // Check for one-time name change
-      if (updatedProfile.name && profile.name !== updatedProfile.name) {
-        if (profile.hasChangedName) {
-          console.log('useProfileData: User has already changed their name once');
-          // You can handle this case (e.g., show a warning, prevent the change, etc.)
-        } else {
-          console.log('useProfileData: Setting hasChangedName flag to true');
-          updatedProfile.hasChangedName = true;
-        }
-      }
-      
-      // Check for one-time institution change
-      if (updatedProfile.institution && profile.institution !== updatedProfile.institution) {
-        if (profile.hasChangedInstitution) {
-          console.log('useProfileData: User has already changed their institution once');
-          // You can handle this case
-        } else {
-          console.log('useProfileData: Setting hasChangedInstitution flag to true');
-          updatedProfile.hasChangedInstitution = true;
-        }
-      }
-      
-      // Merge with existing profile and mark as complete
-      const mergedProfile = {
-        ...profile,
-        ...updatedProfile,
-        profileComplete: true
-      };
-      
-      // Save to Firestore
-      console.log('useProfileData: Saving updated profile to Firestore');
-      const updateSuccess = await updateUserData(mergedProfile);
-      
-      if (updateSuccess) {
-        // Update local state (batch updates)
-        setProfile(mergedProfile);
-        setIsProfileComplete(true);
-        console.log('useProfileData: Profile updated successfully');
-        return true;
+      if (success) {
+        // Update local state with the new data
+        setProfile(prev => prev ? { ...prev, ...profileData } : profileData as UserProfile);
+        console.log('[useProfileData] Profile updated successfully');
       } else {
-        console.error('useProfileData: Failed to save profile to Firestore');
-        return false;
+        setError('Failed to update profile. Please try again.');
+        console.error('[useProfileData] Failed to update profile');
       }
+      
+      return success;
     } catch (error) {
-      console.error('useProfileData: Error updating profile:', error);
-      setError('Failed to update profile. Please try again.');
+      console.error('[useProfileData] Error updating profile:', error);
+      setError('An error occurred while updating your profile. Please try again.');
       return false;
     } finally {
-      isUpdatingProfile.current = false;
+      setIsLoading(false);
+      isUpdating.current = false;
     }
   };
 
@@ -199,13 +193,15 @@ export function useProfileData(): UseProfileDataReturn {
     if (!currentUser) {
       console.log('useProfileData: No user logged in, skipping profile fetch');
       setIsLoading(false);
+      setProfile(null);
+      setError(null);
       return;
     }
 
     const fetchUserProfile = async () => {
       // Prevent duplicate fetch operations
-      if (isLoadingData.current) {
-        console.log('useProfileData: Profile fetch already in progress, skipping duplicate call');
+      if (isLoadingData.current || isUpdating.current) {
+        console.log('useProfileData: Profile fetch or update already in progress, skipping duplicate call');
         return;
       }
       
@@ -215,6 +211,7 @@ export function useProfileData(): UseProfileDataReturn {
       
       try {
         // Add a small delay to ensure Firebase is fully initialized
+        // This helps prevent race conditions with auth state changes
         await new Promise(resolve => setTimeout(resolve, 500));
         
         const userProfile = await getUserProfile();
@@ -226,22 +223,45 @@ export function useProfileData(): UseProfileDataReturn {
           setIsProfileComplete(userProfile?.profileComplete || false);
           setError(null);
         } else {
-          console.log('useProfileData: No user profile found');
+          console.log('useProfileData: No user profile found, attempting to create default profile');
           
-          // If we've tried a few times and still no profile, create a default one
-          if (retryCount >= 3) {
-            console.log('useProfileData: Max retries reached, creating default profile');
-            await createDefaultProfile();
-          } else {
-            // Otherwise, schedule another retry
+          // For new signups, immediately create a default profile
+          // This helps prevent blank screens by ensuring a profile always exists
+          const profileCreated = await createDefaultProfile();
+          
+          if (!profileCreated && retryCount < 3) {
+            // If profile creation failed, schedule a retry with exponential backoff
+            const retryDelay = Math.pow(2, retryCount) * 500;
+            console.log(`useProfileData: Profile creation failed, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/3)`);
+            
             setTimeout(() => {
               setRetryCount(prev => prev + 1);
-            }, 1000);
+            }, retryDelay);
+          } else if (!profileCreated) {
+            // If we've tried multiple times and still failed, show an error
+            console.error('useProfileData: Failed to create profile after multiple attempts');
+            setError('Failed to create your profile. Please try refreshing the page.');
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('useProfileData: Error fetching user profile:', err);
-        setError(`Failed to load profile: ${err.message}`);
+        
+        // Improved error handling with proper TypeScript typing
+        if (err instanceof Error) {
+          setError(`Failed to load profile: ${err.message}`);
+        } else {
+          setError(`Failed to load profile: ${String(err)}`);
+        }
+        
+        // Schedule a retry for transient errors
+        if (retryCount < 3) {
+          const retryDelay = Math.pow(2, retryCount) * 1000;
+          console.log(`useProfileData: Scheduling retry in ${retryDelay}ms (attempt ${retryCount + 1}/3)`);
+          
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+          }, retryDelay);
+        }
       } finally {
         setIsLoading(false);
         isLoadingData.current = false;
@@ -249,7 +269,7 @@ export function useProfileData(): UseProfileDataReturn {
     };
 
     fetchUserProfile();
-  }, [isClient, authIsInitialized, currentUser, getUserProfile, retryCount]);
+  }, [currentUser, authIsInitialized, isClient, retryCount, getUserProfile]);
 
   return {
     profile,
@@ -258,6 +278,7 @@ export function useProfileData(): UseProfileDataReturn {
     isProfileComplete,
     updateProfile,
     createDefaultProfile,
-    retryLoading
+    retryLoading,
+    isLoadingData
   };
 }

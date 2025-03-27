@@ -393,303 +393,301 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   const progressPercentage = ((currentStep + 1) / steps.length) * 100;
 
   return (
-    <Container maxW="container.md" py={8}>
-      <Box 
-        bg={bgColor} 
-        p={6} 
-        borderRadius="lg" 
-        boxShadow="md" 
-        borderWidth="1px" 
-        borderColor={borderColor}
-      >
-        <VStack spacing={6} align="stretch">
-          <Heading as="h1" size="lg" textAlign="center">
-            {isEditMode ? 'Edit Your Profile' : 'Complete Your Profile'}
-          </Heading>
-          <Text textAlign="center" color="gray.600">
-            {isEditMode 
-              ? 'Update your profile information below' 
-              : 'Please complete your profile to access all features of the Researka platform'}
-          </Text>
+    <Box 
+      bg={bgColor} 
+      p={6} 
+      borderRadius="lg" 
+      boxShadow="md" 
+      borderWidth="1px" 
+      borderColor={borderColor}
+    >
+      <VStack spacing={6} align="stretch">
+        <Heading as="h1" size="lg" textAlign="center">
+          {isEditMode ? 'Edit Your Profile' : 'Complete Your Profile'}
+        </Heading>
+        <Text textAlign="center" color="gray.600">
+          {isEditMode 
+            ? 'Update your profile information below' 
+            : 'Please complete your profile to access all features of the Researka platform'}
+        </Text>
+        
+        <Progress 
+          value={progressPercentage} 
+          size="sm" 
+          colorScheme="green" 
+          borderRadius="full" 
+          mb={4} 
+        />
+        
+        <Tabs index={currentStep} variant="enclosed" onChange={setCurrentStep}>
+          <TabList>
+            {steps.map((step, index) => (
+              <Tab key={index} isDisabled={currentStep !== index}>
+                <Flex align="center">
+                  {index === 0 && <Icon as={FiUser} mr={2} />}
+                  {index === 1 && <Icon as={FiBookOpen} mr={2} />}
+                  {index === 2 && <Icon as={FiHash} mr={2} />}
+                  {index === 3 && <Icon as={FiGlobe} mr={2} />}
+                  <Text>{step.title}</Text>
+                </Flex>
+              </Tab>
+            ))}
+          </TabList>
           
-          <Progress 
-            value={progressPercentage} 
-            size="sm" 
-            colorScheme="green" 
-            borderRadius="full" 
-            mb={4} 
-          />
-          
-          <Tabs index={currentStep} variant="enclosed" onChange={setCurrentStep}>
-            <TabList>
-              {steps.map((step, index) => (
-                <Tab key={index} isDisabled={currentStep !== index}>
-                  <Flex align="center">
-                    {index === 0 && <Icon as={FiUser} mr={2} />}
-                    {index === 1 && <Icon as={FiBookOpen} mr={2} />}
-                    {index === 2 && <Icon as={FiHash} mr={2} />}
-                    {index === 3 && <Icon as={FiGlobe} mr={2} />}
-                    <Text>{step.title}</Text>
-                  </Flex>
-                </Tab>
-              ))}
-            </TabList>
-            
-            <TabPanels>
-              {/* Step 1: Basic Identity & Contact */}
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                    <FormControl isRequired isInvalid={!!errors.firstName}>
-                      <FormLabel>First Name</FormLabel>
-                      <Input 
-                        name="firstName" 
-                        value={formData.firstName} 
-                        onChange={handleChange} 
-                        placeholder="Enter your first name"
-                        isReadOnly={isEditMode} 
-                        bg={isEditMode ? "gray.100" : undefined}
-                      />
-                      {isEditMode && (
-                        <FormHelperText>
-                          First name cannot be changed after profile creation
-                        </FormHelperText>
-                      )}
-                      <FormErrorMessage>{errors.firstName}</FormErrorMessage>
-                    </FormControl>
-                    
-                    <FormControl isRequired isInvalid={!!errors.lastName}>
-                      <FormLabel>Last Name</FormLabel>
-                      <Input 
-                        name="lastName" 
-                        value={formData.lastName} 
-                        onChange={handleChange} 
-                        placeholder="Enter your last name"
-                        isReadOnly={isEditMode} 
-                        bg={isEditMode ? "gray.100" : undefined}
-                      />
-                      {isEditMode && (
-                        <FormHelperText>
-                          Last name cannot be changed after profile creation
-                        </FormHelperText>
-                      )}
-                      <FormErrorMessage>{errors.lastName}</FormErrorMessage>
-                    </FormControl>
-                  </SimpleGrid>
-                  
-                  <FormControl isRequired isInvalid={!!errors.email}>
-                    <FormLabel>Academic Email Address</FormLabel>
+          <TabPanels>
+            {/* Step 1: Basic Identity & Contact */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl isRequired isInvalid={!!errors.firstName}>
+                    <FormLabel>First Name</FormLabel>
                     <Input 
-                      name="email" 
-                      value={formData.email} 
+                      name="firstName" 
+                      value={formData.firstName} 
                       onChange={handleChange} 
-                      placeholder="Enter your academic email (.edu or .ac.xx domain)"
+                      placeholder="Enter your first name"
                       isReadOnly={isEditMode} 
                       bg={isEditMode ? "gray.100" : undefined}
                     />
                     {isEditMode && (
                       <FormHelperText>
-                        Email address cannot be changed after profile creation
+                        First name cannot be changed after profile creation
                       </FormHelperText>
                     )}
-                    <FormErrorMessage>{errors.email}</FormErrorMessage>
+                    <FormErrorMessage>{errors.firstName}</FormErrorMessage>
                   </FormControl>
-                </VStack>
-              </TabPanel>
-              
-              {/* Step 2: Institutional Affiliation */}
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Heading as="h2" size="md">
-                    Institutional Affiliation
-                  </Heading>
                   
-                  <FormControl isRequired isInvalid={!!errors.institution}>
-                    <FormLabel>University / Institution</FormLabel>
-                    <Select
-                      name="institution"
-                      value={formData.institution}
-                      onChange={handleChange}
-                      placeholder="Select your institution"
-                      isReadOnly={isEditMode}
-                      isDisabled={isEditMode}
+                  <FormControl isRequired isInvalid={!!errors.lastName}>
+                    <FormLabel>Last Name</FormLabel>
+                    <Input 
+                      name="lastName" 
+                      value={formData.lastName} 
+                      onChange={handleChange} 
+                      placeholder="Enter your last name"
+                      isReadOnly={isEditMode} 
                       bg={isEditMode ? "gray.100" : undefined}
-                    >
-                      {MOCK_INSTITUTIONS.map((institution, index) => (
-                        <option key={index} value={institution}>
-                          {institution}
-                        </option>
-                      ))}
-                    </Select>
+                    />
                     {isEditMode && (
                       <FormHelperText>
-                        Institution cannot be changed after profile creation
+                        Last name cannot be changed after profile creation
                       </FormHelperText>
                     )}
-                    <FormErrorMessage>{errors.institution}</FormErrorMessage>
+                    <FormErrorMessage>{errors.lastName}</FormErrorMessage>
                   </FormControl>
-                  
-                  <FormControl isRequired isInvalid={!!errors.department}>
-                    <FormLabel>Department/Faculty</FormLabel>
-                    <Select
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      placeholder="Select your department"
-                    >
-                      {MOCK_DEPARTMENTS.map((dept) => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </Select>
-                    <FormErrorMessage>{errors.department}</FormErrorMessage>
-                  </FormControl>
-                  
-                  <FormControl isRequired isInvalid={!!errors.position}>
-                    <FormLabel>Current Position/Title</FormLabel>
-                    <Select
-                      name="position"
-                      value={formData.position}
-                      onChange={handleChange}
-                      placeholder="Select your position"
-                    >
-                      {ACADEMIC_POSITIONS.map((pos) => (
-                        <option key={pos} value={pos}>{pos}</option>
-                      ))}
-                    </Select>
-                    <FormErrorMessage>{errors.position}</FormErrorMessage>
-                  </FormControl>
-                </VStack>
-              </TabPanel>
-              
-              {/* Step 3: Academic & Professional Details */}
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Heading as="h2" size="md">
-                    Academic & Professional Details
-                  </Heading>
-                  
-                  <FormControl isInvalid={!!errors.orcidId}>
-                    <FormLabel>
-                      <Flex align="center">
-                        ORCID ID (Optional)
-                        <Tooltip label="ORCID provides a persistent digital identifier that distinguishes you from other researchers">
-                          <Box display="inline-block">
-                            <Icon as={FiInfo} ml={1} color="gray.500" />
-                          </Box>
-                        </Tooltip>
-                      </Flex>
-                    </FormLabel>
-                    <Input 
-                      name="orcidId"
-                      value={formData.orcidId}
-                      onChange={handleChange}
-                      placeholder="0000-0000-0000-0000"
-                    />
+                </SimpleGrid>
+                
+                <FormControl isRequired isInvalid={!!errors.email}>
+                  <FormLabel>Academic Email Address</FormLabel>
+                  <Input 
+                    name="email" 
+                    value={formData.email} 
+                    onChange={handleChange} 
+                    placeholder="Enter your academic email (.edu or .ac.xx domain)"
+                    isReadOnly={isEditMode} 
+                    bg={isEditMode ? "gray.100" : undefined}
+                  />
+                  {isEditMode && (
                     <FormHelperText>
-                      Format: 0000-0000-0000-0000 (Find your ORCID at orcid.org)
+                      Email address cannot be changed after profile creation
                     </FormHelperText>
-                    <FormErrorMessage>{errors.orcidId}</FormErrorMessage>
-                  </FormControl>
-                  
-                  <FormControl isRequired isInvalid={!!errors.researchInterests}>
-                    <FormLabel>Research Interests / Keywords</FormLabel>
-                    <ResearchInterestSelector
-                      selectedInterests={formData.researchInterests}
-                      onChange={(interests) => setFormData(prev => ({ ...prev, researchInterests: interests }))}
-                      isRequired={true}
-                      error={errors.researchInterests}
-                      maxInterests={5}
-                    />
-                  </FormControl>
-                </VStack>
-              </TabPanel>
-              
-              {/* Step 4: Platform Roles & Optional Extras */}
-              <TabPanel>
-                <VStack spacing={4} align="stretch">
-                  <Heading as="h2" size="md">
-                    Platform Roles & Optional Information
-                  </Heading>
-                  
-                  <FormControl>
-                    <Checkbox
-                      name="wantsToBeEditor"
-                      isChecked={formData.wantsToBeEditor}
-                      onChange={handleCheckboxChange}
-                    >
-                      I would like to become an editor (subject to approval)
-                    </Checkbox>
-                    <FormHelperText>
-                      Editors help manage the peer review process and make publication decisions
-                    </FormHelperText>
-                  </FormControl>
-                  
-                  <Divider my={2} />
-                  
-                  <Heading as="h3" size="sm">
-                    Optional Information
-                  </Heading>
-                  
-                  <FormControl>
-                    <FormLabel>Personal Website</FormLabel>
-                    <Input 
-                      name="personalWebsite"
-                      value={formData.personalWebsite}
-                      onChange={handleChange}
-                      placeholder="https://your-website.com"
-                    />
-                  </FormControl>
-                </VStack>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
-          
-          <Divider my={2} />
-          
-          <Flex justify="space-between" mt={6}>
-            {currentStep > 0 ? (
-              <Button 
-                leftIcon={<FiArrowLeft />} 
-                onClick={() => setCurrentStep(currentStep - 1)}
-                variant="outline"
-              >
-                Previous
-              </Button>
-            ) : (
-              isEditMode && onCancel ? (
-                <Button 
-                  leftIcon={<FiX />} 
-                  onClick={onCancel}
-                  variant="outline"
-                  colorScheme="red"
-                >
-                  Cancel
-                </Button>
-              ) : <Box />
-            )}
+                  )}
+                  <FormErrorMessage>{errors.email}</FormErrorMessage>
+                </FormControl>
+              </VStack>
+            </TabPanel>
             
-            {currentStep < steps.length - 1 ? (
+            {/* Step 2: Institutional Affiliation */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Heading as="h2" size="md">
+                  Institutional Affiliation
+                </Heading>
+                
+                <FormControl isRequired isInvalid={!!errors.institution}>
+                  <FormLabel>University / Institution</FormLabel>
+                  <Select
+                    name="institution"
+                    value={formData.institution}
+                    onChange={handleChange}
+                    placeholder="Select your institution"
+                    isReadOnly={isEditMode}
+                    isDisabled={isEditMode}
+                    bg={isEditMode ? "gray.100" : undefined}
+                  >
+                    {MOCK_INSTITUTIONS.map((institution, index) => (
+                      <option key={index} value={institution}>
+                        {institution}
+                      </option>
+                    ))}
+                  </Select>
+                  {isEditMode && (
+                    <FormHelperText>
+                      Institution cannot be changed after profile creation
+                    </FormHelperText>
+                  )}
+                  <FormErrorMessage>{errors.institution}</FormErrorMessage>
+                </FormControl>
+                
+                <FormControl isRequired isInvalid={!!errors.department}>
+                  <FormLabel>Department/Faculty</FormLabel>
+                  <Select
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                    placeholder="Select your department"
+                  >
+                    {MOCK_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </Select>
+                  <FormErrorMessage>{errors.department}</FormErrorMessage>
+                </FormControl>
+                
+                <FormControl isRequired isInvalid={!!errors.position}>
+                  <FormLabel>Current Position/Title</FormLabel>
+                  <Select
+                    name="position"
+                    value={formData.position}
+                    onChange={handleChange}
+                    placeholder="Select your position"
+                  >
+                    {ACADEMIC_POSITIONS.map((pos) => (
+                      <option key={pos} value={pos}>{pos}</option>
+                    ))}
+                  </Select>
+                  <FormErrorMessage>{errors.position}</FormErrorMessage>
+                </FormControl>
+              </VStack>
+            </TabPanel>
+            
+            {/* Step 3: Academic & Professional Details */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Heading as="h2" size="md">
+                  Academic & Professional Details
+                </Heading>
+                
+                <FormControl isInvalid={!!errors.orcidId}>
+                  <FormLabel>
+                    <Flex align="center">
+                      ORCID ID (Optional)
+                      <Tooltip label="ORCID provides a persistent digital identifier that distinguishes you from other researchers">
+                        <Box display="inline-block">
+                          <Icon as={FiInfo} ml={1} color="gray.500" />
+                        </Box>
+                      </Tooltip>
+                    </Flex>
+                  </FormLabel>
+                  <Input 
+                    name="orcidId"
+                    value={formData.orcidId}
+                    onChange={handleChange}
+                    placeholder="0000-0000-0000-0000"
+                  />
+                  <FormHelperText>
+                    Format: 0000-0000-0000-0000 (Find your ORCID at orcid.org)
+                  </FormHelperText>
+                  <FormErrorMessage>{errors.orcidId}</FormErrorMessage>
+                </FormControl>
+                
+                <FormControl isRequired isInvalid={!!errors.researchInterests}>
+                  <FormLabel>Research Interests / Keywords</FormLabel>
+                  <ResearchInterestSelector
+                    selectedInterests={formData.researchInterests}
+                    onChange={(interests) => setFormData(prev => ({ ...prev, researchInterests: interests }))}
+                    isRequired={true}
+                    error={errors.researchInterests}
+                    maxInterests={5}
+                  />
+                </FormControl>
+              </VStack>
+            </TabPanel>
+            
+            {/* Step 4: Platform Roles & Optional Extras */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Heading as="h2" size="md">
+                  Platform Roles & Optional Information
+                </Heading>
+                
+                <FormControl>
+                  <Checkbox
+                    name="wantsToBeEditor"
+                    isChecked={formData.wantsToBeEditor}
+                    onChange={handleCheckboxChange}
+                  >
+                    I would like to become an editor (subject to approval)
+                  </Checkbox>
+                  <FormHelperText>
+                    Editors help manage the peer review process and make publication decisions
+                  </FormHelperText>
+                </FormControl>
+                
+                <Divider my={2} />
+                
+                <Heading as="h3" size="sm">
+                  Optional Information
+                </Heading>
+                
+                <FormControl>
+                  <FormLabel>Personal Website</FormLabel>
+                  <Input 
+                    name="personalWebsite"
+                    value={formData.personalWebsite}
+                    onChange={handleChange}
+                    placeholder="https://your-website.com"
+                  />
+                </FormControl>
+              </VStack>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+        
+        <Divider my={2} />
+        
+        <Flex justify="space-between" mt={6}>
+          {currentStep > 0 ? (
+            <Button 
+              leftIcon={<FiArrowLeft />} 
+              onClick={() => setCurrentStep(currentStep - 1)}
+              variant="outline"
+            >
+              Previous
+            </Button>
+          ) : (
+            isEditMode && onCancel ? (
               <Button 
-                rightIcon={<FiArrowRight />} 
-                onClick={handleNext}
-                colorScheme="blue"
+                leftIcon={<FiX />} 
+                onClick={onCancel}
+                variant="outline"
+                colorScheme="red"
               >
-                Next
+                Cancel
               </Button>
-            ) : (
-              <Button 
-                rightIcon={<FiCheck />} 
-                onClick={handleSubmit}
-                colorScheme="green"
-                isLoading={isSubmitting}
-              >
-                {isEditMode ? 'Save Changes' : 'Complete Profile'}
-              </Button>
-            )}
-          </Flex>
-        </VStack>
-      </Box>
-    </Container>
+            ) : <Box />
+          )}
+          
+          {currentStep < steps.length - 1 ? (
+            <Button 
+              rightIcon={<FiArrowRight />} 
+              onClick={handleNext}
+              colorScheme="blue"
+            >
+              Next
+            </Button>
+          ) : (
+            <Button 
+              rightIcon={<FiCheck />} 
+              onClick={handleSubmit}
+              colorScheme="green"
+              isLoading={isSubmitting}
+            >
+              {isEditMode ? 'Save Changes' : 'Complete Profile'}
+            </Button>
+          )}
+        </Flex>
+      </VStack>
+    </Box>
   );
 };
 
