@@ -1,16 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged, 
   updateProfile,
   User,
   signInAnonymously
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { Box, Spinner, Center, Text } from '@chakra-ui/react';
-import useClient from '../hooks/useClient';
+import useAuthInitialization, { AuthStatus } from '../hooks/useAuthInitialization';
 import useFirebaseInitialization, { FirebaseStatus } from '../hooks/useFirebaseInitialization';
 
 interface AuthContextType {
@@ -42,85 +41,40 @@ export function useAuth() {
 }
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [authIsInitialized, setAuthIsInitialized] = useState(false);
   const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
-  const isClient = useClient();
-  const authListenerSetup = useRef(false);
-  const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Use the centralized Firebase initialization hook
+  // Use the centralized auth initialization hook
+  const { 
+    status: authStatus, 
+    error: authError, 
+    user: currentUser,
+    isAnonymous
+  } = useAuthInitialization({
+    timeoutMs: 10000,
+    enableLogging: true
+  });
+  
+  // Get Firebase services from the Firebase initialization hook
   const { 
     status: firebaseStatus, 
-    error: firebaseError, 
-    app, 
     auth, 
     db 
   } = useFirebaseInitialization({
-    timeoutMs: 10000,
-    maxAttempts: 3,
     enableLogging: true
   });
-
-  // Initialize Firebase auth listener only on the client side and after Firebase is initialized
-  useEffect(() => {
-    // Skip if not on client side or if auth listener is already set up
-    // or if Firebase is not yet initialized
-    if (!isClient || authListenerSetup.current || firebaseStatus !== FirebaseStatus.INITIALIZED || !auth) {
-      return;
-    }
-    
-    console.log('AuthContext: Setting up auth state listener...');
-    
-    // Mark that we've started setting up the auth listener
-    authListenerSetup.current = true;
-    
-    // Add timeout to prevent hanging indefinitely
-    authTimeoutRef.current = setTimeout(() => {
-      console.warn('AuthContext: Auth initialization timed out after 10 seconds');
-      setIsLoading(false);
-      setAuthIsInitialized(true);
-    }, 10000);
-    
-    // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('AuthContext: Auth state changed', user ? `User: ${user.uid}` : 'No user');
-      
-      // Use functional updates to batch state changes
-      setCurrentUser(user);
-      setAuthIsInitialized(true);
-      setIsLoading(false);
-      
-      // Clear the timeout since auth state has changed
-      if (authTimeoutRef.current) {
-        clearTimeout(authTimeoutRef.current);
-        authTimeoutRef.current = null;
-      }
-    });
-    
-    // Cleanup subscription on unmount
-    return () => {
-      unsubscribe();
-      if (authTimeoutRef.current) {
-        clearTimeout(authTimeoutRef.current);
-        authTimeoutRef.current = null;
-      }
-    };
-  }, [isClient, firebaseStatus, auth]);
   
-  // Update initialization state based on Firebase status
-  useEffect(() => {
-    if (firebaseStatus === FirebaseStatus.ERROR || firebaseStatus === FirebaseStatus.TIMEOUT) {
-      console.error('AuthContext: Firebase initialization failed:', firebaseError);
-      setAuthIsInitialized(true);
-      setIsLoading(false);
-    } else if (firebaseStatus === FirebaseStatus.UNAVAILABLE) {
-      console.log('AuthContext: Firebase unavailable (server-side)');
-      setAuthIsInitialized(true);
-      setIsLoading(false);
-    }
-  }, [firebaseStatus, firebaseError]);
+  // Derive loading and initialization state from auth status
+  const isLoading = authStatus === AuthStatus.INITIALIZING;
+  const authIsInitialized = authStatus === AuthStatus.READY || 
+                           authStatus === AuthStatus.ERROR || 
+                           authStatus === AuthStatus.TIMEOUT;
+  
+  // Log auth errors
+  const authErrorRef = useRef<Error | null>(null);
+  if (authError && authError !== authErrorRef.current) {
+    console.error('AuthContext: Auth initialization error:', authError);
+    authErrorRef.current = authError;
+  }
   
   // Signup function
   const signup = async (email: string, password: string, name: string) => {
@@ -140,6 +94,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await setDoc(userRef, {
           name,
           email,
+          role: 'Researcher',
+          institution: '',
+          department: '',
+          position: '',
+          researchInterests: [],
+          articles: 0,
+          reviews: 0,
+          reputation: 0,
+          profileComplete: false,
+          hasChangedName: false,
+          hasChangedInstitution: false,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
           isAnonymous: false
@@ -236,7 +201,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return userSnap.data();
       } else {
         console.warn('AuthContext: User document does not exist');
-        return null;
+        
+        // Create a default profile if it doesn't exist
+        const defaultProfile = {
+          name: currentUser.displayName || '',
+          email: currentUser.email || '',
+          role: 'Researcher',
+          institution: '',
+          department: '',
+          position: '',
+          researchInterests: [],
+          articles: 0,
+          reviews: 0,
+          reputation: 0,
+          profileComplete: false,
+          hasChangedName: false,
+          hasChangedInstitution: false,
+          createdAt: new Date().toISOString(),
+          isAnonymous: currentUser.isAnonymous || false
+        };
+        
+        try {
+          await setDoc(userRef, defaultProfile);
+          console.log('AuthContext: Created default user profile');
+          return defaultProfile;
+        } catch (createError) {
+          console.error('AuthContext: Error creating default profile:', createError);
+          return null;
+        }
       }
     } catch (error) {
       console.error('AuthContext: Get user profile error:', error);
@@ -259,6 +251,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (!userDoc.exists()) {
           throw new Error('User document does not exist');
+        }
+        
+        // Get current user data
+        const userData = userDoc.data();
+        
+        // Handle one-time name change
+        if (data.name && userData.name !== data.name) {
+          if (userData.hasChangedName === true) {
+            console.log('AuthContext: User has already changed their name once');
+            // Keep the existing name if they've already changed it once
+            delete data.name;
+          } else {
+            console.log('AuthContext: Setting hasChangedName flag to true');
+            data.hasChangedName = true;
+          }
+        }
+        
+        // Handle one-time institution change
+        if (data.institution && userData.institution !== data.institution) {
+          if (userData.hasChangedInstitution === true) {
+            console.log('AuthContext: User has already changed their institution once');
+            // Keep the existing institution if they've already changed it once
+            delete data.institution;
+          } else {
+            console.log('AuthContext: Setting hasChangedInstitution flag to true');
+            data.hasChangedInstitution = true;
+          }
         }
         
         // Update with new data
@@ -286,9 +305,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Create anonymous user document in Firestore
       if (userCredential.user) {
+        const anonymousName = `Guest-${userCredential.user.uid.substring(0, 5)}`;
+        
+        // Update profile with anonymous name
+        await updateProfile(userCredential.user, {
+          displayName: anonymousName
+        });
+        
         const userRef = doc(db, 'users', userCredential.user.uid);
         await setDoc(userRef, {
+          name: anonymousName,
           isAnonymous: true,
+          role: 'Guest',
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString()
         });
