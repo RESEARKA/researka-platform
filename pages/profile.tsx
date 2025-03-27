@@ -49,6 +49,7 @@ import { useRouter } from 'next/router';
 import useAppToast from '../hooks/useAppToast';
 import useClient from '../hooks/useClient';
 import { useProfileData, UserProfile } from '../hooks/useProfileData';
+import { getConsistentInitialState, isClientSide } from '../utils/hydrationHelpers';
 
 // Dynamically import Firebase-dependent components with SSR disabled
 const ClientOnlyProfile = dynamic(
@@ -221,13 +222,15 @@ const ProfilePage: React.FC = () => {
   } = useProfileData();
   
   // State to track if a profile update toast has been shown in this session
-  const [profileToastShown, setProfileToastShown] = useState<{
-    complete: boolean;
-    update: boolean;
-  }>({
-    complete: false,
-    update: false
-  });
+  const [profileToastShown, setProfileToastShown] = useState(
+    getConsistentInitialState({
+      complete: false,
+      update: false
+    }, {
+      complete: false,
+      update: false
+    })
+  );
   
   // Function to save profile edits - using the hook's updateProfile function
   const handleSaveProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
@@ -359,6 +362,64 @@ const ProfilePage: React.FC = () => {
     };
   }, []);
 
+  // Show a loading state during SSR
+  if (!isClientSide()) {
+    return (
+      <Layout>
+        <Head>
+          <title>Profile | Researka</title>
+        </Head>
+        <Container maxW="container.xl" py={8}>
+          <Center py={10}>
+            <VStack spacing={4}>
+              <Spinner size="xl" />
+              <Text>Loading profile...</Text>
+            </VStack>
+          </Center>
+        </Container>
+      </Layout>
+    );
+  }
+
+  // Show error state if there's an error
+  if (error && !isLoading) {
+    return (
+      <Layout>
+        <Head>
+          <title>Profile | Researka</title>
+        </Head>
+        <Container maxW="container.xl" py={8}>
+          <Alert
+            status="error"
+            variant="subtle"
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            textAlign="center"
+            height="200px"
+            borderRadius="lg"
+          >
+            <AlertIcon boxSize="40px" mr={0} />
+            <AlertTitle mt={4} mb={1} fontSize="lg">
+              Error Loading Profile
+            </AlertTitle>
+            <AlertDescription maxWidth="sm">
+              {error}
+            </AlertDescription>
+            <Button
+              mt={4}
+              leftIcon={<FiRefreshCw />}
+              colorScheme="red"
+              onClick={retryLoading}
+            >
+              Retry
+            </Button>
+          </Alert>
+        </Container>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <Head>
@@ -368,9 +429,6 @@ const ProfilePage: React.FC = () => {
       <Container maxW="container.xl" py={8}>
         {/* Use the ClientOnlyProfile component for Firebase-dependent content */}
         <ClientOnlyProfile />
-        
-        {/* Remove the duplicate rendering of profile content */}
-        {/* The ClientOnlyProfile component will handle all Firebase-dependent rendering */}
       </Container>
     </Layout>
   );

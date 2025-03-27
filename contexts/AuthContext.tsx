@@ -10,7 +10,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { Box, Spinner, Center, Text } from '@chakra-ui/react';
 import useAuthInitialization, { AuthStatus } from '../hooks/useAuthInitialization';
-import useFirebaseInitialization, { FirebaseStatus } from '../hooks/useFirebaseInitialization';
+import { useFirebaseInitialization, FirebaseStatus } from '../hooks/useFirebaseInitialization';
 
 interface AuthContextType {
   currentUser: User | null;
