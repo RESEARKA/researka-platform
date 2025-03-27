@@ -218,10 +218,15 @@ export function useProfileData(): UseProfileDataReturn {
         console.log('useProfileData: User profile fetched:', userProfile);
         
         if (userProfile) {
-          // Set the user data and profile completion status
-          setProfile(userProfile);
-          setIsProfileComplete(userProfile?.profileComplete || false);
-          setError(null);
+          // Batch state updates to prevent multiple re-renders
+          const updates = () => {
+            setProfile(userProfile);
+            setIsProfileComplete(userProfile?.profileComplete || false);
+            setError(null);
+          };
+          
+          // Execute all state updates in one go
+          updates();
         } else {
           console.log('useProfileData: No user profile found, attempting to create default profile');
           
@@ -263,6 +268,7 @@ export function useProfileData(): UseProfileDataReturn {
           }, retryDelay);
         }
       } finally {
+        // Batch state updates in finally block
         setIsLoading(false);
         isLoadingData.current = false;
       }

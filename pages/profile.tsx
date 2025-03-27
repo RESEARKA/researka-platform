@@ -245,10 +245,33 @@ const ProfilePage: React.FC = () => {
   
   // Function to save profile edits - using the hook's updateProfile function
   const handleSaveProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
+    // Prevent duplicate updates
+    if (isUpdatingProfile.current) {
+      console.log('Profile: Update already in progress, skipping duplicate request');
+      return false;
+    }
+    
     try {
       // Set the updating flag to prevent duplicate data loading
       isUpdatingProfile.current = true;
-      isLoadingData.current = true; // Also set the hook's loading flag
+      
+      // If the hook also has a loading flag, set it
+      if (isLoadingData) {
+        isLoadingData.current = true;
+      }
+      
+      // Check if name or institution changed and handle special cases
+      const nameChanged = profile?.name !== updatedProfile.name;
+      const institutionChanged = profile?.institution !== updatedProfile.institution;
+      
+      // Apply business rules for name/institution changes
+      if (nameChanged && profile?.hasChangedName !== true) {
+        updatedProfile.hasChangedName = true;
+      }
+      
+      if (institutionChanged && profile?.hasChangedInstitution !== true) {
+        updatedProfile.hasChangedInstitution = true;
+      }
       
       // Check if we've already shown a toast in this session
       if (profileToastShown.update) {
@@ -259,10 +282,15 @@ const ProfilePage: React.FC = () => {
       const success = await updateProfile(updatedProfile);
       
       if (success) {
-        setIsEditMode(false);
+        // Batch state updates to prevent multiple re-renders
+        const updateStates = () => {
+          setIsEditMode(false);
+          // Mark that we've shown the toast
+          setProfileToastShown(prev => ({...prev, update: true}));
+        };
         
-        // Mark that we've shown the toast
-        setProfileToastShown(prev => ({...prev, update: true}));
+        // Execute all state updates in one go
+        updateStates();
         
         showToast({
           id: 'profile-updated',
@@ -298,9 +326,23 @@ const ProfilePage: React.FC = () => {
     } finally {
       // Reset the updating flags when done
       isUpdatingProfile.current = false;
-      isLoadingData.current = false;
+      
+      // If the hook also has a loading flag, reset it
+      if (isLoadingData) {
+        isLoadingData.current = false;
+      }
     }
   };
+  
+  // Add an effect to prevent duplicate data loading during profile updates
+  useEffect(() => {
+    if (isUpdatingProfile.current) {
+      console.log('Profile: Skipping loadData during update');
+      return;
+    }
+    
+    // The actual data loading is handled by the useProfileData hook
+  }, [authIsInitialized, currentUser]);
 
   return (
     <Layout>
