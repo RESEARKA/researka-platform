@@ -298,6 +298,7 @@ export function useProfileData() {
     loadingState,
     updateProfile,
     retryLoading,
-    isLoadingData
+    isLoadingData,
+    loadData: loadProfileData
   };
 }
