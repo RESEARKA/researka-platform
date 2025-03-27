@@ -15,6 +15,8 @@ import {
   Divider,
   useColorModeValue,
   Link as ChakraLink,
+  Spinner,
+  Center,
 } from '@chakra-ui/react';
 import { FiCalendar, FiFileText, FiExternalLink } from 'react-icons/fi';
 import ResponsiveText from '../ResponsiveText';
@@ -73,6 +75,7 @@ interface ArticlesPanelProps {
     totalPages: number;
     onPageChange: (page: number) => void;
   }>;
+  isLoading?: boolean;
 }
 
 const ArticlesPanel: React.FC<ArticlesPanelProps> = ({
@@ -82,9 +85,22 @@ const ArticlesPanel: React.FC<ArticlesPanelProps> = ({
   onPageChange,
   EmptyState = DefaultEmptyState,
   PaginationControl = DefaultPaginationControl,
+  isLoading = false,
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Center py={10}>
+        <VStack spacing={4}>
+          <Spinner size="xl" />
+          <Text>Loading articles...</Text>
+        </VStack>
+      </Center>
+    );
+  }
   
   return (
     <VStack spacing={4} align="stretch">
