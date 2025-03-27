@@ -174,51 +174,152 @@ class FirebaseInstance {
 // Create a singleton instance
 const firebaseInstance = FirebaseInstance.getInstance();
 
-// Export convenience functions that use the singleton
-
 /**
  * Initialize Firebase on the client side with singleton pattern and retry logic
+ * Enhanced with better error handling and detailed logging
+ * @param options Optional configuration options
  * @returns boolean - True if initialization was successful
  */
-export const initializeFirebase = (): boolean => {
+export const initializeFirebase = (options: { 
+  logDetails?: boolean;
+  maxRetries?: number;
+  retryDelayMs?: number;
+} = {}): boolean => {
+  // Default options
+  const { 
+    logDetails = false,
+    maxRetries = 3,
+    retryDelayMs = 1000
+  } = options;
+  
+  // Only run on client side
   if (typeof window === 'undefined') {
+    console.log('Firebase: Cannot initialize in server environment');
     return false;
   }
-  return firebaseInstance.initialize();
+  
+  try {
+    // Performance tracking
+    const startTime = performance.now();
+    
+    // Detailed logging if enabled
+    if (logDetails) {
+      console.log('Firebase: Starting initialization with options:', {
+        logDetails,
+        maxRetries,
+        retryDelayMs,
+        environment: typeof window !== 'undefined' ? 'client' : 'server',
+        existingApps: getApps().length
+      });
+    }
+    
+    // Initialize using the singleton instance
+    const result = firebaseInstance.initialize();
+    
+    // Log performance metrics
+    const duration = Math.round(performance.now() - startTime);
+    console.log(`Firebase: Initialization ${result ? 'successful' : 'failed'} in ${duration}ms`);
+    
+    return result;
+  } catch (error) {
+    // Enhanced error logging
+    console.error('Firebase: Critical initialization error:', error);
+    
+    // Log additional diagnostic information
+    console.error('Firebase: Diagnostic information:', {
+      environment: typeof window !== 'undefined' ? 'client' : 'server',
+      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'N/A',
+      existingApps: getApps().length,
+      // Check for memory info in a type-safe way
+      memoryInfo: typeof window !== 'undefined' && 
+                 window.performance && 
+                 // @ts-ignore - Some browsers expose memory info on performance
+                 window.performance.memory ? {
+                   // @ts-ignore - Access memory metrics with a type assertion
+                   totalJSHeapSize: window.performance.memory?.totalJSHeapSize,
+                   // @ts-ignore - Access memory metrics with a type assertion
+                   usedJSHeapSize: window.performance.memory?.usedJSHeapSize
+                 } : 'Not available'
+    });
+    
+    return false;
+  }
 };
 
 /**
  * Get Firebase Auth instance
  * Initializes Firebase if not already initialized
+ * Enhanced with better error handling and logging
  * @returns Auth | null
  */
 export const getFirebaseAuth = (): Auth | null => {
   if (typeof window === 'undefined') {
+    console.log('Firebase: Cannot get Auth in server environment');
     return null;
   }
   
-  if (!firebaseInstance.isInitialized) {
-    console.log('Firebase: Not initialized, initializing now...');
-    firebaseInstance.initialize();
+  try {
+    // Check if Firebase is initialized
+    if (!firebaseInstance.isInitialized) {
+      console.log('Firebase: Not initialized, initializing now before getting Auth...');
+      const initialized = initializeFirebase();
+      
+      if (!initialized) {
+        console.error('Firebase: Failed to initialize before getting Auth');
+        return null;
+      }
+    }
+    
+    // Get Auth instance
+    const auth = firebaseInstance.auth;
+    
+    if (!auth) {
+      console.error('Firebase: Auth instance is null after initialization');
+    }
+    
+    return auth;
+  } catch (error) {
+    console.error('Firebase: Error getting Auth instance:', error);
+    return null;
   }
-  return firebaseInstance.auth;
 };
 
 /**
  * Get Firebase Firestore instance
  * Initializes Firebase if not already initialized
+ * Enhanced with better error handling and logging
  * @returns Firestore | null
  */
 export const getFirebaseFirestore = (): Firestore | null => {
   if (typeof window === 'undefined') {
+    console.log('Firebase: Cannot get Firestore in server environment');
     return null;
   }
   
-  if (!firebaseInstance.isInitialized) {
-    console.log('Firebase: Not initialized, initializing now...');
-    firebaseInstance.initialize();
+  try {
+    // Check if Firebase is initialized
+    if (!firebaseInstance.isInitialized) {
+      console.log('Firebase: Not initialized, initializing now before getting Firestore...');
+      const initialized = initializeFirebase();
+      
+      if (!initialized) {
+        console.error('Firebase: Failed to initialize before getting Firestore');
+        return null;
+      }
+    }
+    
+    // Get Firestore instance
+    const db = firebaseInstance.db;
+    
+    if (!db) {
+      console.error('Firebase: Firestore instance is null after initialization');
+    }
+    
+    return db;
+  } catch (error) {
+    console.error('Firebase: Error getting Firestore instance:', error);
+    return null;
   }
-  return firebaseInstance.db;
 };
 
 /**

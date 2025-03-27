@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Box, Container, useToast } from '@chakra-ui/react';
 import { useProfileData } from '../hooks/useProfileData';
 import { useProfileState } from '../hooks/useProfileState';
@@ -6,15 +6,23 @@ import { useProfileOperations } from '../hooks/useProfileOperations';
 import ProfileHeader from './profile/ProfileHeader';
 import ProfileStats from './profile/ProfileStats';
 import ProfileContent from './profile/ProfileContent';
+import useFirebaseInitialized from '../hooks/useFirebaseInitialized';
 
 /**
  * Client-only profile component that handles profile data and UI
  * This component is responsible for orchestrating the profile page
  * by connecting the UI components with the business logic hooks
+ * Now using the dedicated useFirebaseInitialized hook for better initialization management
  */
 const ClientOnlyProfile: React.FC = () => {
   // Get toast for notifications
   const toast = useToast();
+  
+  // Use our new dedicated hook to ensure Firebase is initialized
+  const isFirebaseReady = useFirebaseInitialized();
+  
+  // Track component mount state
+  const isMounted = useRef(true);
   
   // Get profile data from hook
   const { 
@@ -39,8 +47,28 @@ const ClientOnlyProfile: React.FC = () => {
     isLoading,
     isInLoadingState,
     updateProfile,
-    handleError
+    handleError,
+    logOperation
   } = useProfileOperations();
+
+  // Set up component lifecycle
+  useEffect(() => {
+    isMounted.current = true;
+    
+    // Log component mount
+    logOperation('ClientOnlyProfile component mounted');
+    
+    // Load profile data when Firebase is ready
+    if (isFirebaseReady) {
+      logOperation('Firebase is ready, loading profile data');
+      refreshProfileData();
+    }
+    
+    return () => {
+      isMounted.current = false;
+      logOperation('ClientOnlyProfile component unmounted');
+    };
+  }, [isFirebaseReady, refreshProfileData, logOperation]);
   
   // Handle tab change
   const handleTabChange = (index: number) => {

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useToast } from '@chakra-ui/react';
 import { Article } from '../services/articleService';
 import { validateCollectionReadAccess } from '../utils/firestoreRuleValidator';
+import useFirebaseInitialized from '../hooks/useFirebaseInitialized';
 
 // Define loading states for better tracking
 enum ArticleLoadingState {
@@ -27,6 +28,7 @@ export interface ClientOnlyArticlesProps {
 /**
  * ClientOnlyArticles component ensures that articles are only loaded on the client side
  * This prevents Firebase initialization issues during SSR and handles loading states properly
+ * Now using the dedicated useFirebaseInitialized hook for better initialization management
  */
 const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({ 
   onArticlesLoaded, 
@@ -34,7 +36,7 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
   onError 
 }) => {
   const toast = useToast();
-  const isMounted = useRef(true);
+  const isMounted = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const delayedLoadRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
@@ -43,30 +45,11 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
   const loadingStateRef = useRef<ArticleLoadingState>(ArticleLoadingState.IDLE);
   const loadStartTimeRef = useRef<number>(0);
   
+  // Use our new dedicated hook to ensure Firebase is initialized
+  const isFirebaseReady = useFirebaseInitialized();
+  
   // Track if we've shown fallback content
   const [hasFallbackContent, setHasFallbackContent] = useState(false);
-
-  // Set up and clean up the isMounted ref
-  useEffect(() => {
-    console.log('ClientOnlyArticles: Component mounted');
-    isMounted.current = true;
-    
-    return () => {
-      console.log('ClientOnlyArticles: Component unmounting');
-      isMounted.current = false;
-      
-      // Clean up any pending timeouts
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      
-      if (delayedLoadRef.current) {
-        clearTimeout(delayedLoadRef.current);
-        delayedLoadRef.current = null;
-      }
-    };
-  }, []);
 
   // Function to get fallback articles when Firebase fails
   const getFallbackArticles = useCallback((): Article[] => {
@@ -239,9 +222,9 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
         const firebaseModule = await import('../config/firebase');
         
         // Initialize Firebase if needed
-        if (typeof window !== 'undefined' && !firebaseModule.isFirebaseInitialized()) {
+        if (typeof window !== 'undefined' && !isFirebaseReady) {
           console.log('ClientOnlyArticles: Firebase not initialized, initializing now...');
-          const initialized = firebaseModule.initializeFirebase();
+          const initialized = await firebaseModule.initializeFirebase();
           
           if (!initialized) {
             throw new Error('Failed to initialize Firebase');
@@ -404,24 +387,33 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
     }
   }, [getFallbackArticles, hasFallbackContent, onArticlesLoaded, onError, onLoadingChange, processArticles, retryLoadArticles, toast]);
 
-  // Start loading articles with a small delay
+  // Set up and clean up the isMounted ref
   useEffect(() => {
-    // Add a small delay before loading to ensure the component is fully mounted
-    delayedLoadRef.current = setTimeout(() => {
-      loadArticles();
-    }, 100);
+    console.log('ClientOnlyArticles: Component mounted');
+    isMounted.current = true;
     
-    // Clean up function
+    // Start loading articles when Firebase is ready
+    if (isFirebaseReady) {
+      console.log('ClientOnlyArticles: Firebase is ready, starting delayed load');
+      loadArticles();
+    }
+    
     return () => {
+      console.log('ClientOnlyArticles: Component unmounting');
+      isMounted.current = false;
+      
+      // Clean up any pending timeouts
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
       
       if (delayedLoadRef.current) {
         clearTimeout(delayedLoadRef.current);
+        delayedLoadRef.current = null;
       }
     };
-  }, [loadArticles]);
+  }, [isFirebaseReady, loadArticles]); // Add isFirebaseReady as a dependency to reload when Firebase becomes ready
 
   // This component doesn't render anything itself
   return null;
