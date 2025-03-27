@@ -320,6 +320,12 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Prevent duplicate submissions
+    if (isSubmitting) {
+      console.log('ProfileCompletionForm: Submission already in progress, skipping duplicate request');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -343,10 +349,17 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
         position: formData.position,
         researchInterests: formData.researchInterests,
         role: formData.role,
+        // Mark profile as complete
+        profileComplete: true,
+        // Add timestamp
+        updatedAt: new Date().toISOString(),
         // Additional fields can be added here if they're added to UserProfile type
       };
       
       console.log('ProfileCompletionForm: Submitting profile data:', profileData);
+      
+      // Add a debounce delay to prevent rapid consecutive submissions
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Call the onSave function passed from parent
       const success = await onSave(profileData);
@@ -362,9 +375,12 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
           duration: 5000,
         });
         
-        // If not in edit mode, redirect to home page
+        // If not in edit mode, redirect to home page after a short delay
+        // This gives time for the toast to be seen and Firebase to update
         if (!isEditMode) {
-          router.push('/');
+          setTimeout(() => {
+            router.push('/');
+          }, 1000);
         }
       } else {
         showToast({
@@ -385,7 +401,11 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
         duration: 3000,
       });
     } finally {
-      setIsSubmitting(false);
+      // Add a small delay before resetting the submitting state
+      // This prevents accidental double-clicks
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 500);
     }
   };
 
@@ -401,292 +421,307 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
       borderWidth="1px" 
       borderColor={borderColor}
     >
-      <VStack spacing={6} align="stretch">
-        <Heading as="h1" size="lg" textAlign="center">
-          {isEditMode ? 'Edit Your Profile' : 'Complete Your Profile'}
-        </Heading>
-        <Text textAlign="center" color="gray.600">
-          {isEditMode 
-            ? 'Update your profile information below' 
-            : 'Please complete your profile to access all features of the Researka platform'}
-        </Text>
-        
-        <Progress 
-          value={progressPercentage} 
-          size="sm" 
-          colorScheme="green" 
-          borderRadius="full" 
-          mb={4} 
-        />
-        
-        <Tabs index={currentStep} variant="enclosed" onChange={setCurrentStep}>
-          <TabList>
-            {steps.map((step, index) => (
-              <Tab key={index} isDisabled={currentStep !== index}>
-                <Flex align="center">
-                  {index === 0 && <Icon as={FiUser} mr={2} />}
-                  {index === 1 && <Icon as={FiBookOpen} mr={2} />}
-                  {index === 2 && <Icon as={FiHash} mr={2} />}
-                  {index === 3 && <Icon as={FiGlobe} mr={2} />}
-                  <Text>{step.title}</Text>
-                </Flex>
-              </Tab>
-            ))}
-          </TabList>
-          
-          <TabPanels>
-            {/* Step 1: Basic Identity & Contact */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                  <FormControl isRequired isInvalid={!!errors.firstName}>
-                    <FormLabel>First Name</FormLabel>
-                    <Input 
-                      name="firstName" 
-                      value={formData.firstName} 
-                      onChange={handleChange} 
-                      placeholder="Enter your first name"
-                      isReadOnly={isEditMode} 
-                      bg={isEditMode ? "gray.100" : undefined}
-                    />
-                    {isEditMode && (
-                      <FormHelperText>
-                        First name cannot be changed after profile creation
-                      </FormHelperText>
-                    )}
-                    <FormErrorMessage>{errors.firstName}</FormErrorMessage>
-                  </FormControl>
-                  
-                  <FormControl isRequired isInvalid={!!errors.lastName}>
-                    <FormLabel>Last Name</FormLabel>
-                    <Input 
-                      name="lastName" 
-                      value={formData.lastName} 
-                      onChange={handleChange} 
-                      placeholder="Enter your last name"
-                      isReadOnly={isEditMode} 
-                      bg={isEditMode ? "gray.100" : undefined}
-                    />
-                    {isEditMode && (
-                      <FormHelperText>
-                        Last name cannot be changed after profile creation
-                      </FormHelperText>
-                    )}
-                    <FormErrorMessage>{errors.lastName}</FormErrorMessage>
-                  </FormControl>
-                </SimpleGrid>
-                
-                <FormControl isRequired isInvalid={!!errors.email}>
-                  <FormLabel>Academic Email Address</FormLabel>
-                  <Input 
-                    name="email" 
-                    value={formData.email} 
-                    onChange={handleChange} 
-                    placeholder="Enter your academic email (.edu or .ac.xx domain)"
-                    isReadOnly={isEditMode} 
-                    bg={isEditMode ? "gray.100" : undefined}
-                  />
-                  {isEditMode && (
-                    <FormHelperText>
-                      Email address cannot be changed after profile creation
-                    </FormHelperText>
-                  )}
-                  <FormErrorMessage>{errors.email}</FormErrorMessage>
-                </FormControl>
-              </VStack>
-            </TabPanel>
-            
-            {/* Step 2: Institutional Affiliation */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Heading as="h2" size="md">
-                  Institutional Affiliation
-                </Heading>
-                
-                <FormControl isRequired isInvalid={!!errors.institution}>
-                  <FormLabel>University / Institution</FormLabel>
-                  <Select
-                    name="institution"
-                    value={formData.institution}
-                    onChange={handleChange}
-                    placeholder="Select your institution"
-                    isReadOnly={isEditMode}
-                    isDisabled={isEditMode}
-                    bg={isEditMode ? "gray.100" : undefined}
-                  >
-                    {MOCK_INSTITUTIONS.map((institution, index) => (
-                      <option key={index} value={institution}>
-                        {institution}
-                      </option>
-                    ))}
-                  </Select>
-                  {isEditMode && (
-                    <FormHelperText>
-                      Institution cannot be changed after profile creation
-                    </FormHelperText>
-                  )}
-                  <FormErrorMessage>{errors.institution}</FormErrorMessage>
-                </FormControl>
-                
-                <FormControl isRequired isInvalid={!!errors.department}>
-                  <FormLabel>Department/Faculty</FormLabel>
-                  <Select
-                    name="department"
-                    value={formData.department}
-                    onChange={handleChange}
-                    placeholder="Select your department"
-                  >
-                    {MOCK_DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </Select>
-                  <FormErrorMessage>{errors.department}</FormErrorMessage>
-                </FormControl>
-                
-                <FormControl isRequired isInvalid={!!errors.position}>
-                  <FormLabel>Current Position/Title</FormLabel>
-                  <Select
-                    name="position"
-                    value={formData.position}
-                    onChange={handleChange}
-                    placeholder="Select your position"
-                  >
-                    {ACADEMIC_POSITIONS.map((pos) => (
-                      <option key={pos} value={pos}>{pos}</option>
-                    ))}
-                  </Select>
-                  <FormErrorMessage>{errors.position}</FormErrorMessage>
-                </FormControl>
-              </VStack>
-            </TabPanel>
-            
-            {/* Step 3: Academic & Professional Details */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Heading as="h2" size="md">
-                  Academic & Professional Details
-                </Heading>
-                
-                <FormControl isInvalid={!!errors.orcidId}>
-                  <FormLabel>
-                    <Flex align="center">
-                      ORCID ID (Optional)
-                      <Tooltip label="ORCID provides a persistent digital identifier that distinguishes you from other researchers">
-                        <Box display="inline-block">
-                          <Icon as={FiInfo} ml={1} color="gray.500" />
-                        </Box>
-                      </Tooltip>
-                    </Flex>
-                  </FormLabel>
-                  <Input 
-                    name="orcidId"
-                    value={formData.orcidId}
-                    onChange={handleChange}
-                    placeholder="0000-0000-0000-0000"
-                  />
-                  <FormHelperText>
-                    Format: 0000-0000-0000-0000 (Find your ORCID at orcid.org)
-                  </FormHelperText>
-                  <FormErrorMessage>{errors.orcidId}</FormErrorMessage>
-                </FormControl>
-                
-                <FormControl isRequired isInvalid={!!errors.researchInterests}>
-                  <FormLabel>Research Interests / Keywords</FormLabel>
-                  <ResearchInterestSelector
-                    selectedInterests={formData.researchInterests}
-                    onChange={(interests) => setFormData(prev => ({ ...prev, researchInterests: interests }))}
-                    isRequired={true}
-                    error={errors.researchInterests}
-                    maxInterests={5}
-                  />
-                </FormControl>
-              </VStack>
-            </TabPanel>
-            
-            {/* Step 4: Platform Roles & Optional Extras */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Heading as="h2" size="md">
-                  Platform Roles & Optional Information
-                </Heading>
-                
-                <FormControl>
-                  <Checkbox
-                    name="wantsToBeEditor"
-                    isChecked={formData.wantsToBeEditor}
-                    onChange={handleCheckboxChange}
-                  >
-                    I would like to become an editor (subject to approval)
-                  </Checkbox>
-                  <FormHelperText>
-                    Editors help manage the peer review process and make publication decisions
-                  </FormHelperText>
-                </FormControl>
-                
-                <Divider my={2} />
-                
-                <Heading as="h3" size="sm">
-                  Optional Information
-                </Heading>
-                
-                <FormControl>
-                  <FormLabel>Personal Website</FormLabel>
-                  <Input 
-                    name="personalWebsite"
-                    value={formData.personalWebsite}
-                    onChange={handleChange}
-                    placeholder="https://your-website.com"
-                  />
-                </FormControl>
-              </VStack>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
-        
-        <Divider my={2} />
-        
-        <Flex justify="space-between" mt={6}>
-          {currentStep > 0 ? (
-            <Button 
-              leftIcon={<FiArrowLeft />} 
-              onClick={() => setCurrentStep(currentStep - 1)}
-              variant="outline"
+      {/* Form header */}
+      <Heading as="h2" size="lg" mb={6}>
+        {isEditMode ? 'Edit Your Profile' : 'Complete Your Profile'}
+      </Heading>
+      
+      {/* Progress bar */}
+      <Progress 
+        value={progressPercentage} 
+        size="sm" 
+        colorScheme="blue" 
+        mb={6} 
+        borderRadius="full"
+        hasStripe
+        isAnimated
+      />
+      
+      {/* Step indicator */}
+      <Flex justify="space-between" mb={6}>
+        {steps.map((step, index) => (
+          <Tooltip key={index} label={step.description}>
+            <Box 
+              textAlign="center" 
+              opacity={index <= currentStep ? 1 : 0.5}
+              fontWeight={index === currentStep ? 'bold' : 'normal'}
+              cursor="pointer"
+              onClick={() => {
+                // Only allow going back to previous steps, not skipping ahead
+                if (index < currentStep) {
+                  setCurrentStep(index);
+                }
+              }}
             >
-              Previous
-            </Button>
-          ) : (
-            isEditMode && onCancel ? (
+              <Badge 
+                colorScheme={index <= currentStep ? 'blue' : 'gray'} 
+                borderRadius="full" 
+                px={2}
+                mb={1}
+              >
+                {index + 1}
+              </Badge>
+              <Text fontSize="xs" display={{ base: 'none', md: 'block' }}>
+                {step.title}
+              </Text>
+            </Box>
+          </Tooltip>
+        ))}
+      </Flex>
+      
+      <form onSubmit={handleSubmit}>
+        <VStack spacing={6} align="stretch">
+          {/* Step 1: Basic Identity & Contact */}
+          {currentStep === 0 && (
+            <>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl isRequired isInvalid={!!errors.firstName}>
+                  <FormLabel>First Name</FormLabel>
+                  <Input 
+                    name="firstName" 
+                    value={formData.firstName} 
+                    onChange={handleChange} 
+                    placeholder="Enter your first name"
+                    isDisabled={isSubmitting}
+                  />
+                  {errors.firstName && (
+                    <FormErrorMessage>{errors.firstName}</FormErrorMessage>
+                  )}
+                </FormControl>
+                
+                <FormControl isRequired isInvalid={!!errors.lastName}>
+                  <FormLabel>Last Name</FormLabel>
+                  <Input 
+                    name="lastName" 
+                    value={formData.lastName} 
+                    onChange={handleChange} 
+                    placeholder="Enter your last name"
+                    isDisabled={isSubmitting}
+                  />
+                  {errors.lastName && (
+                    <FormErrorMessage>{errors.lastName}</FormErrorMessage>
+                  )}
+                </FormControl>
+              </SimpleGrid>
+              
+              <FormControl isRequired isInvalid={!!errors.email}>
+                <FormLabel>Academic Email</FormLabel>
+                <Input 
+                  name="email" 
+                  type="email" 
+                  value={formData.email} 
+                  onChange={handleChange} 
+                  placeholder="Enter your academic email"
+                  isDisabled={isSubmitting}
+                />
+                <FormHelperText>
+                  We recommend using your institutional email (.edu or .ac domains)
+                </FormHelperText>
+                {errors.email && (
+                  <FormErrorMessage>{errors.email}</FormErrorMessage>
+                )}
+              </FormControl>
+            </>
+          )}
+          
+          {/* Step 2: Institutional Affiliation */}
+          {currentStep === 1 && (
+            <>
+              <FormControl isRequired isInvalid={!!errors.institution}>
+                <FormLabel>Institution</FormLabel>
+                <Input 
+                  name="institution" 
+                  value={formData.institution} 
+                  onChange={handleChange} 
+                  placeholder="Enter your institution"
+                  list="institutions"
+                  isDisabled={isSubmitting}
+                />
+                <datalist id="institutions">
+                  {MOCK_INSTITUTIONS.map((inst, index) => (
+                    <option key={index} value={inst} />
+                  ))}
+                </datalist>
+                {errors.institution && (
+                  <FormErrorMessage>{errors.institution}</FormErrorMessage>
+                )}
+              </FormControl>
+              
+              <FormControl isRequired isInvalid={!!errors.department}>
+                <FormLabel>Department</FormLabel>
+                <Input 
+                  name="department" 
+                  value={formData.department} 
+                  onChange={handleChange} 
+                  placeholder="Enter your department"
+                  list="departments"
+                  isDisabled={isSubmitting}
+                />
+                <datalist id="departments">
+                  {MOCK_DEPARTMENTS.map((dept, index) => (
+                    <option key={index} value={dept} />
+                  ))}
+                </datalist>
+                {errors.department && (
+                  <FormErrorMessage>{errors.department}</FormErrorMessage>
+                )}
+              </FormControl>
+              
+              <FormControl isRequired isInvalid={!!errors.position}>
+                <FormLabel>Position</FormLabel>
+                <Select 
+                  name="position" 
+                  value={formData.position} 
+                  onChange={handleChange}
+                  placeholder="Select your position"
+                  isDisabled={isSubmitting}
+                >
+                  {ACADEMIC_POSITIONS.map((pos, index) => (
+                    <option key={index} value={pos}>{pos}</option>
+                  ))}
+                </Select>
+                {errors.position && (
+                  <FormErrorMessage>{errors.position}</FormErrorMessage>
+                )}
+              </FormControl>
+            </>
+          )}
+          
+          {/* Step 3: Academic & Professional Details */}
+          {currentStep === 2 && (
+            <>
+              <FormControl isRequired isInvalid={!!errors.researchInterests}>
+                <FormLabel>Research Interests</FormLabel>
+                <ResearchInterestSelector 
+                  selectedInterests={formData.researchInterests} 
+                  onChange={(interests) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      researchInterests: interests
+                    }));
+                    
+                    // Clear error if it exists
+                    if (errors.researchInterests) {
+                      setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors.researchInterests;
+                        return newErrors;
+                      });
+                    }
+                  }}
+                  isDisabled={isSubmitting}
+                />
+                {errors.researchInterests && (
+                  <FormErrorMessage>{errors.researchInterests}</FormErrorMessage>
+                )}
+              </FormControl>
+              
+              <FormControl isInvalid={!!errors.orcidId}>
+                <FormLabel>
+                  ORCID ID
+                  <Tooltip label="ORCID provides a persistent digital identifier for researchers">
+                    <Icon as={FiInfo} ml={1} />
+                  </Tooltip>
+                </FormLabel>
+                <Input 
+                  name="orcidId" 
+                  value={formData.orcidId || ''} 
+                  onChange={handleChange} 
+                  placeholder="0000-0000-0000-0000"
+                  isDisabled={isSubmitting}
+                />
+                <FormHelperText>
+                  Optional. Format: 0000-0000-0000-0000
+                </FormHelperText>
+                {errors.orcidId && (
+                  <FormErrorMessage>{errors.orcidId}</FormErrorMessage>
+                )}
+              </FormControl>
+            </>
+          )}
+          
+          {/* Step 4: Platform Roles & Optional Details */}
+          {currentStep === 3 && (
+            <>
+              <FormControl>
+                <FormLabel>Role</FormLabel>
+                <Select 
+                  name="role" 
+                  value={formData.role} 
+                  onChange={handleChange}
+                  isDisabled={isSubmitting}
+                >
+                  <option value="Researcher">Researcher</option>
+                  <option value="Professor">Professor</option>
+                  <option value="Student">Student</option>
+                  <option value="Industry Professional">Industry Professional</option>
+                </Select>
+              </FormControl>
+              
+              <FormControl>
+                <FormLabel>
+                  <Checkbox 
+                    name="wantsToBeEditor" 
+                    isChecked={formData.wantsToBeEditor} 
+                    onChange={handleCheckboxChange}
+                    isDisabled={isSubmitting}
+                  >
+                    I'm interested in becoming an editor
+                  </Checkbox>
+                </FormLabel>
+                <FormHelperText>
+                  Editors help review and approve submissions
+                </FormHelperText>
+              </FormControl>
+            </>
+          )}
+          
+          {/* Navigation buttons */}
+          <Flex justify="space-between" mt={8}>
+            {currentStep > 0 ? (
+              <Button 
+                leftIcon={<FiArrowLeft />} 
+                onClick={handlePrevStep}
+                variant="outline"
+                isDisabled={isSubmitting}
+              >
+                Previous
+              </Button>
+            ) : (
               <Button 
                 leftIcon={<FiX />} 
-                onClick={onCancel}
+                onClick={onCancel || (() => router.push('/'))}
                 variant="outline"
-                colorScheme="red"
+                isDisabled={isSubmitting}
               >
                 Cancel
               </Button>
-            ) : <Box />
-          )}
-          
-          {currentStep < steps.length - 1 ? (
-            <Button 
-              rightIcon={<FiArrowRight />} 
-              onClick={handleNext}
-              colorScheme="blue"
-            >
-              Next
-            </Button>
-          ) : (
-            <Button 
-              rightIcon={<FiCheck />} 
-              onClick={handleSubmit}
-              colorScheme="green"
-              isLoading={isSubmitting}
-            >
-              {isEditMode ? 'Save Changes' : 'Complete Profile'}
-            </Button>
-          )}
-        </Flex>
-      </VStack>
+            )}
+            
+            {currentStep < steps.length - 1 ? (
+              <Button 
+                rightIcon={<FiArrowRight />} 
+                onClick={handleNext}
+                colorScheme="blue"
+                isDisabled={isSubmitting}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button 
+                type="submit" 
+                colorScheme="green" 
+                rightIcon={<FiCheck />}
+                isLoading={isSubmitting}
+                loadingText="Saving..."
+                isDisabled={isSubmitting}
+              >
+                {isEditMode ? 'Save Changes' : 'Complete Profile'}
+              </Button>
+            )}
+          </Flex>
+        </VStack>
+      </form>
     </Box>
   );
 };

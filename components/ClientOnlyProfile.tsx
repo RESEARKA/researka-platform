@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Spinner,
@@ -96,6 +96,10 @@ const ClientOnlyProfile: React.FC = () => {
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const cardBg = useColorModeValue('white', 'gray.700');
   
+  // Create refs to prevent duplicate operations
+  const isUpdatingProfile = useRef(false);
+  const profileUpdateTimeout = useRef<NodeJS.Timeout | null>(null);
+  
   const { currentUser, authIsInitialized } = useAuth();
   const { 
     profile, 
@@ -103,7 +107,8 @@ const ClientOnlyProfile: React.FC = () => {
     error, 
     isProfileComplete, 
     updateProfile, 
-    retryLoading 
+    retryLoading,
+    isLoadingData
   } = useProfileData();
   const isClient = useClient();
 
@@ -119,11 +124,55 @@ const ClientOnlyProfile: React.FC = () => {
   
   // Function to save profile edits
   const handleSaveProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
+    // Prevent duplicate updates
+    if (isUpdatingProfile.current) {
+      console.log('ClientOnlyProfile: Update already in progress, skipping duplicate request');
+      return false;
+    }
+    
     try {
+      // Set the updating flag to prevent duplicate data loading
+      isUpdatingProfile.current = true;
+      
+      // If the hook also has a loading flag, set it
+      if (isLoadingData) {
+        isLoadingData.current = true;
+      }
+      
+      // Check if name or institution changed and handle special cases
+      const nameChanged = profile?.name !== updatedProfile.name;
+      const institutionChanged = profile?.institution !== updatedProfile.institution;
+      
+      // Apply business rules for name/institution changes
+      if (nameChanged && profile?.hasChangedName !== true) {
+        updatedProfile.hasChangedName = true;
+      }
+      
+      if (institutionChanged && profile?.hasChangedInstitution !== true) {
+        updatedProfile.hasChangedInstitution = true;
+      }
+      
+      console.log('ClientOnlyProfile: Updating profile with data:', updatedProfile);
       const success = await updateProfile(updatedProfile);
       
       if (success) {
+        // Exit edit mode
         setIsEditMode(false);
+        
+        // Clear any existing timeout
+        if (profileUpdateTimeout.current) {
+          clearTimeout(profileUpdateTimeout.current);
+        }
+        
+        // Set a timeout to reset the updating flag after a delay
+        // This prevents immediate re-fetching of profile data
+        profileUpdateTimeout.current = setTimeout(() => {
+          isUpdatingProfile.current = false;
+          if (isLoadingData) {
+            isLoadingData.current = false;
+          }
+          profileUpdateTimeout.current = null;
+        }, 1000);
         
         showToast({
           id: 'profile-updated',
@@ -146,7 +195,7 @@ const ClientOnlyProfile: React.FC = () => {
         return false;
       }
     } catch (error) {
-      console.error('Error saving profile:', error);
+      console.error('ClientOnlyProfile: Error saving profile:', error);
       showToast({
         id: 'profile-save-error',
         title: "Error",
@@ -156,11 +205,31 @@ const ClientOnlyProfile: React.FC = () => {
       });
       
       return false;
+    } finally {
+      // If there's no timeout active, reset the flags immediately
+      if (!profileUpdateTimeout.current) {
+        isUpdatingProfile.current = false;
+        if (isLoadingData) {
+          isLoadingData.current = false;
+        }
+      }
     }
   };
 
   // Show loading state when not on client or auth is initializing
-  if (!isClient || !authIsInitialized || isLoading) {
+  if (!isClient || !authIsInitialized) {
+    return (
+      <Center py={10}>
+        <VStack spacing={4}>
+          <Spinner size="xl" />
+          <Text>Initializing...</Text>
+        </VStack>
+      </Center>
+    );
+  }
+  
+  // Show loading state when profile data is loading
+  if (isLoading) {
     return (
       <Center py={10}>
         <VStack spacing={4}>
@@ -283,6 +352,7 @@ const ClientOnlyProfile: React.FC = () => {
           colorScheme="blue" 
           variant="outline"
           onClick={handleEditProfile}
+          isDisabled={isUpdatingProfile.current}
         >
           Edit Profile
         </Button>

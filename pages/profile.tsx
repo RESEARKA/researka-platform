@@ -199,21 +199,17 @@ const PaginationControl: React.FC<PaginationProps> = ({ currentPage, totalPages,
 };
 
 const ProfilePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const showToast = useAppToast();
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const cardBg = useColorModeValue('white', 'gray.700');
   const { currentUser, authIsInitialized } = useAuth();
   const router = useRouter();
   const isClient = useClient();
+  const showToast = useAppToast();
   
-  // Create a ref to prevent duplicate data loading during profile updates
+  // Create refs to prevent duplicate operations
   const isUpdatingProfile = useRef(false);
+  const isInitialMount = useRef(true);
+  const profileUpdateTimeout = useRef<NodeJS.Timeout | null>(null);
   
-  // Use the new useProfileData hook
+  // Use the useProfileData hook
   const { 
     profile, 
     isLoading, 
@@ -232,16 +228,6 @@ const ProfilePage: React.FC = () => {
     complete: false,
     update: false
   });
-  
-  // Function to toggle edit mode
-  const handleEditProfile = () => {
-    setIsEditMode(true);
-  };
-  
-  // Function to cancel edit mode
-  const handleCancelEdit = () => {
-    setIsEditMode(false);
-  };
   
   // Function to save profile edits - using the hook's updateProfile function
   const handleSaveProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
@@ -283,14 +269,22 @@ const ProfilePage: React.FC = () => {
       
       if (success) {
         // Batch state updates to prevent multiple re-renders
-        const updateStates = () => {
-          setIsEditMode(false);
-          // Mark that we've shown the toast
-          setProfileToastShown(prev => ({...prev, update: true}));
-        };
+        setProfileToastShown(prev => ({...prev, update: true}));
         
-        // Execute all state updates in one go
-        updateStates();
+        // Clear any existing timeout
+        if (profileUpdateTimeout.current) {
+          clearTimeout(profileUpdateTimeout.current);
+        }
+        
+        // Set a timeout to reset the updating flag after a delay
+        // This prevents immediate re-fetching of profile data
+        profileUpdateTimeout.current = setTimeout(() => {
+          isUpdatingProfile.current = false;
+          if (isLoadingData) {
+            isLoadingData.current = false;
+          }
+          profileUpdateTimeout.current = null;
+        }, 1000);
         
         showToast({
           id: 'profile-updated',
@@ -324,18 +318,30 @@ const ProfilePage: React.FC = () => {
       
       return false;
     } finally {
-      // Reset the updating flags when done
-      isUpdatingProfile.current = false;
-      
-      // If the hook also has a loading flag, reset it
-      if (isLoadingData) {
-        isLoadingData.current = false;
+      // If there's no timeout active, reset the flags immediately
+      if (!profileUpdateTimeout.current) {
+        isUpdatingProfile.current = false;
+        if (isLoadingData) {
+          isLoadingData.current = false;
+        }
       }
     }
   };
   
   // Add an effect to prevent duplicate data loading during profile updates
   useEffect(() => {
+    // Skip if not initialized or no user
+    if (!authIsInitialized || !currentUser) {
+      return;
+    }
+    
+    // Skip on initial mount since useProfileData will load data
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    // Skip if we're currently updating the profile
     if (isUpdatingProfile.current) {
       console.log('Profile: Skipping loadData during update');
       return;
@@ -343,6 +349,15 @@ const ProfilePage: React.FC = () => {
     
     // The actual data loading is handled by the useProfileData hook
   }, [authIsInitialized, currentUser]);
+  
+  // Clean up any timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (profileUpdateTimeout.current) {
+        clearTimeout(profileUpdateTimeout.current);
+      }
+    };
+  }, []);
 
   return (
     <Layout>

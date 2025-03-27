@@ -10,11 +10,11 @@ import {
   signInAnonymously
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { app, auth, db } from '../config/firebase';
+import { app, auth, db, initializeFirebase, isFirebaseInitialized } from '../config/firebase';
 import { FirebaseApp } from 'firebase/app';
 import { Auth } from 'firebase/auth';
 import { Firestore } from 'firebase/firestore';
-import { Box, Spinner } from '@chakra-ui/react';
+import { Box, Spinner, Center, Text } from '@chakra-ui/react';
 import useClient from '../hooks/useClient';
 
 interface AuthContextType {
@@ -56,54 +56,101 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authIsInitialized, setAuthIsInitialized] = useState(false);
   const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
   const isClient = useClient();
-  const [isInitializing, setIsInitializing] = useState(false);
+  const authListenerSetup = useRef(false);
+  const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize Firebase only on the client side
   useEffect(() => {
-    if (!isClient) return;
+    // Skip if not on client side or if auth listener is already set up
+    if (!isClient || authListenerSetup.current) return;
     
-    // Store instances in refs to prevent re-initialization
-    if (!appRef.current) appRef.current = app;
-    if (!authRef.current) authRef.current = auth;
-    if (!dbRef.current) dbRef.current = db;
-    
-    console.log('AuthContext: Firebase initialized on client side');
-    
-    // Immediately set up auth state listener after initialization
-    const setupAuthListener = () => {
-      console.log('AuthContext: Setting up auth state listener...');
+    const setupAuth = async (): Promise<(() => void) | undefined> => {
+      console.log('AuthContext: Setting up Firebase on client side');
+      
+      // Initialize Firebase if not already initialized
+      const initialized = initializeFirebase();
+      if (!initialized) {
+        console.error('AuthContext: Failed to initialize Firebase');
+        setIsLoading(false);
+        setAuthIsInitialized(true);
+        return undefined;
+      }
+      
+      // Store instances in refs to prevent re-initialization
+      if (!appRef.current) appRef.current = app;
+      if (!authRef.current) authRef.current = auth;
+      if (!dbRef.current) dbRef.current = db;
+      
+      // Mark that we've started setting up the auth listener
+      authListenerSetup.current = true;
       
       // Add timeout to prevent hanging indefinitely
-      const authTimeout = setTimeout(() => {
+      authTimeoutRef.current = setTimeout(() => {
         console.warn('AuthContext: Auth initialization timed out after 10 seconds');
         setIsLoading(false);
         setAuthIsInitialized(true);
       }, 10000);
       
-      const unsubscribe = onAuthStateChanged(authRef.current!, async (user) => {
-        console.log('AuthContext: Auth state changed', user ? `User: ${user.uid}` : 'No user');
+      try {
+        // Set up auth state listener
+        console.log('AuthContext: Setting up auth state listener...');
+        const unsubscribe = onAuthStateChanged(authRef.current!, (user) => {
+          console.log('AuthContext: Auth state changed', user ? `User: ${user.uid}` : 'No user');
+          
+          // Use functional updates to batch state changes
+          setCurrentUser(user);
+          setAuthIsInitialized(true);
+          setIsLoading(false);
+          
+          // Clear the timeout since auth state has changed
+          if (authTimeoutRef.current) {
+            clearTimeout(authTimeoutRef.current);
+            authTimeoutRef.current = null;
+          }
+        });
         
-        // Use functional updates to batch state changes
-        setCurrentUser(user);
+        // Return cleanup function
+        return () => {
+          unsubscribe();
+          if (authTimeoutRef.current) {
+            clearTimeout(authTimeoutRef.current);
+            authTimeoutRef.current = null;
+          }
+        };
+      } catch (error) {
+        console.error('AuthContext: Error setting up auth listener:', error);
+        // Ensure we still update the state even if there's an error
         setAuthIsInitialized(true);
         setIsLoading(false);
-        
-        // Clear the timeout since auth state has changed
-        clearTimeout(authTimeout);
-      });
-      
-      // Return cleanup function
-      return () => {
-        unsubscribe();
-        clearTimeout(authTimeout);
-      };
+        if (authTimeoutRef.current) {
+          clearTimeout(authTimeoutRef.current);
+          authTimeoutRef.current = null;
+        }
+        return undefined; // Return undefined instead of empty function
+      }
     };
     
-    // Set up the listener immediately after initialization
-    const unsubscribe = setupAuthListener();
+    // Set up the auth listener
+    let cleanupFn: (() => void) | undefined;
+    
+    // Execute the setup function and store the cleanup function
+    setupAuth().then(cleanup => {
+      cleanupFn = cleanup;
+    }).catch(error => {
+      console.error('AuthContext: Error in setupAuth:', error);
+    });
     
     // Cleanup subscription on unmount
-    return unsubscribe;
+    return () => {
+      if (cleanupFn) {
+        cleanupFn();
+      }
+      
+      if (authTimeoutRef.current) {
+        clearTimeout(authTimeoutRef.current);
+        authTimeoutRef.current = null;
+      }
+    };
   }, [isClient]);
 
   // Sign up with email and password
@@ -328,7 +375,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const allowedFields = [
       'name', 'email', 'role', 'institution', 'department', 
       'position', 'researchInterests', 'articles', 'reviews', 
-      'reputation', 'profileComplete', 'createdAt', 'updatedAt'
+      'reputation', 'profileComplete', 'createdAt', 'updatedAt',
+      'hasChangedName', 'hasChangedInstitution'
     ];
     
     for (const key of Object.keys(data)) {
@@ -400,21 +448,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Check if user is anonymous
   function isAnonymousUser(): boolean {
-    if (!currentUser) return false;
-    return currentUser.isAnonymous || false;
+    return currentUser?.isAnonymous || false;
   }
 
   // Test Firestore write access
   async function testFirestoreWrite(): Promise<boolean> {
+    console.log('AuthContext: Testing Firestore write access...');
     try {
-      if (!dbRef.current || !currentUser) {
-        console.error('AuthContext: Database or user not initialized');
+      if (!currentUser) {
+        console.error('AuthContext: No user is logged in, cannot test write access');
         return false;
       }
-
-      // Try to update the user document with a timestamp
-      await updateDoc(doc(dbRef.current, 'users', currentUser.uid), {
-        lastActive: new Date().toISOString()
+      
+      if (!dbRef.current) {
+        console.error('AuthContext: Database not initialized, cannot test write access');
+        return false;
+      }
+      
+      const testDocRef = doc(dbRef.current, `users/${currentUser.uid}/test/write-test`);
+      await setDoc(testDocRef, {
+        timestamp: new Date().toISOString(),
+        test: 'write-test'
       });
       
       console.log('AuthContext: Firestore write test successful');
@@ -425,80 +479,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
-  /**
-   * Updates user data in Firestore
-   * @param data User data to update
-   * @returns Promise resolving to a boolean indicating success
-   */
+  // Update user data in Firestore
   async function updateUserData(data: any): Promise<boolean> {
-    console.log('AuthContext: Updating user data');
-    
-    // Wait for auth and database to be initialized
-    if (!authIsInitialized) {
-      console.log('AuthContext: Auth not initialized, waiting before update attempt');
-      
-      // Wait for auth initialization with a timeout
-      let waitAttempts = 0;
-      const maxWaitAttempts = 10;
-      
-      while (!authIsInitialized && waitAttempts < maxWaitAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        waitAttempts++;
-        console.log(`AuthContext: Wait attempt ${waitAttempts}/${maxWaitAttempts} for auth initialization`);
-      }
-      
-      // Check again after waiting
-      if (!authIsInitialized) {
-        console.error('AuthContext: Auth not initialized after waiting, cannot update user data');
-        return false;
-      }
-    }
-    
-    // Check if user is available
-    if (!currentUser) {
-      // If we're still initializing, wait a bit more
-      if (isInitializing) {
-        console.log('AuthContext: User is still initializing, waiting before update attempt');
-        
-        // Wait for user initialization with a timeout
-        let waitAttempts = 0;
-        const maxWaitAttempts = 5;
-        
-        while (isInitializing && waitAttempts < maxWaitAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          waitAttempts++;
-          console.log(`AuthContext: Wait attempt ${waitAttempts}/${maxWaitAttempts} for user initialization`);
-          
-          // Check if user is available after waiting
-          if (currentUser) {
-            console.log('AuthContext: User is now available after waiting');
-            break;
-          }
-        }
-        
-        // Check again after waiting
-        if (!currentUser) {
-          console.error('AuthContext: User not initialized after waiting, cannot update user data');
-          return false;
-        }
-      } else {
-        console.error('AuthContext: No user is signed in, cannot update user data');
-        return false;
-      }
-    }
-    
-    // Validate user data before saving
-    const { isValid, sanitizedData, errors } = validateUserData(data);
-    
-    if (!isValid) {
-      console.error('AuthContext: Invalid user data:', errors);
-      return false;
-    }
-    
+    console.log('AuthContext: Updating user data in Firestore...');
     try {
-      // Get a reference to the user's document
+      if (!currentUser) {
+        console.error('AuthContext: No user is logged in, cannot update user data');
+        return false;
+      }
+      
       if (!dbRef.current) {
         console.error('AuthContext: Database not initialized, cannot update user data');
+        return false;
+      }
+      
+      // Validate user data before saving
+      const { isValid, sanitizedData, errors } = validateUserData(data);
+      
+      if (!isValid) {
+        console.error('AuthContext: Invalid user data:', errors);
         return false;
       }
       
@@ -580,26 +579,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setPersistentUsername
   };
 
+  // Create a loading component that only shows on client side
+  const LoadingOverlay = () => {
+    if (!isClient || (!isLoading && authIsInitialized)) return null;
+    
+    return (
+      <Box
+        position="fixed"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        bg="rgba(0, 0, 0, 0.5)"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        zIndex={9999}
+        data-testid="auth-loading-overlay"
+      >
+        <Box bg="white" p={4} borderRadius="md" textAlign="center">
+          <Spinner size="xl" color="blue.500" mb={4} />
+          <Text>Initializing authentication...</Text>
+        </Box>
+      </Box>
+    );
+  };
+
   return (
     <AuthContext.Provider value={value}>
+      {/* Always render children regardless of loading state */}
       {children}
-      {(isLoading || !authIsInitialized) && isClient && (
-        <Box
-          position="fixed"
-          top={0}
-          left={0}
-          right={0}
-          bottom={0}
-          bg="rgba(0, 0, 0, 0.5)"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          zIndex={9999}
-          data-testid="auth-loading-overlay"
-        >
-          <Spinner size="xl" color="white" />
-        </Box>
-      )}
+      
+      {/* Only show loading overlay on client side */}
+      <LoadingOverlay />
     </AuthContext.Provider>
   );
 };
