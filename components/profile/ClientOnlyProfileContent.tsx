@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { Box, Container } from '@chakra-ui/react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Box, Container, useToast } from '@chakra-ui/react';
 import { UserProfile } from '../../hooks/useProfileData';
 import { ProfileLoadingState } from './types';
 import ProfileHeader from './ProfileHeader';
 import ProfileStats from './ProfileStats';
 import ProfileContent from './ProfileContent';
+import { createLogger, LogCategory } from '../../utils/logger';
+
+// Create a logger instance for this component
+const logger = createLogger('ClientOnlyProfileContent');
 
 /**
  * Props for the ClientOnlyProfileContent component
@@ -35,37 +39,178 @@ function ClientOnlyProfileContent({
   const [currentPage, setCurrentPage] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
   
-  // Handle tab change
-  const handleTabChange = (index: number) => {
-    setActiveTab(index);
-    setCurrentPage(1); // Reset to first page when changing tabs
-  };
+  // Refs to track component state
+  const isMounted = useRef(true);
+  const saveInProgressRef = useRef(false);
   
-  // Handle page change
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  // Toast for notifications
+  const toast = useToast();
   
-  // Handle edit profile
-  const handleEditProfile = () => {
-    setIsEditMode(true);
-  };
-  
-  // Handle cancel edit
-  const handleCancelEdit = () => {
-    setIsEditMode(false);
-  };
-  
-  // Handle save profile with edit mode state update
-  const handleSaveProfile = async (updatedProfile: Partial<UserProfile>) => {
-    const success = await onSaveProfile(updatedProfile);
+  // Set up component lifecycle with proper cleanup
+  useEffect(() => {
+    isMounted.current = true;
     
-    if (success) {
+    logger.debug('ClientOnlyProfileContent mounted', {
+      category: LogCategory.LIFECYCLE
+    });
+    
+    return () => {
+      isMounted.current = false;
+      logger.debug('ClientOnlyProfileContent unmounted', {
+        category: LogCategory.LIFECYCLE
+      });
+    };
+  }, []);
+  
+  // Reset edit mode when profile changes or error occurs
+  useEffect(() => {
+    if (error && isEditMode) {
+      logger.debug('Resetting edit mode due to error', {
+        category: LogCategory.UI
+      });
       setIsEditMode(false);
     }
+  }, [error, isEditMode]);
+  
+  // Handle tab change
+  const handleTabChange = useCallback((index: number) => {
+    setActiveTab(index);
+    setCurrentPage(1); // Reset to first page when changing tabs
     
-    return success;
-  };
+    logger.debug('Tab changed', {
+      context: { newTab: index },
+      category: LogCategory.UI
+    });
+  }, []);
+  
+  // Handle page change
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    
+    logger.debug('Page changed', {
+      context: { newPage: page },
+      category: LogCategory.UI
+    });
+  }, []);
+  
+  // Handle edit profile
+  const handleEditProfile = useCallback(() => {
+    // Skip if loading
+    if (isLoading) {
+      logger.debug('Edit profile clicked while loading, ignoring', {
+        category: LogCategory.UI
+      });
+      return;
+    }
+    
+    setIsEditMode(true);
+    
+    logger.debug('Entered edit mode', {
+      category: LogCategory.UI
+    });
+  }, [isLoading]);
+  
+  // Handle cancel edit
+  const handleCancelEdit = useCallback(() => {
+    // Skip if save is in progress
+    if (saveInProgressRef.current) {
+      logger.debug('Cancel edit clicked while save in progress, ignoring', {
+        category: LogCategory.UI
+      });
+      return;
+    }
+    
+    setIsEditMode(false);
+    
+    logger.debug('Cancelled edit mode', {
+      category: LogCategory.UI
+    });
+  }, []);
+  
+  // Handle save profile with edit mode state update
+  const handleSaveProfile = useCallback(async (updatedProfile: Partial<UserProfile>) => {
+    // Skip if component is unmounted or save is already in progress
+    if (!isMounted.current || saveInProgressRef.current) {
+      logger.debug('Save profile skipped', {
+        context: {
+          isMounted: isMounted.current,
+          saveInProgress: saveInProgressRef.current
+        },
+        category: LogCategory.UI
+      });
+      return false;
+    }
+    
+    try {
+      // Set save in progress
+      saveInProgressRef.current = true;
+      
+      logger.debug('Saving profile', {
+        context: { 
+          fieldCount: Object.keys(updatedProfile).length,
+          fields: Object.keys(updatedProfile)
+        },
+        category: LogCategory.UI
+      });
+      
+      // Call the save function
+      const success = await onSaveProfile(updatedProfile);
+      
+      // Only update UI state if still mounted
+      if (isMounted.current) {
+        if (success) {
+          setIsEditMode(false);
+          
+          logger.debug('Profile saved successfully, exiting edit mode', {
+            category: LogCategory.UI
+          });
+        } else {
+          logger.debug('Profile save failed, staying in edit mode', {
+            category: LogCategory.UI
+          });
+          
+          toast({
+            title: 'Save Failed',
+            description: 'Failed to save profile changes. Please try again.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      }
+      
+      return success;
+    } catch (error) {
+      logger.error('Error saving profile', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      
+      // Only update UI if still mounted
+      if (isMounted.current) {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'An error occurred while saving your profile',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+      
+      return false;
+    } finally {
+      // Reset save in progress flag
+      saveInProgressRef.current = false;
+    }
+  }, [onSaveProfile, toast]);
+  
+  // Handle retry loading with debounce
+  const handleRetry = useCallback(() => {
+    logger.debug('Retrying profile load', {
+      category: LogCategory.UI
+    });
+    onRetryLoading();
+  }, [onRetryLoading]);
   
   return (
     <Container maxW="container.lg" py={8}>
@@ -101,7 +246,7 @@ function ClientOnlyProfileContent({
           onTabChange={handleTabChange}
           onPageChange={handlePageChange}
           onSaveProfile={handleSaveProfile}
-          onRetryLoading={onRetryLoading}
+          onRetryLoading={handleRetry}
         />
       </Box>
     </Container>

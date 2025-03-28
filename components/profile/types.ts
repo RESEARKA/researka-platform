@@ -7,11 +7,14 @@ import { UserProfile } from '../../hooks/useProfileData';
 export enum ProfileLoadingState {
   IDLE = 'idle',
   INITIALIZING = 'initializing',
+  LOADING = 'loading',
   LOADING_PROFILE = 'loading_profile',
   LOADING_ARTICLES = 'loading_articles',
   LOADING_REVIEWS = 'loading_reviews',
+  UPDATING = 'updating',
   UPDATING_PROFILE = 'updating_profile',
-  ERROR = 'error'
+  ERROR = 'error',
+  SUCCESS = 'success'
 }
 
 /**

@@ -3,6 +3,10 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { getFirebaseFirestore } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import useClient from './useClient';
+import { createLogger, LogCategory } from '../utils/logger';
+
+// Create a logger instance for this hook
+const logger = createLogger('useProfileData');
 
 // Profile loading states for more granular tracking
 export enum ProfileLoadingState {
@@ -67,23 +71,11 @@ export function useProfileData() {
   
   // Refs to prevent duplicate operations and track loading state
   const isLoadingData = useRef<boolean>(false);
+  const isUpdatingProfile = useRef<boolean>(false);
   const retryCount = useRef<number>(0);
+  const updateOperationInProgress = useRef<boolean>(false);
+  const lastUpdateTimestamp = useRef<number>(0);
   const maxRetries = 3;
-  
-  // Logging function
-  const logOperation = useCallback((message: string, level: 'log' | 'warn' | 'error' = 'log') => {
-    const prefix = '[ProfileData]';
-    switch (level) {
-      case 'warn':
-        console.warn(`${prefix} ${message}`);
-        break;
-      case 'error':
-        console.error(`${prefix} ${message}`);
-        break;
-      default:
-        console.log(`${prefix} ${message}`);
-    }
-  }, []);
   
   // Helper function to check if profile is complete
   const checkProfileComplete = useCallback((profileData: UserProfile | null): boolean => {
@@ -98,16 +90,51 @@ export function useProfileData() {
     });
   }, []);
   
+  // Batch update state to prevent multiple renders
+  const batchUpdateState = useCallback((
+    newProfile: UserProfile | null, 
+    newIsComplete: boolean, 
+    newLoadingState: ProfileLoadingState,
+    newError: string | null = null
+  ) => {
+    // Use a single React batch update for all state changes
+    // This prevents multiple re-renders
+    setProfile(newProfile);
+    setIsProfileComplete(newIsComplete);
+    setLoadingState(newLoadingState);
+    setError(newError);
+    
+    logger.debug('Batch updated profile state', {
+      context: {
+        hasProfile: !!newProfile,
+        isComplete: newIsComplete,
+        loadingState: newLoadingState,
+        hasError: !!newError
+      },
+      category: LogCategory.DATA
+    });
+  }, []);
+  
   // Function to load profile data
   const loadProfileData = useCallback(async () => {
     // Skip if not initialized, no user, or already loading
     if (!authIsInitialized || !currentUser || isLoadingData.current) {
+      logger.debug('Skipping profile data load', {
+        context: {
+          authIsInitialized,
+          hasUser: !!currentUser,
+          isLoading: isLoadingData.current
+        },
+        category: LogCategory.LIFECYCLE
+      });
       return;
     }
     
     // Skip if not on client side
     if (!isClient) {
-      logOperation('Not on client side, skipping profile data load', 'warn');
+      logger.warn('Not on client side, skipping profile data load', {
+        category: LogCategory.LIFECYCLE
+      });
       return;
     }
     
@@ -117,7 +144,9 @@ export function useProfileData() {
       setLoadingState(ProfileLoadingState.LOADING);
       setError(null);
       
-      logOperation(`Loading profile data for user ${currentUser.uid}`);
+      logger.info(`Loading profile data for user ${currentUser.uid}`, {
+        category: LogCategory.LIFECYCLE
+      });
       
       // Get Firestore instance
       const db = getFirebaseFirestore();
@@ -138,15 +167,17 @@ export function useProfileData() {
         // Check if profile is complete
         const isComplete = checkProfileComplete(userData);
         
-        // Update state
-        setProfile(userData);
-        setIsProfileComplete(isComplete);
-        setLoadingState(ProfileLoadingState.SUCCESS);
+        // Update state in a single batch
+        batchUpdateState(userData, isComplete, ProfileLoadingState.SUCCESS);
         
-        logOperation(`Profile data loaded successfully, isComplete: ${isComplete}`);
+        logger.info(`Profile data loaded successfully, isComplete: ${isComplete}`, {
+          category: LogCategory.LIFECYCLE
+        });
       } else {
         // User document doesn't exist, create a new one
-        logOperation('User document does not exist, creating new profile');
+        logger.info('User document does not exist, creating new profile', {
+          category: LogCategory.LIFECYCLE
+        });
         
         // Create basic profile from auth data
         const newProfile: UserProfile = {
@@ -162,59 +193,76 @@ export function useProfileData() {
         // Save new profile to Firestore
         await setDoc(userDocRef, newProfile);
         
-        // Update state
-        setProfile(newProfile);
-        setIsProfileComplete(false);
-        setLoadingState(ProfileLoadingState.SUCCESS);
+        // Update state in a single batch
+        batchUpdateState(newProfile, false, ProfileLoadingState.SUCCESS);
         
-        logOperation('New profile created successfully');
+        logger.info('New profile created successfully', {
+          category: LogCategory.LIFECYCLE
+        });
       }
-    } catch (err) {
+    } catch (error) {
       // Handle error
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logOperation(`Error loading profile data: ${errorMessage}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error loading profile';
       
-      setError(errorMessage);
-      setLoadingState(ProfileLoadingState.ERROR);
+      logger.error('Error loading profile data', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
       
-      // Retry loading if we haven't exceeded max retries
-      if (retryCount.current < maxRetries) {
-        retryCount.current += 1;
-        logOperation(`Retrying profile load (${retryCount.current}/${maxRetries})`);
-        
-        // Retry after a delay
-        setTimeout(() => {
-          if (isClient) {
-            loadProfileData();
-          }
-        }, 1000);
-      }
+      // Update state with error
+      batchUpdateState(null, false, ProfileLoadingState.ERROR, errorMessage);
     } finally {
       // Reset loading flag
       isLoadingData.current = false;
     }
-  }, [authIsInitialized, checkProfileComplete, currentUser, isClient, logOperation]);
+  }, [authIsInitialized, batchUpdateState, currentUser, isClient]);
   
-  // Function to update profile
+  // Function to update profile with debouncing and ref tracking
   const updateProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
     // Skip if not initialized, no user, or no profile
     if (!authIsInitialized || !currentUser || !profile) {
-      logOperation('Cannot update profile: not initialized, no user, or no profile', 'warn');
+      logger.warn('Cannot update profile: not initialized, no user, or no profile', {
+        context: {
+          authIsInitialized,
+          hasUser: !!currentUser,
+          hasProfile: !!profile
+        },
+        category: LogCategory.LIFECYCLE
+      });
       return false;
     }
     
     // Skip if not on client side
     if (!isClient) {
-      logOperation('Not on client side, skipping profile update', 'warn');
+      logger.warn('Not on client side, skipping profile update', {
+        category: LogCategory.LIFECYCLE
+      });
+      return false;
+    }
+    
+    // Skip if an update is already in progress
+    if (updateOperationInProgress.current) {
+      const timeSinceLastUpdate = Date.now() - lastUpdateTimestamp.current;
+      logger.warn(`Update already in progress (${timeSinceLastUpdate}ms since last update)`, {
+        category: LogCategory.LIFECYCLE
+      });
       return false;
     }
     
     try {
-      // Set updating state
+      // Set updating state and refs
+      updateOperationInProgress.current = true;
+      isUpdatingProfile.current = true;
+      lastUpdateTimestamp.current = Date.now();
+      
+      // Update loading state
       setLoadingState(ProfileLoadingState.UPDATING);
       setError(null);
       
-      logOperation(`Updating profile for user ${currentUser.uid}`);
+      logger.info(`Updating profile for user ${currentUser.uid}`, {
+        context: { fieldCount: Object.keys(updatedProfile).length },
+        category: LogCategory.LIFECYCLE
+      });
       
       // Get Firestore instance
       const db = getFirebaseFirestore();
@@ -234,7 +282,8 @@ export function useProfileData() {
       // Update document in Firestore
       await updateDoc(userDocRef, updates);
       
-      // Update local state with merged profile
+      // Update local state with merged profile using functional update
+      // This ensures we're working with the latest state
       const updatedProfileData = {
         ...profile,
         ...updates
@@ -243,33 +292,51 @@ export function useProfileData() {
       // Check if profile is complete
       const isComplete = checkProfileComplete(updatedProfileData);
       
-      // Update state
-      setProfile(updatedProfileData);
-      setIsProfileComplete(isComplete);
-      setLoadingState(ProfileLoadingState.SUCCESS);
+      // Update state in a single batch
+      batchUpdateState(updatedProfileData, isComplete, ProfileLoadingState.SUCCESS);
       
-      logOperation(`Profile updated successfully, isComplete: ${isComplete}`);
+      logger.info(`Profile updated successfully, isComplete: ${isComplete}`, {
+        context: { 
+          fieldCount: Object.keys(updatedProfile).length,
+          fields: Object.keys(updatedProfile),
+          duration: Date.now() - lastUpdateTimestamp.current
+        },
+        category: LogCategory.LIFECYCLE
+      });
       
       return true;
     } catch (err) {
       // Handle error
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logOperation(`Error updating profile: ${errorMessage}`, 'error');
+      logger.error(`Error updating profile: ${errorMessage}`, {
+        context: { 
+          error: err,
+          fieldCount: Object.keys(updatedProfile).length,
+          fields: Object.keys(updatedProfile)
+        },
+        category: LogCategory.ERROR
+      });
       
-      setError(errorMessage);
-      setLoadingState(ProfileLoadingState.ERROR);
+      // Update state in a single batch
+      batchUpdateState(profile, isProfileComplete, ProfileLoadingState.ERROR, errorMessage);
       
       return false;
+    } finally {
+      // Reset updating flags
+      updateOperationInProgress.current = false;
+      isUpdatingProfile.current = false;
     }
-  }, [authIsInitialized, checkProfileComplete, currentUser, isClient, logOperation, profile]);
+  }, [authIsInitialized, batchUpdateState, checkProfileComplete, currentUser, isClient, isProfileComplete, profile]);
   
   // Function to retry loading after an error
   const retryLoading = useCallback(() => {
-    logOperation('Manually retrying profile load');
+    logger.info('Manually retrying profile load', {
+      category: LogCategory.LIFECYCLE
+    });
     retryCount.current = 0;
     setError(null);
     loadProfileData();
-  }, [loadProfileData, logOperation]);
+  }, [loadProfileData]);
   
   // Load profile data when auth is initialized and user changes
   useEffect(() => {
@@ -278,15 +345,21 @@ export function useProfileData() {
       return;
     }
     
-    // Skip if already loading
-    if (isLoadingData.current) {
-      logOperation('Already loading data, skipping duplicate load');
+    // Skip if already loading or updating
+    if (isLoadingData.current || isUpdatingProfile.current) {
+      logger.debug('Already loading or updating data, skipping duplicate load', {
+        context: {
+          isLoading: isLoadingData.current,
+          isUpdating: isUpdatingProfile.current
+        },
+        category: LogCategory.LIFECYCLE
+      });
       return;
     }
     
     // Load profile data
     loadProfileData();
-  }, [authIsInitialized, currentUser, loadProfileData, logOperation]);
+  }, [authIsInitialized, currentUser, loadProfileData]);
   
   // Return profile data and functions
   return {
@@ -299,6 +372,8 @@ export function useProfileData() {
     updateProfile,
     retryLoading,
     isLoadingData,
+    isUpdatingProfile,
+    updateOperationInProgress,
     loadData: loadProfileData
   };
 }

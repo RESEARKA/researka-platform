@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useToast, Spinner, Center, VStack, Text, Alert, AlertIcon, AlertTitle, AlertDescription } from '@chakra-ui/react';
 import { useProfileData } from '../../hooks/useProfileData';
-import { useProfileState } from '../../hooks/useProfileState';
 import { useProfileOperations, ExtendedProfileLoadingState } from '../../hooks/useProfileOperations';
 import useFirebaseInitialized from '../../hooks/useFirebaseInitialized';
 import ProfileManager from './ProfileManager';
@@ -26,29 +25,24 @@ function ClientOnlyProfile() {
   
   // Track component mount state to prevent state updates after unmount
   const isMounted = useRef(true);
-  
-  // Get profile data from hook with proper error handling
-  const { 
-    profile, 
-    isLoading: isProfileLoading, 
-    error: profileError,
-    loadData: refreshProfileData
-  } = useProfileData();
+  const initialLoadCompleted = useRef(false);
   
   // Get profile operations from hook with improved state management
   const {
+    profile,
     isLoading,
-    isInLoadingState: checkLoadingStates,
+    error: profileError,
+    isProfileComplete,
+    loadingState,
+    isInComponentLoadingState,
     updateProfile,
     handleError,
-    logOperation
+    logOperation,
+    refreshProfileData,
+    updateInProgressRef,
+    pendingUpdatesRef,
+    clearPendingUpdates
   } = useProfileOperations();
-  
-  // Create an adapter function to match the expected signature for ProfileManager
-  const isInLoadingState = useCallback((state: ProfileLoadingState) => {
-    // Safe conversion by using string comparison instead of direct casting
-    return checkLoadingStates([state as unknown as ExtendedProfileLoadingState]);
-  }, [checkLoadingStates]);
   
   // Set up component lifecycle with proper cleanup
   useEffect(() => {
@@ -66,17 +60,44 @@ function ClientOnlyProfile() {
       category: LogCategory.SYSTEM
     });
     
-    // If Firebase is ready and we're mounted, load profile data
-    if (isFirebaseReady && isMounted.current) {
-      refreshProfileData();
-    }
-    
     // Clean up on unmount
     return () => {
       isMounted.current = false;
+      
+      // Clear any pending updates
+      clearPendingUpdates();
+      
+      // Log component unmount
       logOperation('ClientOnlyProfile component unmounted');
     };
-  }, [isFirebaseReady, firebaseError, refreshProfileData, logOperation]);
+  }, [clearPendingUpdates, firebaseError, isFirebaseReady, logOperation]);
+  
+  // Load profile data when Firebase is ready
+  useEffect(() => {
+    // Skip if component is unmounted or Firebase is not ready
+    if (!isMounted.current || !isFirebaseReady) {
+      return;
+    }
+    
+    // Skip if we've already loaded the profile or an update is in progress
+    if (initialLoadCompleted.current || updateInProgressRef.current) {
+      logger.debug('Skipping initial profile load', {
+        context: {
+          initialLoadCompleted: initialLoadCompleted.current,
+          updateInProgress: updateInProgressRef.current
+        },
+        category: LogCategory.LIFECYCLE
+      });
+      return;
+    }
+    
+    // Load profile data
+    logger.info('Initiating profile data load', {
+      category: LogCategory.LIFECYCLE
+    });
+    refreshProfileData();
+    initialLoadCompleted.current = true;
+  }, [isFirebaseReady, refreshProfileData, updateInProgressRef]);
   
   // Handle Firebase initialization error
   useEffect(() => {
@@ -99,10 +120,15 @@ function ClientOnlyProfile() {
   }, [firebaseError, toast]);
   
   // Handle retry loading
-  const handleRetryLoading = () => {
+  const handleRetryLoading = useCallback(() => {
+    // Skip if component is unmounted
+    if (!isMounted.current) {
+      return;
+    }
+    
     logOperation('Manually retrying profile data load');
     refreshProfileData();
-  };
+  }, [logOperation, refreshProfileData]);
   
   // Handle profile errors
   useEffect(() => {
@@ -149,17 +175,17 @@ function ClientOnlyProfile() {
   return (
     <ProfileManager
       profile={profile}
-      isLoading={isProfileLoading || isLoading}
-      isInLoadingState={isInLoadingState}
+      isLoading={isLoading}
+      isInLoadingState={isInComponentLoadingState}
       updateProfile={updateProfile}
       handleError={handleError}
       logOperation={logOperation}
     >
       <ClientOnlyProfileContent
         profile={profile}
-        isLoading={isProfileLoading || isLoading}
+        isLoading={isLoading}
         error={profileError}
-        isInLoadingState={isInLoadingState}
+        isInLoadingState={isInComponentLoadingState}
         onRetryLoading={handleRetryLoading}
         onSaveProfile={updateProfile}
       />

@@ -7,12 +7,14 @@ import {
   Card,
   CardBody,
   useColorModeValue,
+  Skeleton,
 } from '@chakra-ui/react';
 
 interface ProfileStatsProps {
   articlesCount: number;
   reviewsCount: number;
   reputation: number;
+  isLoading?: boolean;
 }
 
 /**
@@ -22,7 +24,8 @@ interface ProfileStatsProps {
 const ProfileStats: React.FC<ProfileStatsProps> = ({ 
   articlesCount, 
   reviewsCount, 
-  reputation 
+  reputation,
+  isLoading = false
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   
@@ -32,7 +35,9 @@ const ProfileStats: React.FC<ProfileStatsProps> = ({
         <CardBody>
           <Stat>
             <StatLabel>Articles</StatLabel>
-            <StatNumber>{articlesCount}</StatNumber>
+            <Skeleton isLoaded={!isLoading}>
+              <StatNumber>{articlesCount}</StatNumber>
+            </Skeleton>
           </Stat>
         </CardBody>
       </Card>
@@ -41,7 +46,9 @@ const ProfileStats: React.FC<ProfileStatsProps> = ({
         <CardBody>
           <Stat>
             <StatLabel>Reviews</StatLabel>
-            <StatNumber>{reviewsCount}</StatNumber>
+            <Skeleton isLoaded={!isLoading}>
+              <StatNumber>{reviewsCount}</StatNumber>
+            </Skeleton>
           </Stat>
         </CardBody>
       </Card>
@@ -50,7 +57,9 @@ const ProfileStats: React.FC<ProfileStatsProps> = ({
         <CardBody>
           <Stat>
             <StatLabel>Reputation</StatLabel>
-            <StatNumber>{reputation}</StatNumber>
+            <Skeleton isLoaded={!isLoading}>
+              <StatNumber>{reputation}</StatNumber>
+            </Skeleton>
           </Stat>
         </CardBody>
       </Card>

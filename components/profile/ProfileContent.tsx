@@ -16,11 +16,11 @@ import {
   Button,
 } from '@chakra-ui/react';
 import { FiRefreshCw, FiFileText, FiStar, FiUser } from 'react-icons/fi';
-import { UserProfile, ProfileLoadingState } from '../../hooks/useProfileData';
+import { UserProfile } from '../../hooks/useProfileData';
 import ArticlesPanel from './ArticlesPanel';
 import ReviewsPanel from './ReviewsPanel';
 import ProfileCompletionForm from '../ProfileCompletionForm';
-import { ExtendedProfileLoadingState } from '../../hooks/useProfileOperations';
+import { ProfileLoadingState } from './types';
 
 // Define a default empty state component
 const DefaultEmptyState: React.FC<{ type: string }> = ({ type }) => (
@@ -37,7 +37,7 @@ interface ProfileContentProps {
   isLoading: boolean;
   error: string | null;
   currentPage: number;
-  isInLoadingState: (states: ExtendedProfileLoadingState[]) => boolean;
+  isInLoadingState: (state: ProfileLoadingState) => boolean;
   onTabChange: (index: number) => void;
   onPageChange: (page: number) => void;
   onSaveProfile: (updatedProfile: Partial<UserProfile>) => Promise<boolean>;
@@ -60,8 +60,8 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
   onSaveProfile,
   onRetryLoading
 }) => {
-  // If there's an error, show error message
-  if (error && !isLoading) {
+  // If there's an error, show error state with retry button
+  if (error) {
     return (
       <Alert
         status="error"
@@ -71,7 +71,7 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
         justifyContent="center"
         textAlign="center"
         height="200px"
-        borderRadius="lg"
+        borderRadius="md"
       >
         <AlertIcon boxSize="40px" mr={0} />
         <AlertTitle mt={4} mb={1} fontSize="lg">
@@ -81,10 +81,10 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
           {error}
         </AlertDescription>
         <Button
-          mt={4}
           leftIcon={<FiRefreshCw />}
-          colorScheme="red"
+          mt={4}
           onClick={onRetryLoading}
+          isLoading={isLoading}
         >
           Retry
         </Button>
@@ -92,62 +92,72 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
     );
   }
 
-  // If loading, show spinner
-  if (isLoading) {
+  // If loading and no profile, show loading state
+  if (isLoading && !profile) {
     return (
       <Center py={10}>
-        <Box textAlign="center">
-          <Spinner size="xl" mb={4} />
-          <Text>Loading profile data...</Text>
-        </Box>
+        <Spinner size="xl" />
       </Center>
     );
   }
 
-  // If in edit mode, show the profile completion form
+  // If edit mode, show profile completion form
   if (isEditMode) {
     return (
       <ProfileCompletionForm
         initialData={profile || undefined}
         onSave={onSaveProfile}
-        isLoading={isInLoadingState([ProfileLoadingState.UPDATING])}
+        isLoading={isInLoadingState(ProfileLoadingState.UPDATING)}
       />
     );
   }
 
-  // Otherwise, show the profile tabs
+  // If no profile, show empty state
+  if (!profile) {
+    return (
+      <Box textAlign="center" py={10}>
+        <Text fontSize="lg" fontWeight="medium">No Profile Data</Text>
+      </Box>
+    );
+  }
+
+  // Otherwise, show profile content with tabs
   return (
-    <Tabs index={activeTab} onChange={onTabChange} isLazy>
+    <Tabs index={activeTab} onChange={onTabChange} variant="enclosed" colorScheme="teal">
       <TabList>
-        <Tab><Box as={FiUser} mr={2} />Profile</Tab>
-        <Tab><Box as={FiFileText} mr={2} />Articles</Tab>
-        <Tab><Box as={FiStar} mr={2} />Reviews</Tab>
+        <Tab><Box as="span" mr={2}><FiUser /></Box> About</Tab>
+        <Tab><Box as="span" mr={2}><FiFileText /></Box> Articles</Tab>
+        <Tab><Box as="span" mr={2}><FiStar /></Box> Reviews</Tab>
       </TabList>
 
       <TabPanels>
-        {/* Profile Tab */}
-        <TabPanel px={0}>
-          {/* Profile content is displayed in the parent component */}
+        {/* About Tab */}
+        <TabPanel>
+          <Box p={4} borderWidth="1px" borderRadius="lg">
+            <Text fontSize="md" whiteSpace="pre-wrap">
+              {profile.bio || 'No bio provided.'}
+            </Text>
+          </Box>
         </TabPanel>
 
         {/* Articles Tab */}
-        <TabPanel px={0}>
+        <TabPanel>
           <ArticlesPanel
             userId={profile?.uid || ''}
             currentPage={currentPage}
             onPageChange={onPageChange}
-            isLoading={isInLoadingState(['LOADING_ARTICLES'])}
+            isLoading={isInLoadingState(ProfileLoadingState.LOADING_ARTICLES)}
             EmptyState={() => <DefaultEmptyState type="Articles" />}
           />
         </TabPanel>
 
         {/* Reviews Tab */}
-        <TabPanel px={0}>
+        <TabPanel>
           <ReviewsPanel
             userId={profile?.uid || ''}
             currentPage={currentPage}
             onPageChange={onPageChange}
-            isLoading={isInLoadingState(['LOADING_REVIEWS'])}
+            isLoading={isInLoadingState(ProfileLoadingState.LOADING_REVIEWS)}
             EmptyState={() => <DefaultEmptyState type="Reviews" />}
           />
         </TabPanel>
