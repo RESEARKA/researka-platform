@@ -8,9 +8,11 @@ import {
   VStack,
   Heading,
   Text,
-  Divider
+  Divider,
+  Button
 } from '@chakra-ui/react';
-import { BaseFormSectionProps, FormSectionValidator, ValidationResult } from './types';
+import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
+import { BaseFormSectionProps, FormSectionValidator } from './types';
 import { createLogger, LogCategory } from '../../utils/logger';
 
 // Create a logger instance for this component
@@ -77,15 +79,17 @@ export const validateInstitutionalAffiliation: FormSectionValidator = (data) => 
 
 /**
  * Institutional affiliation section of the profile form
- * Handles institution, department, and position fields
+ * Handles institution and department fields
  */
 function InstitutionalAffiliationSection({ 
   formData, 
   errors, 
   onChange,
   isDisabled = false,
-  isLoading = false
-}: BaseFormSectionProps) {
+  isLoading = false,
+  onPrevious,
+  onNext
+}: BaseFormSectionProps & { onPrevious: () => void, onNext: () => void }) {
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -97,7 +101,7 @@ function InstitutionalAffiliationSection({
       <VStack align="flex-start" spacing={1}>
         <Heading size="md">Institutional Affiliation</Heading>
         <Text fontSize="sm" color="gray.500">
-          Tell us about your academic institution and role
+          Tell us about your academic institution
         </Text>
       </VStack>
       
@@ -138,43 +142,41 @@ function InstitutionalAffiliationSection({
         <FormLabel>Department</FormLabel>
         <Select
           name="department"
-          value={formData.department}
+          value={formData.department || ''}
           onChange={handleInputChange}
-          placeholder="Select your department"
+          placeholder="Select department"
         >
-          {MOCK_DEPARTMENTS.map((department) => (
-            <option key={department} value={department}>
-              {department}
-            </option>
+          {MOCK_DEPARTMENTS.map((dept) => (
+            <option key={dept} value={dept}>{dept}</option>
           ))}
-          <option value="Other">Other (not listed)</option>
         </Select>
-        <FormErrorMessage>{errors.department}</FormErrorMessage>
-      </FormControl>
-
-      {formData.department === 'Other' && (
-        <FormControl isInvalid={!!errors.department} isDisabled={isDisabled || isLoading}>
-          <FormLabel>Department Name</FormLabel>
-          <Input
-            name="department"
-            value={formData.department === 'Other' ? '' : formData.department}
-            onChange={handleInputChange}
-            placeholder="Enter your department name"
-          />
+        {errors.department && (
           <FormErrorMessage>{errors.department}</FormErrorMessage>
-        </FormControl>
-      )}
-
-      <FormControl isInvalid={!!errors.position} isDisabled={isDisabled || isLoading}>
-        <FormLabel>Position</FormLabel>
-        <Input
-          name="position"
-          value={formData.position}
-          onChange={handleInputChange}
-          placeholder="E.g., Professor, Associate Professor, PhD Student"
-        />
-        <FormErrorMessage>{errors.position}</FormErrorMessage>
+        )}
       </FormControl>
+
+      <VStack spacing={2} pt={4}>
+        <Button
+          w="full"
+          colorScheme="blue"
+          variant="outline"
+          leftIcon={<ChevronLeftIcon />}
+          onClick={onPrevious}
+          isDisabled={isDisabled || isLoading}
+        >
+          Previous
+        </Button>
+        <Button
+          w="full"
+          colorScheme="blue"
+          rightIcon={<ChevronRightIcon />}
+          onClick={onNext}
+          isDisabled={isDisabled || isLoading}
+          isLoading={isLoading}
+        >
+          Next
+        </Button>
+      </VStack>
     </VStack>
   );
 }

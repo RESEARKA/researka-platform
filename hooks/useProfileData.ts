@@ -42,6 +42,11 @@ export interface UserProfile {
   articleCount?: number;
   reviewCount?: number;
   reputation?: number;
+  twitter?: string;
+  linkedin?: string;
+  orcidId?: string;
+  personalWebsite?: string;
+  wantsToBeEditor?: boolean;
 }
 
 // Helper function to check if profile is in one of the specified loading states

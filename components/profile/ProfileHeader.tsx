@@ -7,9 +7,13 @@ import {
   Badge,
   Button,
   VStack,
+  HStack,
+  Link,
   useColorModeValue,
+  Icon,
+  Tooltip
 } from '@chakra-ui/react';
-import { FiEdit, FiX } from 'react-icons/fi';
+import { FiEdit, FiX, FiTwitter, FiLinkedin, FiGlobe, FiHash } from 'react-icons/fi';
 import { UserProfile } from '../../hooks/useProfileData';
 import ResponsiveText from '../ResponsiveText';
 
@@ -43,6 +47,10 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   const department = profile?.department || '';
   const position = profile?.position || '';
   const bio = profile?.bio || '';
+  const twitter = profile?.twitter || '';
+  const linkedin = profile?.linkedin || '';
+  const orcidId = profile?.orcidId || '';
+  const personalWebsite = profile?.personalWebsite || '';
   
   return (
     <Box
@@ -133,6 +141,72 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             >
               {bio}
             </Text>
+          )}
+          
+          {/* Social Media Links */}
+          {(twitter || linkedin || orcidId || personalWebsite) && (
+            <HStack 
+              mt={4} 
+              spacing={4} 
+              justify={{ base: 'center', md: 'flex-start' }}
+              wrap="wrap"
+            >
+              {twitter && (
+                <Tooltip label={`@${twitter}`}>
+                  <Link 
+                    href={`https://twitter.com/${twitter}`} 
+                    isExternal 
+                    display="flex" 
+                    alignItems="center"
+                  >
+                    <Icon as={FiTwitter} mr={1} color="blue.400" />
+                    <Text fontSize="sm">Twitter</Text>
+                  </Link>
+                </Tooltip>
+              )}
+              
+              {linkedin && (
+                <Tooltip label={linkedin}>
+                  <Link 
+                    href={linkedin} 
+                    isExternal 
+                    display="flex" 
+                    alignItems="center"
+                  >
+                    <Icon as={FiLinkedin} mr={1} color="blue.700" />
+                    <Text fontSize="sm">LinkedIn</Text>
+                  </Link>
+                </Tooltip>
+              )}
+              
+              {orcidId && (
+                <Tooltip label={orcidId}>
+                  <Link 
+                    href={`https://orcid.org/${orcidId}`} 
+                    isExternal 
+                    display="flex" 
+                    alignItems="center"
+                  >
+                    <Icon as={FiHash} mr={1} color="green.600" />
+                    <Text fontSize="sm">ORCID</Text>
+                  </Link>
+                </Tooltip>
+              )}
+              
+              {personalWebsite && (
+                <Tooltip label={personalWebsite}>
+                  <Link 
+                    href={personalWebsite} 
+                    isExternal 
+                    display="flex" 
+                    alignItems="center"
+                  >
+                    <Icon as={FiGlobe} mr={1} color="purple.500" />
+                    <Text fontSize="sm">Website</Text>
+                  </Link>
+                </Tooltip>
+              )}
+            </HStack>
           )}
         </Box>
       </Flex>
