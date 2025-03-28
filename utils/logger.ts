@@ -44,6 +44,18 @@ interface LogOptions {
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === 'development';
+// Set minimum log level based on environment
+const MIN_LOG_LEVEL = isDev ? LogLevel.DEBUG : LogLevel.INFO;
+// Enable/disable console logging in production
+const ENABLE_PROD_CONSOLE = process.env.NEXT_PUBLIC_ENABLE_PROD_LOGS === 'true';
+
+// Map log levels to numeric values for comparison
+const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {
+  [LogLevel.DEBUG]: 0,
+  [LogLevel.INFO]: 1,
+  [LogLevel.WARN]: 2,
+  [LogLevel.ERROR]: 3
+};
 
 /**
  * Core logging function
@@ -64,20 +76,22 @@ function logWithLevel(
   const formattedUserId = userId ? ` | user: ${userId}` : '';
   const formattedMessage = `[${timestamp}] [${level.toUpperCase()}] [${category}] [${module}] ${message}${formattedUserId}${formattedContext}`;
   
-  // Log to console based on level
-  switch (level) {
-    case LogLevel.DEBUG:
-      if (isDev) console.debug(formattedMessage);
-      break;
-    case LogLevel.INFO:
-      console.info(formattedMessage);
-      break;
-    case LogLevel.WARN:
-      console.warn(formattedMessage);
-      break;
-    case LogLevel.ERROR:
-      console.error(formattedMessage);
-      break;
+  // Log to console based on level and environment
+  if (LOG_LEVEL_SEVERITY[level] >= LOG_LEVEL_SEVERITY[MIN_LOG_LEVEL] && (isDev || ENABLE_PROD_CONSOLE)) {
+    switch (level) {
+      case LogLevel.DEBUG:
+        console.debug(formattedMessage);
+        break;
+      case LogLevel.INFO:
+        console.info(formattedMessage);
+        break;
+      case LogLevel.WARN:
+        console.warn(formattedMessage);
+        break;
+      case LogLevel.ERROR:
+        console.error(formattedMessage);
+        break;
+    }
   }
   
   // Send to Sentry for WARN and ERROR levels if enabled

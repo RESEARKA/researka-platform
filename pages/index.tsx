@@ -41,12 +41,11 @@ import FirebaseClientOnly from '../components/FirebaseClientOnly';
 // Using dynamic import with ssr: false for components with client-side dependencies
 const LoginModal = dynamic(() => import('../components/LoginModal'), {
   ssr: false,
-  loading: () => null
+  loading: () => <div>Loading...</div>
 });
 
-// Using ssr: false for client-rendered components to avoid hydration issues
 const NavBar = dynamic(() => import('../components/NavBar'), {
-  ssr: false
+  ssr: true
 });
 
 const MobileNav = dynamic(() => import('../components/MobileNav'), {
@@ -56,8 +55,17 @@ const MobileNav = dynamic(() => import('../components/MobileNav'), {
 // Using dynamic import with ssr: false for ClientOnlyArticles to prevent hydration issues
 const ClientOnlyArticlesComponent = dynamic(() => import('../components/ClientOnlyArticles'), {
   ssr: false,
-  loading: () => null
+  loading: () => <div>Loading articles...</div>
 });
+
+// Using dynamic import for RecommendedArticles to improve code splitting
+const DynamicRecommendedArticles = dynamic(
+  () => import('../components/RecommendedArticles'),
+  {
+    ssr: true,
+    loading: () => <Skeleton height="400px" width="100%" borderRadius="md" />
+  }
+);
 
 // Using ssr: false for featured article to prevent hydration mismatch
 const FeaturedArticle = dynamic(
@@ -70,35 +78,35 @@ const FeaturedArticle = dynamic(
 
 // Using dynamic to avoid hydration mismatch
 const MainCategories = dynamic(() => Promise.resolve({
-  default: ({ onSelect }: { onSelect: (id: string) => void }) => (
-    <Flex wrap="wrap" gap={2} justify="center">
-      {[
-        { id: 'all', name: 'ALL', color: 'blue.700' },
-        { id: 'life-sciences', name: 'LIFE SCIENCES & BIOMEDICINE', color: 'green.700' },
-        { id: 'physical-sciences', name: 'PHYSICAL SCIENCES', color: 'teal.700' },
-        { id: 'multidisciplinary', name: 'MULTIDISCIPLINARY', color: 'blue.700' },
-        { id: 'technology', name: 'TECHNOLOGY & ENGINEERING', color: 'green.700' },
-        { id: 'social-sciences', name: 'SOCIAL SCIENCES', color: 'teal.700' },
-        { id: 'arts', name: 'ARTS & HUMANITIES', color: 'green.700' },
-      ].map(category => (
-        <Tag 
-          key={category.id}
-          size="md"
-          borderRadius="full"
-          variant="solid"
-          colorScheme={category.color.split('.')[0]}
-          cursor="pointer"
-          onClick={() => onSelect(category.id)}
-          _hover={{ opacity: 0.8 }}
-          mb={2}
-          color="white"
-          bg={category.color}
-        >
-          <TagLabel>{category.name}</TagLabel>
-        </Tag>
-      ))}
-    </Flex>
-  )
+  default: ({ onSelect }: { onSelect: (id: string) => void }) => {
+    const categories = [
+      { id: 'all', name: 'ALL', color: 'blue.500' },
+      { id: 'trending', name: 'TRENDING', color: 'red.500' },
+      { id: 'recent', name: 'RECENT', color: 'green.500' },
+      { id: 'popular', name: 'POPULAR', color: 'purple.500' },
+      { id: 'reviewed', name: 'PEER REVIEWED', color: 'orange.500' },
+      { id: 'open-access', name: 'OPEN ACCESS', color: 'teal.500' },
+    ];
+    
+    return (
+      <Flex wrap="wrap" gap={2} mb={4}>
+        {categories.map(category => (
+          <Tag 
+            key={category.id}
+            size="md" 
+            variant="solid" 
+            cursor="pointer"
+            onClick={() => onSelect(category.id)}
+            mb={2}
+            color="white"
+            bg={category.color}
+          >
+            <TagLabel>{category.name}</TagLabel>
+          </Tag>
+        ))}
+      </Flex>
+    );
+  }
 }), { ssr: false });
 
 // Using dynamic to avoid hydration mismatch
