@@ -175,6 +175,7 @@ const Home: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>([]);
   const [featuredArticle, setFeaturedArticle] = useState<Article | null>(null);
   const [recentArticles, setRecentArticles] = useState<Article[]>([]);
+  const [currentRedirectPath, setCurrentRedirectPath] = useState('/profile');
   const toast = useToast();
   
   // Use useRef for values that shouldn't trigger re-renders
@@ -215,11 +216,13 @@ const Home: React.FC = () => {
   const handleLoginClick = useCallback((redirectPath?: string) => {
     if (redirectPath) {
       setRedirectPath(redirectPath);
+      setCurrentRedirectPath(redirectPath);
     } else {
       setRedirectPath('/profile');
+      setCurrentRedirectPath('/profile');
     }
     onOpen();
-  }, [onOpen, setRedirectPath]);
+  }, [onOpen, setRedirectPath, setCurrentRedirectPath]);
 
   // Handle signup click
   const handleSignupClick = useCallback(() => {
@@ -541,7 +544,7 @@ const Home: React.FC = () => {
       {/* Login Modal */}
       {isOpen && (
         <Suspense fallback={<Box>Loading login modal...</Box>}>
-          <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />
+          <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={currentRedirectPath} />
         </Suspense>
       )}
 
