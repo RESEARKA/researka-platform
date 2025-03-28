@@ -3,6 +3,7 @@ import { useToast } from '@chakra-ui/react';
 import { Article } from '../services/articleService';
 import { validateCollectionReadAccess } from '../utils/firestoreRuleValidator';
 import useFirebaseInitialized from '../hooks/useFirebaseInitialized';
+import { isClientSide } from '../utils/imageOptimizer';
 
 // Define loading states for better tracking
 enum ArticleLoadingState {
@@ -167,7 +168,7 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
     }
   }, [getFallbackArticles, onError, toast, processArticles]);
 
-  // Load articles from Firebase
+  // Load articles from Firestore
   const loadArticles = useCallback(async () => {
     // Prevent duplicate loading
     if (isLoadingRef.current) {
@@ -222,7 +223,7 @@ const ClientOnlyArticles: React.FC<ClientOnlyArticlesProps> = ({
         const firebaseModule = await import('../config/firebase');
         
         // Initialize Firebase if needed
-        if (typeof window !== 'undefined' && !isFirebaseReady) {
+        if (isClientSide() && !isFirebaseReady) {
           console.log('ClientOnlyArticles: Firebase not initialized, initializing now...');
           const initialized = await firebaseModule.initializeFirebase();
           

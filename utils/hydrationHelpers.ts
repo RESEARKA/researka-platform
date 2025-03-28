@@ -2,6 +2,8 @@
  * Utility functions to help with hydration and SSR/CSR mismatches
  */
 
+import { isClientSide } from './imageOptimizer';
+
 /**
  * Safely access browser-only APIs
  * @param callback Function to execute only on the client side
@@ -9,7 +11,7 @@
  * @returns Result of callback on client, fallbackValue on server
  */
 export function safeClientSideOperation<T>(callback: () => T, fallbackValue: T): T {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     return fallbackValue;
   }
   
@@ -23,13 +25,9 @@ export function safeClientSideOperation<T>(callback: () => T, fallbackValue: T):
 
 /**
  * Check if code is running on the client side
- * More reliable than just checking for window
+ * Re-export from imageOptimizer for backward compatibility
  */
-export function isClientSide(): boolean {
-  return typeof window !== 'undefined' && 
-         typeof document !== 'undefined' &&
-         window.document === document;
-}
+export { isClientSide };
 
 /**
  * Get a consistent initial state value that works for both SSR and CSR

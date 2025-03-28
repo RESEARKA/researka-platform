@@ -20,11 +20,20 @@ interface SrcSetItem {
 }
 
 /**
+ * Helper function to safely check if code is running on client side
+ * This is used instead of the useClient hook because this is a utility file
+ * that may be imported in both client and server components
+ */
+export function isClientSide(): boolean {
+  return typeof window !== 'undefined';
+}
+
+/**
  * Detects the connection speed of the user
  * @returns 'slow' | 'medium' | 'fast'
  */
 export function detectConnectionSpeed(): 'slow' | 'medium' | 'fast' {
-  if (typeof navigator === 'undefined') return 'medium';
+  if (!isClientSide()) return 'medium';
   
   // Use the Network Information API if available
   const connection = (navigator as any).connection || 
@@ -48,7 +57,7 @@ export function detectConnectionSpeed(): 'slow' | 'medium' | 'fast' {
  * @returns boolean
  */
 export function isMobileDevice(): boolean {
-  if (typeof navigator === 'undefined') return false;
+  if (!isClientSide()) return false;
   
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
@@ -84,7 +93,7 @@ export function getOptimizedImageUrl(options: ImageOptions): string {
   } = options;
   
   // If we're in a server environment or the src is already an absolute URL
-  if (typeof window === 'undefined' || src.startsWith('http') || src.startsWith('data:')) {
+  if (!isClientSide() || src.startsWith('http') || src.startsWith('data:')) {
     return src;
   }
   

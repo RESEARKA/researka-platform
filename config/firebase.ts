@@ -2,6 +2,7 @@ import { initializeApp, FirebaseApp, getApps } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
+import { isClientSide } from '../utils/imageOptimizer';
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {
@@ -49,7 +50,7 @@ class FirebaseInstance {
    */
   public initialize(): boolean {
     // Only run on client side
-    if (typeof window === 'undefined') {
+    if (!isClientSide()) {
       console.log('Firebase: Cannot initialize in server environment');
       return false;
     }
@@ -86,7 +87,7 @@ class FirebaseInstance {
         this._db = getFirestore(this._app);
         
         // Initialize analytics only on client side and if supported
-        if (typeof window !== 'undefined') {
+        if (isClientSide()) {
           isSupported().then(supported => {
             if (supported && this._app) {
               this._analytics = getAnalytics(this._app);
@@ -193,7 +194,7 @@ export const initializeFirebase = (options: {
   } = options;
   
   // Only run on client side
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     console.log('Firebase: Cannot initialize in server environment');
     return false;
   }
@@ -208,7 +209,7 @@ export const initializeFirebase = (options: {
         logDetails,
         maxRetries,
         retryDelayMs,
-        environment: typeof window !== 'undefined' ? 'client' : 'server',
+        environment: isClientSide() ? 'client' : 'server',
         existingApps: getApps().length
       });
     }
@@ -227,18 +228,16 @@ export const initializeFirebase = (options: {
     
     // Log additional diagnostic information
     console.error('Firebase: Diagnostic information:', {
-      environment: typeof window !== 'undefined' ? 'client' : 'server',
-      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'N/A',
+      environment: isClientSide() ? 'client' : 'server',
+      userAgent: isClientSide() ? window.navigator.userAgent : 'N/A',
       existingApps: getApps().length,
       // Check for memory info in a type-safe way
-      memoryInfo: typeof window !== 'undefined' && 
-                 window.performance && 
-                 // @ts-ignore - Some browsers expose memory info on performance
-                 window.performance.memory ? {
+      memoryInfo: isClientSide() && 
+                 (performance as any)?.memory ? {
                    // @ts-ignore - Access memory metrics with a type assertion
-                   totalJSHeapSize: window.performance.memory?.totalJSHeapSize,
+                   totalJSHeapSize: (performance as any).memory.totalJSHeapSize,
                    // @ts-ignore - Access memory metrics with a type assertion
-                   usedJSHeapSize: window.performance.memory?.usedJSHeapSize
+                   usedJSHeapSize: (performance as any).memory.usedJSHeapSize
                  } : 'Not available'
     });
     
@@ -253,7 +252,7 @@ export const initializeFirebase = (options: {
  * @returns Auth | null
  */
 export const getFirebaseAuth = (): Auth | null => {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     console.log('Firebase: Cannot get Auth in server environment');
     return null;
   }
@@ -291,7 +290,7 @@ export const getFirebaseAuth = (): Auth | null => {
  * @returns Firestore | null
  */
 export const getFirebaseFirestore = (): Firestore | null => {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     console.log('Firebase: Cannot get Firestore in server environment');
     return null;
   }
@@ -328,7 +327,7 @@ export const getFirebaseFirestore = (): Firestore | null => {
  * @returns FirebaseApp | null
  */
 export const getFirebaseApp = (): FirebaseApp | null => {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     return null;
   }
   
@@ -344,7 +343,7 @@ export const getFirebaseApp = (): FirebaseApp | null => {
  * @returns boolean
  */
 export const isFirebaseInitialized = (): boolean => {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     return false;
   }
   return firebaseInstance.isInitialized && !!firebaseInstance.app && !!firebaseInstance.auth && !!firebaseInstance.db;
@@ -355,7 +354,7 @@ export const isFirebaseInitialized = (): boolean => {
  * @param cleanupFn Function to call during cleanup
  */
 export const registerFirebaseCleanup = (cleanupFn: () => void): void => {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     return;
   }
   firebaseInstance.registerCleanup(cleanupFn);
@@ -365,23 +364,22 @@ export const registerFirebaseCleanup = (cleanupFn: () => void): void => {
  * Clean up Firebase resources
  */
 export const cleanupFirebase = (): void => {
-  if (typeof window === 'undefined') {
+  if (!isClientSide()) {
     return;
   }
   firebaseInstance.cleanup();
 };
 
 // Initialize Firebase on client side only
-if (typeof window !== 'undefined') {
+if (isClientSide()) {
   console.log('Firebase: Client-side environment detected, initializing...');
   initializeFirebase();
-} else {
-  console.log('Firebase: Not initialized in server environment');
 }
 
-// Export singleton instance properties for backward compatibility
-export const app = typeof window !== 'undefined' ? firebaseInstance.app : null;
-export const auth = typeof window !== 'undefined' ? firebaseInstance.auth : null;
-export const db = typeof window !== 'undefined' ? firebaseInstance.db : null;
-export const analytics = typeof window !== 'undefined' ? firebaseInstance.analytics : null;
-export const isInitialized = typeof window !== 'undefined' ? firebaseInstance.isInitialized : false;
+// Export Firebase instances
+// These are null on the server side to prevent SSR issues
+export const app = isClientSide() ? firebaseInstance.app : null;
+export const auth = isClientSide() ? firebaseInstance.auth : null;
+export const db = isClientSide() ? firebaseInstance.db : null;
+export const analytics = isClientSide() ? firebaseInstance.analytics : null;
+export const isInitialized = isClientSide() ? firebaseInstance.isInitialized : false;

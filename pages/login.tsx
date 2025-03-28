@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import useClient from '../hooks/useClient';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -37,6 +38,9 @@ const LoginPage: React.FC = () => {
   const toast = useToast();
   const router = useRouter();
   const { login, currentUser, authIsInitialized } = useAuth();
+  
+  // Use our dedicated hook to check if we're on the client
+  const isClient = useClient();
   
   // Get the redirect URL from query parameters or default to home
   const { redirect } = router.query;
@@ -99,53 +103,64 @@ const LoginPage: React.FC = () => {
   };
   
   const handleWalletLogin = async () => {
-    setIsLoading(true);
-    setError('');
-    
     try {
-      // For now, we'll just simulate wallet connection
-      // In a real app, you would integrate with MetaMask or another wallet provider
+      setIsLoading(true);
+      setError('');
       
-      toast({
-        title: "Wallet connected",
-        description: "You've been successfully logged in",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      // Simulate wallet connection and login
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Set login state in localStorage for wallet users
-      // In a real implementation, this would be handled by Firebase Auth custom tokens
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('loginMethod', 'wallet');
-      
-      // If redirecting to submit or review, mark profile as complete to prevent redirect loop
-      if (redirectPath === '/submit' || redirectPath === '/review') {
-        localStorage.setItem('profileComplete', 'true');
-      } else {
-        // Check if a profile already exists
-        const existingProfile = localStorage.getItem('userProfile');
-        if (!existingProfile) {
-          // Only set profile as incomplete if no profile exists
-          localStorage.setItem('profileComplete', 'false');
+      if (isClient) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('loginMethod', 'wallet');
+        
+        // Check if profile is complete
+        const hasCompletedProfile = Math.random() > 0.5;
+        
+        if (hasCompletedProfile) {
+          if (isClient) {
+            localStorage.setItem('profileComplete', 'true');
+          }
+          toast({
+            title: 'Login successful',
+            description: 'Welcome back to DecentraJournal!',
+            status: 'success',
+            duration: 5000,
+            isClosable: true,
+          });
           
-          // Set default profile data only if no profile exists
-          localStorage.setItem('userProfile', JSON.stringify({
-            name: 'Wallet User',
-            role: 'Researcher',
-            institution: 'Decentralized University',
-            articles: 3,
-            reviews: 12,
-            reputation: 89
-          }));
+          router.push(redirectPath);
+        } else {
+          // Get existing profile or create new one
+          const existingProfile = isClient ? localStorage.getItem('userProfile') : null;
+          
+          if (!existingProfile) {
+            if (isClient) {
+              localStorage.setItem('profileComplete', 'false');
+              localStorage.setItem('userProfile', JSON.stringify({
+                displayName: '',
+                bio: '',
+                interests: [],
+                walletAddress: '0x1234...5678',
+                createdAt: new Date().toISOString()
+              }));
+            }
+          }
+          
+          toast({
+            title: 'Login successful',
+            description: 'Please complete your profile to continue',
+            status: 'info',
+            duration: 5000,
+            isClosable: true,
+          });
+          
+          router.push('/profile');
         }
       }
-      
-      // Use Next.js router for redirection
-      console.log('Redirecting to:', redirectPath);
-      router.push(redirectPath);
-    } catch (err) {
-      console.error('Wallet login error:', err);
+    } catch (error) {
+      console.error('Wallet login error:', error);
       setError('Failed to connect wallet. Please try again.');
     } finally {
       setIsLoading(false);

@@ -10,6 +10,8 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import * as Sentry from '@sentry/nextjs';
 import AnimatedPage from '../components/AnimatedPage';
 import '../styles/pagination.css'; // Import pagination styles
+import useClient from '../hooks/useClient';
+import { isClientSide } from '../utils/imageOptimizer';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -23,13 +25,8 @@ const queryClient = new QueryClient({
 });
 
 function MyApp({ Component, pageProps }: AppProps) {
-  // Add a client-side only state to prevent hydration mismatch
-  const [isClient, setIsClient] = React.useState(false);
-  
-  // Only run on client-side
-  React.useEffect(() => {
-    setIsClient(true);
-  }, []);
+  // Use our dedicated hook to check if we're on the client
+  const isClient = useClient();
   
   return (
     <>
@@ -60,7 +57,7 @@ function MyApp({ Component, pageProps }: AppProps) {
                   // Optional: Reset any state or perform actions when error boundary resets
                   console.log('Error boundary reset');
                   // Force a hard refresh on error
-                  if (typeof window !== 'undefined') {
+                  if (isClientSide()) {
                     window.location.reload();
                   }
                 }}>

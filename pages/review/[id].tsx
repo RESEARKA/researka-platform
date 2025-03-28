@@ -45,6 +45,8 @@ import {
 import { FiArrowLeft, FiCalendar, FiStar, FiCheck, FiInfo, FiSave } from 'react-icons/fi';
 import Layout from '../../components/Layout';
 import { useWallet } from '../../frontend/src/contexts/WalletContext';
+import { isClientSide } from '../../utils/imageOptimizer';
+import useClient from '../../hooks/useClient';
 
 // Article interface
 interface Article {
@@ -82,6 +84,7 @@ const ReviewArticlePage: React.FC = () => {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const { account } = useWallet();
   const toast = useToast();
+  const isClient = useClient();
 
   // Form state
   const [overallRecommendation, setOverallRecommendation] = useState('');
@@ -122,7 +125,7 @@ const ReviewArticlePage: React.FC = () => {
   // Check if user is logged in and profile is complete
   React.useEffect(() => {
     // Client-side only
-    if (typeof window !== 'undefined') {
+    if (isClient) {
       console.log('ReviewArticlePage: Checking authentication');
       const isLoggedIn = localStorage.getItem('isLoggedIn');
       console.log('ReviewArticlePage: isLoggedIn =', isLoggedIn);

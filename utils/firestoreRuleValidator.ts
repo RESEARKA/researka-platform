@@ -5,6 +5,7 @@
 
 import { collection, getDocs, query, limit, addDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { getFirebaseFirestore, initializeFirebase } from '../config/firebase';
+import { isClientSide } from './imageOptimizer';
 
 /**
  * Result of a Firestore rule validation test
@@ -33,7 +34,7 @@ export async function validateCollectionReadAccess(collectionPath: string): Prom
   
   try {
     // Ensure Firebase is initialized
-    if (typeof window === 'undefined') {
+    if (!isClientSide()) {
       result.error = 'Cannot validate Firestore rules on server side';
       return result;
     }

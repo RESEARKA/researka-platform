@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { FiMenu, FiX, FiChevronDown, FiUser, FiLogOut } from 'react-icons/fi';
 import Link from 'next/link';
+import useClient from '../hooks/useClient';
 
 interface MobileNavProps {
   activePage?: string;
@@ -29,6 +30,9 @@ const MobileNav: React.FC<MobileNavProps> = ({
   const { isOpen: navIsOpen, onToggle: onNavToggle } = useDisclosure();
   const activePageLower = activePage.toLowerCase();
   
+  // Use our dedicated hook to check if we're on the client
+  const isClient = useClient();
+  
   // Background colors
   const bgColor = 'white';
   const borderColor = 'gray.200';
@@ -39,8 +43,8 @@ const MobileNav: React.FC<MobileNavProps> = ({
   const [userMenuIsOpen, setUserMenuIsOpen] = React.useState(false);
   
   React.useEffect(() => {
-    // Check localStorage for login status (client-side only)
-    if (typeof window !== 'undefined') {
+    // Only access localStorage when on the client side
+    if (isClient) {
       const storedLoginStatus = localStorage.getItem('isLoggedIn');
       const storedUser = localStorage.getItem('user');
       
@@ -49,23 +53,28 @@ const MobileNav: React.FC<MobileNavProps> = ({
         
         if (storedUser) {
           try {
-            const userData = JSON.parse(storedUser);
-            setUsername(userData.username || userData.name || 'User');
-          } catch (e) {
-            console.error('Failed to parse user data:', e);
+            const userObj = JSON.parse(storedUser);
+            setUsername(userObj.displayName || userObj.email || 'User');
+          } catch (error) {
+            console.error('Error parsing user data:', error);
+            setUsername('User');
           }
         }
       }
     }
-  }, []);
+  }, [isClient, propIsLoggedIn]); // Add isClient as dependency
   
+  // Handle logout
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
+    // Only access localStorage when on the client side
+    if (isClient) {
       localStorage.removeItem('isLoggedIn');
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       setIsLoggedIn(false);
       setUsername(null);
+      
+      // Redirect to home page
       window.location.href = '/';
     }
   };
