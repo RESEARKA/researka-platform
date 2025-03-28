@@ -1,384 +1,454 @@
-import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
-  createUserWithEmailAndPassword, 
+  User, 
   signInWithEmailAndPassword, 
-  signOut, 
-  updateProfile,
-  User,
-  signInAnonymously
+  createUserWithEmailAndPassword, 
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  updateProfile as firebaseUpdateProfile,
+  Auth
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
-import { Box, Spinner, Center, Text } from '@chakra-ui/react';
-import useAuthInitialization, { AuthStatus } from '../hooks/useAuthInitialization';
-import { useFirebaseInitialization, FirebaseStatus } from '../hooks/useFirebaseInitialization';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirebaseAuth, getFirebaseFirestore } from '../config/firebase';
+import { createLogger, LogCategory } from '../utils/logger';
+import { handleError } from '../utils/errorHandling';
 
+// Get Firebase auth instance
+const auth = getFirebaseAuth();
+
+// Create a logger instance for authentication
+const logger = createLogger('auth');
+
+// Define the shape of our context
 interface AuthContextType {
   currentUser: User | null;
-  isLoading: boolean;
   authIsInitialized: boolean;
-  persistentUsername: string | null;
-  signup: (email: string, password: string, name: string) => Promise<any>;
-  login: (email: string, password: string) => Promise<any>;
+  isLoading: boolean;
+  persistentUsername?: string;
+  setPersistentUsername?: (username: string) => void;
+  login: (email: string, password: string) => Promise<User>;
+  signup: (email: string, password: string, displayName?: string) => Promise<any>;
   logout: () => Promise<void>;
+  signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  updateUserProfile: (name: string) => Promise<void>;
-  getUserProfile: () => Promise<any>;
-  updateUserData: (data: any) => Promise<boolean>;
-  signInAnonymousUser: () => Promise<any>;
-  isAnonymousUser: () => boolean;
-  testFirestoreWrite: () => Promise<boolean>;
-  setPersistentUsername: (username: string | null) => void;
+  verifyEmail: () => Promise<void>;
+  updateUserProfile: (profile: { displayName?: string, photoURL?: string }) => Promise<void>;
+  getUserProfile: (userId?: string) => Promise<any>;
+  updateUserData: (data: any, userId?: string) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create the context with a default value
+const AuthContext = createContext<AuthContextType>({
+  currentUser: null,
+  authIsInitialized: false,
+  isLoading: false,
+  login: async () => { throw new Error('AuthContext not initialized'); },
+  signup: async () => { throw new Error('AuthContext not initialized'); },
+  logout: async () => { throw new Error('AuthContext not initialized'); },
+  signOut: async () => { throw new Error('AuthContext not initialized'); },
+  resetPassword: async () => { throw new Error('AuthContext not initialized'); },
+  verifyEmail: async () => { throw new Error('AuthContext not initialized'); },
+  updateUserProfile: async () => { throw new Error('AuthContext not initialized'); },
+  getUserProfile: async () => { throw new Error('AuthContext not initialized'); },
+  updateUserData: async () => { throw new Error('AuthContext not initialized'); }
+});
 
+// Custom hook to use the auth context
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return useContext(AuthContext);
 }
 
+// Provider component that wraps app and makes auth object available
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [persistentUsername, setPersistentUsername] = useState<string | null>(null);
-  
-  // Use the centralized auth initialization hook
-  const { 
-    status: authStatus, 
-    error: authError, 
-    user: currentUser,
-    isAnonymous
-  } = useAuthInitialization({
-    timeoutMs: 10000,
-    enableLogging: true
-  });
-  
-  // Get Firebase services from the Firebase initialization hook
-  const { 
-    status: firebaseStatus, 
-    auth, 
-    db 
-  } = useFirebaseInitialization({
-    enableLogging: true
-  });
-  
-  // Derive loading and initialization state from auth status
-  const isLoading = authStatus === AuthStatus.INITIALIZING;
-  const authIsInitialized = authStatus === AuthStatus.READY || 
-                           authStatus === AuthStatus.ERROR || 
-                           authStatus === AuthStatus.TIMEOUT;
-  
-  // Log auth errors
-  const authErrorRef = useRef<Error | null>(null);
-  if (authError && authError !== authErrorRef.current) {
-    console.error('AuthContext: Auth initialization error:', authError);
-    authErrorRef.current = authError;
-  }
-  
-  // Signup function
-  const signup = async (email: string, password: string, name: string) => {
-    if (!auth || !db) {
-      throw new Error('Firebase not initialized');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authIsInitialized, setAuthIsInitialized] = useState(false);
+
+  // Function to log in a user
+  const login = async (email: string, password: string): Promise<User> => {
+    logger.info('Login attempt', { 
+      context: { email },
+      category: LogCategory.AUTH
+    });
+    
+    if (!auth) {
+      const error = new Error('Firebase Auth not initialized');
+      logger.error('Login failed - Firebase Auth not initialized', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw error;
+    }
+    
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      logger.info('Login successful', { 
+        context: { 
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          emailVerified: userCredential.user.emailVerified
+        },
+        category: LogCategory.AUTH
+      });
+      return userCredential.user;
+    } catch (error) {
+      logger.error('Login failed', {
+        context: { error, email },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Login failed');
+    }
+  };
+
+  // Function to sign up a user
+  const signup = async (email: string, password: string, displayName?: string): Promise<any> => {
+    logger.info('Signup attempt', { 
+      context: { email, hasDisplayName: !!displayName },
+      category: LogCategory.AUTH
+    });
+    
+    if (!auth) {
+      const error = new Error('Firebase Auth not initialized');
+      logger.error('Signup failed - Firebase Auth not initialized', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Signup failed');
     }
     
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Update user profile with display name
-      if (userCredential.user) {
-        await updateProfile(userCredential.user, { displayName: name });
-        
-        // Create user document in Firestore
-        const userRef = doc(db, 'users', userCredential.user.uid);
-        await setDoc(userRef, {
-          name,
-          email,
-          role: 'Researcher',
-          institution: '',
-          department: '',
-          position: '',
-          researchInterests: [],
-          articles: 0,
-          reviews: 0,
-          reputation: 0,
-          profileComplete: false,
-          hasChangedName: false,
-          hasChangedInstitution: false,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          isAnonymous: false
-        });
-      }
-      
-      return userCredential;
-    } catch (error) {
-      console.error('AuthContext: Signup error:', error);
-      throw error;
-    }
-  };
-  
-  // Login function
-  const login = async (email: string, password: string) => {
-    if (!auth || !db) {
-      throw new Error('Firebase not initialized');
-    }
-    
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Update last login timestamp
-      if (userCredential.user) {
-        const userRef = doc(db, 'users', userCredential.user.uid);
-        await updateDoc(userRef, {
-          lastLogin: new Date().toISOString()
-        });
-      }
-      
-      return userCredential;
-    } catch (error) {
-      console.error('AuthContext: Login error:', error);
-      throw error;
-    }
-  };
-  
-  // Logout function
-  const logout = async () => {
-    if (!auth) {
-      throw new Error('Firebase not initialized');
-    }
-    
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('AuthContext: Logout error:', error);
-      throw error;
-    }
-  };
-  
-  // Reset password function
-  const resetPassword = async (email: string) => {
-    if (!auth) {
-      throw new Error('Firebase not initialized');
-    }
-    
-    try {
-      // Firebase doesn't export sendPasswordResetEmail in the imports above
-      // So we need to dynamically import it
-      const { sendPasswordResetEmail } = await import('firebase/auth');
-      await sendPasswordResetEmail(auth, email);
-    } catch (error) {
-      console.error('AuthContext: Reset password error:', error);
-      throw error;
-    }
-  };
-  
-  // Update user profile function
-  const updateUserProfile = async (name: string) => {
-    if (!auth || !currentUser) {
-      throw new Error('User not authenticated or Firebase not initialized');
-    }
-    
-    try {
-      await updateProfile(currentUser, { displayName: name });
-    } catch (error) {
-      console.error('AuthContext: Update profile error:', error);
-      throw error;
-    }
-  };
-  
-  // Get user profile function
-  const getUserProfile = async () => {
-    if (!db || !currentUser) {
-      throw new Error('User not authenticated or Firebase not initialized');
-    }
-    
-    try {
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        return userSnap.data();
-      } else {
-        console.warn('AuthContext: User document does not exist');
-        
-        // Create a default profile if it doesn't exist
-        const defaultProfile = {
-          name: currentUser.displayName || '',
-          email: currentUser.email || '',
-          role: 'Researcher',
-          institution: '',
-          department: '',
-          position: '',
-          researchInterests: [],
-          articles: 0,
-          reviews: 0,
-          reputation: 0,
-          profileComplete: false,
-          hasChangedName: false,
-          hasChangedInstitution: false,
-          createdAt: new Date().toISOString(),
-          isAnonymous: currentUser.isAnonymous || false
-        };
-        
+      // Update profile if display name is provided
+      if (displayName && userCredential.user) {
         try {
-          await setDoc(userRef, defaultProfile);
-          console.log('AuthContext: Created default user profile');
-          return defaultProfile;
-        } catch (createError) {
-          console.error('AuthContext: Error creating default profile:', createError);
-          return null;
+          await firebaseUpdateProfile(userCredential.user, { displayName });
+          logger.info('User profile updated with display name', {
+            context: { uid: userCredential.user.uid, displayName },
+            category: LogCategory.AUTH
+          });
+        } catch (profileError) {
+          // Log error but don't fail the signup process
+          logger.error('Failed to update profile with display name', {
+            context: { error: profileError, uid: userCredential.user.uid },
+            category: LogCategory.ERROR
+          });
         }
       }
-    } catch (error) {
-      console.error('AuthContext: Get user profile error:', error);
-      throw error;
-    }
-  };
-  
-  // Update user data function
-  const updateUserData = async (data: any) => {
-    if (!db || !currentUser) {
-      throw new Error('User not authenticated or Firebase not initialized');
-    }
-    
-    try {
-      const userRef = doc(db, 'users', currentUser.uid);
       
-      // Use transaction to ensure atomic update
-      await runTransaction(db, async (transaction) => {
-        const userDoc = await transaction.get(userRef);
-        
-        if (!userDoc.exists()) {
-          throw new Error('User document does not exist');
-        }
-        
-        // Get current user data
-        const userData = userDoc.data();
-        
-        // Handle one-time name change
-        if (data.name && userData.name !== data.name) {
-          if (userData.hasChangedName === true) {
-            console.log('AuthContext: User has already changed their name once');
-            // Keep the existing name if they've already changed it once
-            delete data.name;
-          } else {
-            console.log('AuthContext: Setting hasChangedName flag to true');
-            data.hasChangedName = true;
-          }
-        }
-        
-        // Handle one-time institution change
-        if (data.institution && userData.institution !== data.institution) {
-          if (userData.hasChangedInstitution === true) {
-            console.log('AuthContext: User has already changed their institution once');
-            // Keep the existing institution if they've already changed it once
-            delete data.institution;
-          } else {
-            console.log('AuthContext: Setting hasChangedInstitution flag to true');
-            data.hasChangedInstitution = true;
-          }
-        }
-        
-        // Update with new data
-        transaction.update(userRef, {
-          ...data,
-          updatedAt: new Date().toISOString()
-        });
+      logger.info('Signup successful', { 
+        context: { 
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          displayName: userCredential.user.displayName
+        },
+        category: LogCategory.AUTH
       });
       
-      return true;
+      return { user: userCredential.user };
     } catch (error) {
-      console.error('AuthContext: Update user data error:', error);
-      return false;
+      logger.error('Signup failed', {
+        context: { error, email },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Signup failed');
     }
   };
-  
-  // Sign in anonymously function
-  const signInAnonymousUser = async () => {
-    if (!auth || !db) {
-      throw new Error('Firebase not initialized');
+
+  // Function to sign out
+  const signOut = async (): Promise<void> => {
+    logger.info('Signout attempt', { 
+      context: { uid: currentUser?.uid },
+      category: LogCategory.AUTH
+    });
+    
+    if (!auth) {
+      const error = new Error('Firebase Auth not initialized');
+      logger.error('Signout failed - Firebase Auth not initialized', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw error;
     }
     
     try {
-      const userCredential = await signInAnonymously(auth);
-      
-      // Create anonymous user document in Firestore
-      if (userCredential.user) {
-        const anonymousName = `Guest-${userCredential.user.uid.substring(0, 5)}`;
-        
-        // Update profile with anonymous name
-        await updateProfile(userCredential.user, {
-          displayName: anonymousName
-        });
-        
-        const userRef = doc(db, 'users', userCredential.user.uid);
-        await setDoc(userRef, {
-          name: anonymousName,
-          isAnonymous: true,
-          role: 'Guest',
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString()
-        });
-      }
-      
-      return userCredential;
+      await firebaseSignOut(auth);
+      logger.info('Signout successful', { 
+        category: LogCategory.AUTH
+      });
     } catch (error) {
-      console.error('AuthContext: Anonymous sign in error:', error);
-      throw error;
+      logger.error('Signout failed', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Signout failed');
     }
   };
-  
-  // Check if current user is anonymous
-  const isAnonymousUser = () => {
-    return !!currentUser?.isAnonymous;
+
+  // Function to reset password
+  const resetPassword = async (email: string): Promise<void> => {
+    logger.info('Password reset attempt', { 
+      context: { email },
+      category: LogCategory.AUTH
+    });
+    
+    if (!auth) {
+      const error = new Error('Firebase Auth not initialized');
+      logger.error('Password reset failed - Firebase Auth not initialized', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw error;
+    }
+    
+    try {
+      await sendPasswordResetEmail(auth, email);
+      logger.info('Password reset email sent', { 
+        context: { email },
+        category: LogCategory.AUTH
+      });
+    } catch (error) {
+      logger.error('Password reset failed', {
+        context: { error, email },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Password reset failed');
+    }
   };
-  
-  // Test Firestore write function (for debugging)
-  const testFirestoreWrite = async () => {
+
+  // Function to send verification email
+  const verifyEmail = async (): Promise<void> => {
+    if (!currentUser) {
+      const error = new Error('No user is logged in');
+      logger.error('Email verification failed', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Email verification failed');
+    }
+    
+    logger.info('Email verification attempt', { 
+      context: { uid: currentUser.uid, email: currentUser.email },
+      category: LogCategory.AUTH
+    });
+    
+    try {
+      await sendEmailVerification(currentUser);
+      logger.info('Verification email sent', { 
+        context: { uid: currentUser.uid, email: currentUser.email },
+        category: LogCategory.AUTH
+      });
+    } catch (error) {
+      logger.error('Email verification failed', {
+        context: { error, uid: currentUser.uid },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Email verification failed');
+    }
+  };
+
+  // Function to update user profile
+  const updateUserProfile = async (profile: { displayName?: string, photoURL?: string }): Promise<void> => {
+    if (!currentUser) {
+      const error = new Error('No user is logged in');
+      logger.error('Profile update failed', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Profile update failed');
+    }
+    
+    logger.info('Profile update attempt', { 
+      context: { 
+        uid: currentUser.uid, 
+        updatedFields: Object.keys(profile) 
+      },
+      category: LogCategory.AUTH
+    });
+    
+    try {
+      await firebaseUpdateProfile(currentUser, profile);
+      logger.info('Profile update successful', { 
+        context: { 
+          uid: currentUser.uid, 
+          updatedFields: Object.keys(profile) 
+        },
+        category: LogCategory.AUTH
+      });
+    } catch (error) {
+      logger.error('Profile update failed', {
+        context: { error, uid: currentUser.uid },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Profile update failed');
+    }
+  };
+
+  // Function to get user profile
+  const getUserProfile = async (userId?: string): Promise<any> => {
+    const targetUserId = userId || (currentUser?.uid);
+    
+    logger.info('Getting user profile', {
+      context: { hasUserId: !!targetUserId },
+      category: LogCategory.DATA
+    });
+    
+    if (!targetUserId) {
+      logger.error('Cannot get user profile - No user ID provided', {
+        category: LogCategory.ERROR
+      });
+      return null;
+    }
+    
+    const db = getFirebaseFirestore();
     if (!db) {
-      console.error('AuthContext: Firestore not initialized');
-      return false;
+      logger.error('Cannot get user profile - Firestore not initialized', {
+        category: LogCategory.ERROR
+      });
+      return null;
     }
     
     try {
-      const testRef = doc(db, 'test', 'test-document');
-      await setDoc(testRef, {
-        timestamp: new Date().toISOString(),
-        test: 'This is a test write'
-      });
-      console.log('AuthContext: Test write successful');
-      return true;
+      const userDocRef = doc(db, 'users', targetUserId);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        logger.info('User profile retrieved successfully', {
+          context: { uid: targetUserId },
+          category: LogCategory.DATA
+        });
+        return { id: targetUserId, ...userData };
+      } else {
+        logger.info('User profile does not exist', {
+          context: { uid: targetUserId },
+          category: LogCategory.DATA
+        });
+        return null;
+      }
     } catch (error) {
-      console.error('AuthContext: Test write error:', error);
-      return false;
+      logger.error('Error getting user profile', {
+        context: { error, uid: targetUserId },
+        category: LogCategory.ERROR
+      });
+      return null;
     }
   };
-  
-  // Provide the auth context value
-  const value: AuthContextType = {
+
+  // Function to update user data
+  const updateUserData = async (data: any, userId?: string): Promise<void> => {
+    const targetUserId = userId || (currentUser?.uid);
+    
+    logger.info('Updating user data', {
+      context: { fields: Object.keys(data), hasUserId: !!targetUserId },
+      category: LogCategory.DATA
+    });
+    
+    if (!targetUserId) {
+      const error = new Error('Cannot update user data - No user ID provided');
+      logger.error('Cannot update user data - No user ID provided', {
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Cannot update user data');
+    }
+    
+    const db = getFirebaseFirestore();
+    if (!db) {
+      const error = new Error('Cannot update user data - Firestore not initialized');
+      logger.error('Cannot update user data - Firestore not initialized', {
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Cannot update user data');
+    }
+    
+    try {
+      const userDocRef = doc(db, 'users', targetUserId);
+      await setDoc(userDocRef, data, { merge: true });
+      
+      logger.info('User data updated successfully', {
+        context: { uid: targetUserId, fields: Object.keys(data) },
+        category: LogCategory.DATA
+      });
+    } catch (error) {
+      logger.error('Error updating user data', {
+        context: { error, uid: targetUserId },
+        category: LogCategory.ERROR
+      });
+      throw handleError(error, 'Error updating user data');
+    }
+  };
+
+  // Effect for auth state changes
+  useEffect(() => {
+    logger.info('Setting up auth state listener', {
+      category: LogCategory.LIFECYCLE
+    });
+    
+    if (!auth) {
+      logger.error('Cannot set up auth state listener - Firebase Auth not initialized', {
+        category: LogCategory.ERROR
+      });
+      setAuthIsInitialized(true); // Mark as initialized even though it failed
+      return () => {}; // Return empty cleanup function
+    }
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      
+      if (user) {
+        logger.info('User authenticated', { 
+          context: { 
+            uid: user.uid, 
+            email: user.email,
+            emailVerified: user.emailVerified,
+            isAnonymous: user.isAnonymous
+          },
+          category: LogCategory.AUTH
+        });
+      } else {
+        logger.info('User signed out or no user', {
+          category: LogCategory.AUTH
+        });
+      }
+      
+      if (!authIsInitialized) {
+        logger.info('Auth initialized', {
+          category: LogCategory.LIFECYCLE
+        });
+        setAuthIsInitialized(true);
+      }
+    });
+
+    // Cleanup subscription
+    return () => {
+      logger.info('Cleaning up auth state listener', {
+        category: LogCategory.LIFECYCLE
+      });
+      unsubscribe();
+    };
+  }, [authIsInitialized]);
+
+  const value = {
     currentUser,
-    isLoading,
     authIsInitialized,
-    persistentUsername,
-    signup,
+    isLoading: false,
     login,
-    logout,
+    signup,
+    logout: signOut,
+    signOut,
     resetPassword,
+    verifyEmail,
     updateUserProfile,
     getUserProfile,
-    updateUserData,
-    signInAnonymousUser,
-    isAnonymousUser,
-    testFirestoreWrite,
-    setPersistentUsername
+    updateUserData
   };
-  
-  // Always render children, even during loading
-  // This prevents hydration issues by ensuring consistent rendering
+
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+export default AuthContext;

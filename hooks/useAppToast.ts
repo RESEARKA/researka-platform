@@ -8,17 +8,20 @@ export const useAppToast = () => {
   const toast = useChakraToast();
 
   const showToast = (options: { 
-    id: string; 
+    id?: string; 
     title: string; 
     description?: string; 
     status?: 'success' | 'error' | 'warning' | 'info'; 
     duration?: number; 
     isClosable?: boolean;
   }) => {
+    // Generate a unique ID if not provided
+    const toastId = options.id || `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     // Only show the toast if one with the same ID is not already active
-    if (!toast.isActive(options.id)) {
+    if (!toast.isActive(toastId)) {
       toast({
-        id: options.id,
+        id: toastId,
         title: options.title,
         description: options.description,
         status: options.status || 'success',
@@ -26,6 +29,8 @@ export const useAppToast = () => {
         isClosable: options.isClosable !== undefined ? options.isClosable : true,
       });
     }
+    
+    return toastId;
   };
 
   // Add isActive method to check if a toast with a given ID is currently active

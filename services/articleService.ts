@@ -9,6 +9,10 @@ import {
   Timestamp,
   DocumentData
 } from 'firebase/firestore';
+import { createLogger, LogCategory } from '../utils/logger';
+
+// Create a logger instance for article service
+const logger = createLogger('articleService');
 
 // Define article interface
 export interface Article {
@@ -46,7 +50,14 @@ const articlesCollection = 'articles';
  */
 export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt'>): Promise<Article> => {
   try {
-    console.log('ArticleService: Starting submitArticle');
+    logger.info('Starting article submission process', {
+      context: { 
+        title: articleData.title,
+        category: articleData.category,
+        keywordsCount: articleData.keywords.length
+      },
+      category: LogCategory.DATA
+    });
     
     // Add timestamp and get current user ID from auth
     const { getAuth } = await import('firebase/auth');
@@ -54,12 +65,16 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
     const currentUser = auth.currentUser;
     
     if (!currentUser) {
-      console.error('ArticleService: User not authenticated');
+      logger.error('Article submission failed - user not authenticated', {
+        category: LogCategory.AUTH
+      });
       throw new Error('User not authenticated');
     }
     
     if (!db) {
-      console.error('ArticleService: Firestore not initialized');
+      logger.error('Article submission failed - Firestore not initialized', {
+        category: LogCategory.DATA
+      });
       throw new Error('Firestore not initialized');
     }
     
@@ -71,12 +86,32 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
       createdAt: Timestamp.now()
     };
     
-    console.log('ArticleService: Article prepared for submission:', articleWithTimestamp);
+    logger.debug('Article prepared for submission', {
+      context: { 
+        authorId: currentUser.uid,
+        contentLength: articleData.content?.length || 0,
+        hasIntroduction: !!articleData.introduction,
+        hasMethods: !!articleData.methods,
+        hasResults: !!articleData.results,
+        hasDiscussion: !!articleData.discussion
+      },
+      category: LogCategory.DATA
+    });
+    
+    const startTime = performance.now();
     
     // Add to Firestore
     const docRef = await addDoc(collection(db, articlesCollection), articleWithTimestamp);
     
-    console.log('ArticleService: Article submitted with ID:', docRef.id);
+    const duration = performance.now() - startTime;
+    
+    logger.info('Article submitted successfully', {
+      context: { 
+        articleId: docRef.id,
+        duration: `${duration.toFixed(2)}ms`
+      },
+      category: LogCategory.DATA
+    });
     
     // Return the article with the generated ID
     return {
@@ -86,7 +121,10 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
       authorId: currentUser.uid
     };
   } catch (error) {
-    console.error('ArticleService: Error submitting article:', error);
+    logger.error('Error submitting article', {
+      context: { error },
+      category: LogCategory.ERROR
+    });
     throw new Error('Failed to submit article');
   }
 };
@@ -96,10 +134,15 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
  */
 export const getArticlesForReview = async (userId?: string): Promise<Article[]> => {
   try {
-    console.log('ArticleService: Starting getArticlesForReview');
+    logger.info('Fetching articles for review', {
+      context: { currentUserId: userId },
+      category: LogCategory.DATA
+    });
     
     if (!db) {
-      console.error('ArticleService: Firestore not initialized');
+      logger.error('Failed to get articles - Firestore not initialized', {
+        category: LogCategory.DATA
+      });
       throw new Error('Firestore not initialized');
     }
     
@@ -110,22 +153,47 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       orderBy('createdAt', 'desc')
     );
     
-    console.log('ArticleService: Query created for all articles, executing...');
+    logger.debug('Executing query for articles', {
+      category: LogCategory.DATA
+    });
+    
+    const startTime = performance.now();
     
     // Execute query
     const querySnapshot = await getDocs(q);
     
-    console.log(`ArticleService: Query executed, found ${querySnapshot.size} documents`);
+    const duration = performance.now() - startTime;
+    
+    logger.info('Articles query executed', {
+      context: { 
+        count: querySnapshot.size,
+        duration: `${duration.toFixed(2)}ms`
+      },
+      category: LogCategory.DATA
+    });
     
     // Convert to array of articles
     const articles: Article[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      console.log(`ArticleService: Processing document ${doc.id}, title: ${data.title}, status: ${data.status}`);
+      logger.debug('Processing article document', {
+        context: { 
+          id: doc.id, 
+          title: data.title, 
+          status: data.status 
+        },
+        category: LogCategory.DATA
+      });
       
       // Skip articles authored by the current user if userId is provided
       if (userId && data.authorId === userId) {
-        console.log(`ArticleService: Skipping article ${doc.id} because it was authored by the current user (${userId})`);
+        logger.debug('Skipping user\'s own article', {
+          context: { 
+            articleId: doc.id, 
+            authorId: data.authorId 
+          },
+          category: LogCategory.DATA
+        });
         return; // Skip this article
       }
       
@@ -155,10 +223,17 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       });
     });
     
-    console.log(`ArticleService: Returning ${articles.length} articles (after filtering out user's own submissions)`);
+    logger.info('Returning filtered articles for review', {
+      context: { count: articles.length },
+      category: LogCategory.DATA
+    });
+    
     return articles;
   } catch (error) {
-    console.error('ArticleService: Error getting articles for review:', error);
+    logger.error('Error getting articles for review', {
+      context: { error },
+      category: LogCategory.ERROR
+    });
     throw new Error('Failed to get articles for review');
   }
 };
@@ -168,15 +243,22 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
  */
 export const getArticleById = async (articleId: string): Promise<Article | null> => {
   try {
-    console.log(`ArticleService: Getting article by ID: ${articleId}`);
+    logger.info('Fetching article by ID', {
+      context: { articleId },
+      category: LogCategory.DATA
+    });
     
     if (!db) {
-      console.error('ArticleService: Firestore not initialized');
+      logger.error('Failed to get article - Firestore not initialized', {
+        category: LogCategory.DATA
+      });
       throw new Error('Firestore not initialized');
     }
     
     if (!articleId) {
-      console.error('ArticleService: Article ID is undefined or empty');
+      logger.error('Failed to get article - Article ID is required', {
+        category: LogCategory.DATA
+      });
       throw new Error('Article ID is required');
     }
     
@@ -186,15 +268,31 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
       where('__name__', '==', articleId)
     );
     
-    console.log(`ArticleService: Query created for article ID: ${articleId}`);
+    logger.debug('Executing query for specific article', {
+      context: { articleId },
+      category: LogCategory.DATA
+    });
+    
+    const startTime = performance.now();
     
     // Execute query
     const querySnapshot = await getDocs(q);
     
-    console.log(`ArticleService: Query executed, found ${querySnapshot.size} documents`);
+    const duration = performance.now() - startTime;
+    
+    logger.info('Article query executed', {
+      context: { 
+        found: !querySnapshot.empty,
+        duration: `${duration.toFixed(2)}ms`
+      },
+      category: LogCategory.DATA
+    });
     
     if (querySnapshot.empty) {
-      console.log(`ArticleService: No article found with ID: ${articleId}`);
+      logger.warn('Article not found', {
+        context: { articleId },
+        category: LogCategory.DATA
+      });
       return null;
     }
     
@@ -202,11 +300,27 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
     const doc = querySnapshot.docs[0];
     const data = doc.data();
     
-    console.log(`ArticleService: Found article with title: ${data.title}`);
+    logger.debug('Found article', {
+      context: { 
+        id: doc.id, 
+        title: data.title 
+      },
+      category: LogCategory.DATA
+    });
     
     // Check if all required fields are present
     if (!data.title || !data.abstract || !data.category) {
-      console.warn(`ArticleService: Article ${articleId} is missing required fields`);
+      logger.warn('Article is missing required fields', {
+        context: { 
+          id: doc.id, 
+          missingFields: [
+            !data.title ? 'title' : null,
+            !data.abstract ? 'abstract' : null,
+            !data.category ? 'category' : null
+          ].filter(Boolean)
+        },
+        category: LogCategory.DATA
+      });
     }
     
     return {
@@ -234,7 +348,10 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
       license: data.license
     };
   } catch (error) {
-    console.error(`ArticleService: Error getting article by ID ${articleId}:`, error);
+    logger.error('Error getting article by ID', {
+      context: { error },
+      category: LogCategory.ERROR
+    });
     throw new Error(`Failed to get article: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
@@ -248,34 +365,50 @@ export const getAllArticles = async (): Promise<Article[]> => {
   let processingTime = 0;
   
   try {
-    console.log('ArticleService: Starting getAllArticles');
+    logger.info('Fetching all articles', {
+      category: LogCategory.DATA
+    });
     
     // Check if we're on the server
     if (typeof window === 'undefined') {
-      console.error('ArticleService: getAllArticles called on server side');
+      logger.error('getAllArticles called on server side', {
+        category: LogCategory.DATA
+      });
       return [];
     }
     
     // Import Firebase functions to get Firestore
-    console.log('ArticleService: Importing Firebase modules');
+    logger.debug('Importing Firebase modules', {
+      category: LogCategory.DATA
+    });
     const { getFirebaseFirestore, initializeFirebase } = await import('../config/firebase');
     
     // Get Firestore instance
-    console.log('ArticleService: Getting Firestore instance');
+    logger.debug('Getting Firestore instance', {
+      category: LogCategory.DATA
+    });
     const db = getFirebaseFirestore();
     if (!db) {
-      console.error('ArticleService: Firestore not initialized');
+      logger.error('Firestore not initialized', {
+        category: LogCategory.DATA
+      });
       
       // Try to initialize Firebase again
-      console.log('ArticleService: Attempting to initialize Firebase');
+      logger.debug('Attempting to initialize Firebase', {
+        category: LogCategory.DATA
+      });
       const initialized = await initializeFirebase();
       
       if (!initialized) {
-        console.error('ArticleService: Failed to initialize Firebase after retry');
+        logger.error('Failed to initialize Firebase after retry', {
+          category: LogCategory.DATA
+        });
         
         // In development, return mock data
         if (process.env.NODE_ENV === 'development') {
-          console.log('ArticleService: Returning mock data due to initialization failure');
+          logger.debug('Returning mock data due to initialization failure', {
+            category: LogCategory.DATA
+          });
           return getMockArticles();
         }
         
@@ -285,11 +418,15 @@ export const getAllArticles = async (): Promise<Article[]> => {
       // Get Firestore instance again after initialization
       const dbRetry = getFirebaseFirestore();
       if (!dbRetry) {
-        console.error('ArticleService: Firestore still not initialized after retry');
+        logger.error('Firestore still not initialized after retry', {
+          category: LogCategory.DATA
+        });
         
         // In development, return mock data
         if (process.env.NODE_ENV === 'development') {
-          console.log('ArticleService: Returning mock data due to initialization failure');
+          logger.debug('Returning mock data due to initialization failure', {
+            category: LogCategory.DATA
+          });
           return getMockArticles();
         }
         
@@ -297,13 +434,17 @@ export const getAllArticles = async (): Promise<Article[]> => {
       }
       
       // Create query for all articles, ordered by creation date
-      console.log('ArticleService: Creating Firestore query after retry');
+      logger.debug('Creating Firestore query after retry', {
+        category: LogCategory.DATA
+      });
       const q = query(
         collection(dbRetry, articlesCollection),
         orderBy('createdAt', 'desc')
       );
       
-      console.log('ArticleService: Executing query after retry...');
+      logger.debug('Executing query after retry...', {
+        category: LogCategory.DATA
+      });
       
       // Execute query with timing
       const queryStartTime = performance.now();
@@ -311,14 +452,26 @@ export const getAllArticles = async (): Promise<Article[]> => {
         const querySnapshot = await getDocs(q);
         queryExecutionTime = performance.now() - queryStartTime;
         
-        console.log(`ArticleService: Query executed after retry in ${queryExecutionTime.toFixed(2)}ms, found ${querySnapshot.size} documents`);
+        logger.info('Query executed after retry', {
+          context: { 
+            count: querySnapshot.size,
+            duration: `${queryExecutionTime.toFixed(2)}ms`
+          },
+          category: LogCategory.DATA
+        });
         
         // Process results with timing
         const processingStartTime = performance.now();
         const results = processQueryResults(querySnapshot);
         processingTime = performance.now() - processingStartTime;
         
-        console.log(`ArticleService: Results processed in ${processingTime.toFixed(2)}ms`);
+        logger.info('Results processed', {
+          context: { 
+            count: results.length,
+            duration: `${processingTime.toFixed(2)}ms`
+          },
+          category: LogCategory.DATA
+        });
         
         return results;
       } catch (queryError) {
@@ -326,14 +479,16 @@ export const getAllArticles = async (): Promise<Article[]> => {
         const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
         
         if (errorMessage.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
-          console.error('ArticleService: Firestore permission error. Check security rules:', {
-            collection: articlesCollection,
-            error: errorMessage,
-            timestamp: new Date().toISOString()
+          logger.error('Firestore permission error', {
+            context: { 
+              collection: articlesCollection,
+              error: errorMessage
+            },
+            category: LogCategory.DATA
           });
           
           // Log the security rule issue with more details
-          console.error(`
+          logger.error(`
             Potential Firestore Security Rule Issue:
             --------------------------------------
             Collection: ${articlesCollection}
@@ -344,7 +499,9 @@ export const getAllArticles = async (): Promise<Article[]> => {
             1. Check if your Firestore security rules allow reading the '${articlesCollection}' collection
             2. Verify that you're properly authenticated if authentication is required
             3. Ensure the collection exists and is spelled correctly
-          `);
+          `, {
+            category: LogCategory.DATA
+          });
         }
         
         throw queryError;
@@ -352,13 +509,17 @@ export const getAllArticles = async (): Promise<Article[]> => {
     }
     
     // Create query for all articles, ordered by creation date
-    console.log('ArticleService: Creating Firestore query');
+    logger.debug('Creating Firestore query', {
+      category: LogCategory.DATA
+    });
     const q = query(
       collection(db, articlesCollection),
       orderBy('createdAt', 'desc')
     );
     
-    console.log('ArticleService: Executing query...');
+    logger.debug('Executing query...', {
+      category: LogCategory.DATA
+    });
     
     // Execute query with timing
     const queryStartTime = performance.now();
@@ -366,14 +527,26 @@ export const getAllArticles = async (): Promise<Article[]> => {
       const querySnapshot = await getDocs(q);
       queryExecutionTime = performance.now() - queryStartTime;
       
-      console.log(`ArticleService: Query executed in ${queryExecutionTime.toFixed(2)}ms, found ${querySnapshot.size} documents`);
+      logger.info('Query executed', {
+        context: { 
+          count: querySnapshot.size,
+          duration: `${queryExecutionTime.toFixed(2)}ms`
+        },
+        category: LogCategory.DATA
+      });
       
       // Process results with timing
       const processingStartTime = performance.now();
       const results = processQueryResults(querySnapshot);
       processingTime = performance.now() - processingStartTime;
       
-      console.log(`ArticleService: Results processed in ${processingTime.toFixed(2)}ms`);
+      logger.info('Results processed', {
+        context: { 
+          count: results.length,
+          duration: `${processingTime.toFixed(2)}ms`
+        },
+        category: LogCategory.DATA
+      });
       
       return results;
     } catch (queryError) {
@@ -381,14 +554,16 @@ export const getAllArticles = async (): Promise<Article[]> => {
       const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
       
       if (errorMessage.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
-        console.error('ArticleService: Firestore permission error. Check security rules:', {
-          collection: articlesCollection,
-          error: errorMessage,
-          timestamp: new Date().toISOString()
+        logger.error('Firestore permission error', {
+          context: { 
+            collection: articlesCollection,
+            error: errorMessage
+          },
+          category: LogCategory.DATA
         });
         
         // Log the security rule issue with more details
-        console.error(`
+        logger.error(`
           Potential Firestore Security Rule Issue:
           --------------------------------------
           Collection: ${articlesCollection}
@@ -399,7 +574,9 @@ export const getAllArticles = async (): Promise<Article[]> => {
           1. Check if your Firestore security rules allow reading the '${articlesCollection}' collection
           2. Verify that you're properly authenticated if authentication is required
           3. Ensure the collection exists and is spelled correctly
-        `);
+        `, {
+          category: LogCategory.DATA
+        });
       }
       
       throw queryError;
@@ -407,17 +584,22 @@ export const getAllArticles = async (): Promise<Article[]> => {
     
   } catch (error) {
     const totalTime = performance.now() - startTime;
-    console.error('ArticleService: Error getting all articles:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      totalTime: `${totalTime.toFixed(2)}ms`,
-      queryTime: `${queryExecutionTime.toFixed(2)}ms`,
-      processingTime: `${processingTime.toFixed(2)}ms`
+    logger.error('Error getting all articles', {
+      context: { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        totalTime: `${totalTime.toFixed(2)}ms`,
+        queryTime: `${queryExecutionTime.toFixed(2)}ms`,
+        processingTime: `${processingTime.toFixed(2)}ms`
+      },
+      category: LogCategory.ERROR
     });
     
     // In development, return mock data on error
     if (process.env.NODE_ENV === 'development') {
-      console.log('ArticleService: Returning mock data due to error');
+      logger.debug('Returning mock data due to error', {
+        category: LogCategory.DATA
+      });
       return getMockArticles();
     }
     
@@ -433,11 +615,15 @@ export const getAllArticles = async (): Promise<Article[]> => {
 function processQueryResults(querySnapshot: any): Article[] {
   // If no articles found, return empty array
   if (querySnapshot.empty) {
-    console.log('ArticleService: No articles found in the database');
+    logger.debug('No articles found in the database', {
+      category: LogCategory.DATA
+    });
     
     // In development, return mock data
     if (process.env.NODE_ENV === 'development') {
-      console.log('ArticleService: No articles found, returning mock data for development');
+      logger.debug('No articles found, returning mock data for development', {
+        category: LogCategory.DATA
+      });
       return getMockArticles();
     }
     
@@ -451,7 +637,12 @@ function processQueryResults(querySnapshot: any): Article[] {
     
     // Skip documents with missing required fields
     if (!data.title) {
-      console.warn(`ArticleService: Document ${doc.id} is missing a title, skipping`);
+      logger.warn('Document is missing a title, skipping', {
+        context: { 
+          id: doc.id
+        },
+        category: LogCategory.DATA
+      });
       return;
     }
     
@@ -487,11 +678,18 @@ function processQueryResults(querySnapshot: any): Article[] {
     articles.push(article);
   });
   
-  console.log(`ArticleService: Processed ${articles.length} valid articles`);
+  logger.info('Processed valid articles', {
+    context: { 
+      count: articles.length
+    },
+    category: LogCategory.DATA
+  });
   
   // If no valid articles were found, return mock data for development
   if (articles.length === 0 && process.env.NODE_ENV === 'development') {
-    console.log('ArticleService: No valid articles found, returning mock data for development');
+    logger.debug('No valid articles found, returning mock data for development', {
+      category: LogCategory.DATA
+    });
     return getMockArticles();
   }
   

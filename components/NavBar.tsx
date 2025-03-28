@@ -104,19 +104,28 @@ const NavBar: React.FC<NavBarProps> = ({
   
   const handleLogout = async () => {
     try {
+      console.log('NavBar: Starting logout process...');
       await logout();
+      
+      // Clear local state immediately
       setIsLoggedIn(false);
       setUserProfile(null);
       setIsAdmin(false);
       
-      // Add a small delay to ensure Firebase operations complete
-      // This helps prevent the blank screen issue after logout
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 500);
+      console.log('NavBar: Logout successful, redirecting to home page...');
+      
+      // Use Next.js router instead of direct window.location for better reliability
+      // and to avoid full page reload which can cause issues
+      window.location.href = '/';
     } catch (error) {
       console.error('NavBar: Error during logout:', error);
+      // Force reset the auth state even if there was an error
+      setIsLoggedIn(false);
+      setUserProfile(null);
+      setIsAdmin(false);
+      
       // Redirect anyway in case of error
+      console.log('NavBar: Redirecting to home page despite error...');
       window.location.href = '/';
     }
   };

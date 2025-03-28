@@ -104,6 +104,10 @@ const SignupPage: React.FC = () => {
       // Call signup function from AuthContext with empty name (will be set in profile)
       const result = await signup(email, password, '');
       
+      if (!result || !result.user || !result.user.uid) {
+        throw new Error('Failed to create user account');
+      }
+      
       console.log('Signup page: Signup successful, user created with ID:', result.user.uid);
       
       // Create default profile and ensure it's completed before proceeding
@@ -114,8 +118,29 @@ const SignupPage: React.FC = () => {
         }
         
         try {
+          // Wait for auth to be initialized before proceeding
+          console.log('Signup page: Waiting for auth to be fully initialized...');
+          let authReady = false;
+          let attempts = 0;
+          const maxAttempts = 10;
+          
+          while (!authReady && attempts < maxAttempts) {
+            attempts++;
+            if (currentUser && currentUser.uid === result.user.uid) {
+              authReady = true;
+              console.log(`Signup page: Auth initialized successfully after ${attempts} attempts`);
+            } else {
+              console.log(`Signup page: Auth not ready yet (attempt ${attempts}/${maxAttempts}), waiting...`);
+              await new Promise(resolve => setTimeout(resolve, 300)); // Wait 300ms between checks
+            }
+          }
+          
+          if (!authReady) {
+            console.warn('Signup page: Auth initialization timed out, proceeding with profile creation anyway');
+          }
+          
           // Check if user document exists in Firestore
-          const userProfile = await getUserProfile();
+          const userProfile = await getUserProfile(result.user.uid);
           
           if (!userProfile) {
             console.log('Signup page: Creating default user profile...');
@@ -135,7 +160,7 @@ const SignupPage: React.FC = () => {
               hasChangedName: false,
               hasChangedInstitution: false,
               createdAt: new Date().toISOString()
-            });
+            }, result.user.uid);
             console.log('Signup page: Default profile created successfully');
             return true;
           }
@@ -144,12 +169,20 @@ const SignupPage: React.FC = () => {
           return true;
         } catch (error) {
           console.error('Signup page: Error creating default profile:', error);
+          // Don't throw here, just return false to indicate failure
           return false;
         }
       };
       
       // Wait for profile creation to complete before showing success message
-      const profileCreated = await createDefaultProfileIfNeeded();
+      let profileCreated = false;
+      try {
+        profileCreated = await createDefaultProfileIfNeeded();
+      } catch (profileError) {
+        console.error('Signup page: Error during profile creation:', profileError);
+        // Continue with the signup process even if profile creation fails
+        // The user can complete their profile later
+      }
       
       if (profileCreated) {
         setSuccessMessage('Account created successfully!');
@@ -158,6 +191,17 @@ const SignupPage: React.FC = () => {
           title: 'Account created.',
           description: "We've created your account. You can now complete your profile.",
           status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        // Show a different message if profile creation failed
+        setSuccessMessage('Account created, but profile setup is incomplete.');
+        
+        toast({
+          title: 'Account created with warnings.',
+          description: "Your account was created, but there was an issue setting up your profile. You can complete it later.",
+          status: 'warning',
           duration: 5000,
           isClosable: true,
         });

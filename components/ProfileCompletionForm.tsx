@@ -40,6 +40,10 @@ import { useRouter } from 'next/router';
 import ResearchInterestSelector from './ResearchInterestSelector';
 import useAppToast from '../hooks/useAppToast';
 import { UserProfile } from '../hooks/useProfileData';
+import { createLogger, LogCategory } from '../utils/logger';
+
+// Create a logger instance for profile completion form
+const logger = createLogger('profileCompletionForm');
 
 // Mock data for institutions and departments
 const MOCK_INSTITUTIONS = [
@@ -137,6 +141,15 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
       
+      logger.info('Initializing form with existing profile data', {
+        context: { 
+          userId: initialData.id,
+          isComplete: initialData.profileComplete,
+          hasName: !!initialData.name
+        },
+        category: LogCategory.UI
+      });
+      
       return {
         firstName,
         lastName,
@@ -152,6 +165,10 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
         wantsToBeEditor: false
       };
     }
+    
+    logger.info('Initializing empty profile form', {
+      category: LogCategory.UI
+    });
     
     // Default empty form
     return {
@@ -180,6 +197,12 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     // Handle checkbox inputs
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
+      
+      logger.debug('Checkbox field updated', {
+        context: { field: name, value: checked },
+        category: LogCategory.UI
+      });
+      
       setFormData(prev => ({
         ...prev,
         [name]: checked
@@ -190,6 +213,12 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
     // Handle nested properties (like socialMedia.twitter)
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
+      
+      logger.debug('Nested field updated', {
+        context: { parent, child, value },
+        category: LogCategory.UI
+      });
+      
       setFormData(prev => ({
         ...prev,
         [parent]: {
@@ -200,216 +229,252 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
       return;
     }
     
+    logger.debug('Form field updated', {
+      context: { field: name, valueLength: value.length },
+      category: LogCategory.UI
+    });
+    
     // Handle regular inputs
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    
-    // Clear error for this field if it exists
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
   };
 
-  // Handle checkbox changes
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, checked } = e.target;
+  // Handle research interests changes
+  const handleInterestsChange = (interests: string[]) => {
+    logger.debug('Research interests updated', {
+      context: { count: interests.length, interests },
+      category: LogCategory.UI
+    });
+    
     setFormData(prev => ({
       ...prev,
-      [name]: checked
+      researchInterests: interests
     }));
   };
 
-  // Validate email format
-  const isValidEmail = (email: string) => {
-    return /\S+@\S+\.\S+/.test(email);
-  };
+  // Validate form fields for the current step
+  const validateStep = (step: number): boolean => {
+    const newErrors: Record<string, string> = {};
+    let isValid = true;
+    
+    logger.info(`Validating step ${step + 1}`, {
+      category: LogCategory.UI
+    });
 
-  // Validate academic email
-  const isValidAcademicEmail = (email: string) => {
-    // Whitelist specific email for testing
-    const whitelistedEmails = ['dom123dxb@gmail.com'];
-    if (whitelistedEmails.includes(email.toLowerCase())) {
-      return true;
+    // Step 1: Basic Identity & Contact
+    if (step === 0) {
+      if (!formData.firstName.trim()) {
+        newErrors.firstName = 'First name is required';
+        isValid = false;
+      }
+      
+      if (!formData.lastName.trim()) {
+        newErrors.lastName = 'Last name is required';
+        isValid = false;
+      }
+      
+      if (!formData.email.trim()) {
+        newErrors.email = 'Email is required';
+        isValid = false;
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = 'Invalid email format';
+        isValid = false;
+      }
     }
     
-    // Allow .edu domains, .ac domains, and .ac.xx domains
-    return /\S+@\S+\.(edu|ac(\.\w{2})?)$/.test(email);
-  };
-
-  // Validate form data for a specific step
-  const validateStep = (step: number): Record<string, string> => {
-    const newErrors: Record<string, string> = {};
+    // Step 2: Institutional Affiliation
+    else if (step === 1) {
+      if (!formData.institution.trim()) {
+        newErrors.institution = 'Institution is required';
+        isValid = false;
+      }
+    }
     
-    if (step === 0) {
-      // Basic Identity & Contact validation
-      if (!isEditMode) {
-        // Only validate first name, last name, and email if not in edit mode
-        if (!formData.firstName.trim()) {
-          newErrors.firstName = 'First name is required';
-        }
-        
-        if (!formData.lastName.trim()) {
-          newErrors.lastName = 'Last name is required';
-        }
-        
-        if (!formData.email) {
-          newErrors.email = 'Email is required';
-        } else if (!isValidEmail(formData.email)) {
-          newErrors.email = 'Please enter a valid email address';
-        } else if (!isValidAcademicEmail(formData.email)) {
-          newErrors.email = 'Please use an academic email (.edu or .ac.xx domain)';
-        }
-      }
-    } else if (step === 1) {
-      // Institutional Affiliation validation
-      if (!isEditMode) {
-        // Only validate institution if not in edit mode
-        if (!formData.institution.trim()) {
-          newErrors.institution = 'Institution is required';
-        }
-      }
-      
-      // Always validate department and position
-      if (!formData.department.trim()) {
-        newErrors.department = 'Department is required';
-      }
-      
+    // Step 3: Academic & Professional Details
+    else if (step === 2) {
       if (!formData.position.trim()) {
         newErrors.position = 'Position is required';
-      }
-    } else if (step === 2) {
-      // Academic & Professional Details validation
-      if (formData.orcidId && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formData.orcidId)) {
-        newErrors.orcidId = 'Please enter a valid ORCID ID (format: 0000-0000-0000-0000)';
+        isValid = false;
       }
       
-      if (!formData.researchInterests || formData.researchInterests.length === 0) {
-        newErrors.researchInterests = 'Please select at least one research interest';
+      if (formData.researchInterests.length === 0) {
+        newErrors.researchInterests = 'At least one research interest is required';
+        isValid = false;
       }
     }
     
-    // Update errors state
-    setErrors(newErrors);
+    // Step 4: Platform Roles & Optional Details
+    else if (step === 3) {
+      if (formData.personalWebsite && !/^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/.test(formData.personalWebsite)) {
+        newErrors.personalWebsite = 'Invalid website URL';
+        isValid = false;
+      }
+      
+      if (formData.orcidId && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formData.orcidId)) {
+        newErrors.orcidId = 'Invalid ORCID ID format (e.g., 0000-0002-1825-0097)';
+        isValid = false;
+      }
+    }
     
-    return newErrors;
+    if (!isValid) {
+      logger.warn(`Validation failed for step ${step + 1}`, {
+        context: { errors: newErrors },
+        category: LogCategory.UI
+      });
+    } else {
+      logger.info(`Validation passed for step ${step + 1}`, {
+        category: LogCategory.UI
+      });
+    }
+    
+    setErrors(newErrors);
+    return isValid;
   };
 
-  // Move to next step
-  const handleNext = () => {
-    if (Object.keys(validateStep(currentStep)).length === 0) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      showToast({
-        id: 'validation-error',
-        title: "Validation Error",
-        description: "Please fix the errors before proceeding",
-        status: "error",
-        duration: 3000,
+  // Handle next step button click
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      logger.info(`Moving to step ${currentStep + 2}`, {
+        context: { 
+          fromStep: currentStep + 1, 
+          toStep: currentStep + 2,
+          totalSteps: steps.length
+        },
+        category: LogCategory.UI
       });
+      
+      setCurrentStep(prev => prev + 1);
     }
   };
 
-  // Move to previous step
+  // Handle previous step button click
   const handlePrevStep = () => {
-    setCurrentStep(currentStep - 1);
+    logger.info(`Moving to step ${currentStep}`, {
+      context: { 
+        fromStep: currentStep + 1, 
+        toStep: currentStep,
+        totalSteps: steps.length
+      },
+      category: LogCategory.UI
+    });
+    
+    setCurrentStep(prev => prev - 1);
   };
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Prevent duplicate submissions
-    if (isSubmitting) {
-      console.log('ProfileCompletionForm: Submission already in progress, skipping duplicate request');
+    // Validate the current step
+    if (!validateStep(currentStep)) {
+      logger.warn('Form submission blocked due to validation errors', {
+        context: { errors },
+        category: LogCategory.UI
+      });
       return;
     }
     
-    setIsSubmitting(true);
-    
-    try {
-      // Validate form
-      const validationErrors = validateStep(currentStep);
-      if (Object.keys(validationErrors).length > 0) {
-        setErrors(validationErrors);
-        setIsSubmitting(false);
+    // For the final step, validate all steps before submitting
+    if (currentStep === steps.length - 1) {
+      let allValid = true;
+      
+      for (let i = 0; i < steps.length; i++) {
+        if (!validateStep(i)) {
+          allValid = false;
+          setCurrentStep(i);
+          break;
+        }
+      }
+      
+      if (!allValid) {
+        logger.warn('Form submission blocked due to validation errors in previous steps', {
+          category: LogCategory.UI
+        });
         return;
       }
       
-      // Combine first and last name for the API
-      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
-      
-      // Prepare data for API - only include fields that exist in UserProfile
-      const profileData: Partial<UserProfile> = {
-        name: fullName,
-        email: formData.email,
-        institution: formData.institution,
-        department: formData.department,
-        position: formData.position,
-        researchInterests: formData.researchInterests,
-        role: formData.role,
-        // Mark profile as complete
-        profileComplete: true,
-        // Add timestamp
-        updatedAt: new Date().toISOString(),
-        // Additional fields can be added here if they're added to UserProfile type
-      };
-      
-      console.log('ProfileCompletionForm: Submitting profile data:', profileData);
-      
-      // Add a debounce delay to prevent rapid consecutive submissions
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Call the onSave function passed from parent
-      const success = await onSave(profileData);
-      
-      if (success) {
-        showToast({
-          id: isEditMode ? 'profile-updated' : 'profile-completed',
-          title: isEditMode ? 'Profile Updated' : 'Profile Completed',
-          description: isEditMode 
-            ? 'Your profile has been successfully updated.' 
-            : 'Your profile has been successfully set up.',
-          status: 'success',
-          duration: 5000,
+      try {
+        setIsSubmitting(true);
+        
+        // Prepare the profile data
+        const profileData: Partial<UserProfile> = {
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          email: formData.email,
+          institution: formData.institution,
+          department: formData.department,
+          position: formData.position,
+          researchInterests: formData.researchInterests,
+          role: formData.role,
+          profileComplete: true
+        };
+        
+        logger.info('Submitting profile data', {
+          context: { 
+            isEditMode,
+            fieldsUpdated: Object.keys(profileData).length
+          },
+          category: LogCategory.DATA
         });
         
-        // If not in edit mode, redirect to home page after a short delay
-        // This gives time for the toast to be seen and Firebase to update
-        if (!isEditMode) {
-          setTimeout(() => {
-            router.push('/');
-          }, 1000);
+        const startTime = performance.now();
+        const success = await onSave(profileData);
+        const duration = performance.now() - startTime;
+        
+        if (success) {
+          logger.info('Profile saved successfully', {
+            context: { 
+              duration: `${duration.toFixed(2)}ms`,
+              isEditMode
+            },
+            category: LogCategory.DATA
+          });
+          
+          showToast({
+            title: isEditMode ? 'Profile Updated' : 'Profile Completed',
+            description: isEditMode 
+              ? 'Your profile has been updated successfully.' 
+              : 'Your profile has been completed. You can now use all features of the platform.',
+            status: 'success',
+          });
+          
+          // If in edit mode, call onCancel to go back to profile view
+          if (isEditMode && onCancel) {
+            onCancel();
+          } else {
+            // Otherwise, redirect to dashboard
+            router.push('/dashboard');
+          }
+        } else {
+          logger.error('Failed to save profile', {
+            context: { duration: `${duration.toFixed(2)}ms` },
+            category: LogCategory.ERROR
+          });
+          
+          showToast({
+            title: 'Error',
+            description: 'Failed to save your profile. Please try again.',
+            status: 'error',
+          });
         }
-      } else {
-        showToast({
-          id: 'profile-submission-error',
-          title: 'Error',
-          description: 'Failed to save profile. Please try again.',
-          status: 'error',
-          duration: 3000,
+      } catch (error) {
+        logger.error('Error saving profile', {
+          context: { error },
+          category: LogCategory.ERROR
         });
-      }
-    } catch (error) {
-      console.error('[ERROR] Error in handleSubmit:', error);
-      showToast({
-        id: 'profile-submission-error',
-        title: 'Error',
-        description: 'Failed to save profile. Please try again.',
-        status: 'error',
-        duration: 3000,
-      });
-    } finally {
-      // Add a small delay before resetting the submitting state
-      // This prevents accidental double-clicks
-      setTimeout(() => {
+        
+        showToast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'An unexpected error occurred',
+          status: 'error',
+        });
+      } finally {
         setIsSubmitting(false);
-      }, 500);
+      }
+    } else {
+      // If not the final step, move to the next step
+      handleNextStep();
     }
   };
 
@@ -598,21 +663,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                 <FormLabel>Research Interests</FormLabel>
                 <ResearchInterestSelector 
                   selectedInterests={formData.researchInterests} 
-                  onChange={(interests) => {
-                    setFormData(prev => ({
-                      ...prev,
-                      researchInterests: interests
-                    }));
-                    
-                    // Clear error if it exists
-                    if (errors.researchInterests) {
-                      setErrors(prev => {
-                        const newErrors = { ...prev };
-                        delete newErrors.researchInterests;
-                        return newErrors;
-                      });
-                    }
-                  }}
+                  onChange={handleInterestsChange}
                   maxInterests={5}
                   isRequired={true}
                   error={errors.researchInterests}
@@ -670,7 +721,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
                   <Checkbox 
                     name="wantsToBeEditor" 
                     isChecked={formData.wantsToBeEditor} 
-                    onChange={handleCheckboxChange}
+                    onChange={handleChange}
                     isDisabled={isSubmitting || isDisabled}
                   >
                     I'm interested in becoming an editor
@@ -708,7 +759,7 @@ const ProfileCompletionForm: React.FC<ProfileCompletionFormProps> = ({
             {currentStep < steps.length - 1 ? (
               <Button 
                 rightIcon={<FiArrowRight />} 
-                onClick={handleNext}
+                onClick={handleNextStep}
                 colorScheme="blue"
                 isDisabled={isSubmitting || isDisabled}
               >

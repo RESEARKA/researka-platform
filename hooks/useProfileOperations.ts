@@ -1,6 +1,10 @@
 import { useCallback, useRef } from 'react';
 import { UserProfile, useProfileData, ProfileLoadingState, isInLoadingState as checkLoadingState } from './useProfileData';
 import useAppToast from './useAppToast';
+import { createLogger, LogCategory } from '../utils/logger';
+
+// Create a logger instance for profile operations
+const logger = createLogger('profileOperations');
 
 // Define additional loading states that might not be in the enum
 export type ExtendedProfileLoadingState = ProfileLoadingState | 'LOADING_ARTICLES' | 'LOADING_REVIEWS';
@@ -43,117 +47,148 @@ export function useProfileOperations() {
     const now = Date.now();
     const duration = operationStartTimeRef.current ? now - operationStartTimeRef.current : 0;
     
-    console.log(`[ProfileOperations] ${operation} ${duration ? `in ${duration}ms` : ''}`, {
-      loadingState,
-      ...details
+    logger.info(`${operation} ${duration ? `in ${duration}ms` : ''}`, {
+      context: {
+        loadingState,
+        duration,
+        ...details
+      },
+      category: LogCategory.LIFECYCLE
     });
     
     // Reset operation start time for completed operations
     if (operation.includes('completed') || operation.includes('failed')) {
       operationStartTimeRef.current = 0;
-    } 
-    // Set start time for new operations
-    else if (operationStartTimeRef.current === 0 && 
-             (operation.includes('starting') || operation.includes('initiating'))) {
-      operationStartTimeRef.current = now;
     }
   }, [loadingState]);
   
-  // Function to handle errors
-  const handleError = useCallback((error: unknown, title: string = 'Error') => {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    logOperation(`Error: ${errorMessage}`, { error });
-    
-    showToast({
-      id: 'profile-error',
-      title,
-      description: errorMessage,
-      status: 'error',
-      duration: 5000,
-      isClosable: true
-    });
-  }, [logOperation, showToast]);
-  
-  // Function to update profile
-  const updateProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
-    try {
-      operationStartTimeRef.current = Date.now();
-      logOperation('Starting profile update', { updatedProfile });
-      
-      const success = await updateProfileData(updatedProfile);
-      
-      if (success) {
-        logOperation('Profile update completed successfully');
-        return true;
-      } else {
-        logOperation('Profile update failed');
-        return false;
-      }
-    } catch (error) {
-      handleError(error, 'Error updating profile');
-      return false;
-    }
-  }, [updateProfileData, logOperation, handleError]);
-  
-  // Function to handle saving profile
-  const handleSaveProfile = useCallback(async (
-    updatedProfile: Partial<UserProfile>,
-    isUpdatingRef: React.MutableRefObject<boolean>,
-    timeoutRef: React.MutableRefObject<NodeJS.Timeout | null>,
-    onSuccess: () => void,
-    onError: () => void
-  ): Promise<boolean> => {
-    // Prevent duplicate save operations
-    if (isUpdatingRef.current || checkLoadingState([ProfileLoadingState.UPDATING], loadingState)) {
-      logOperation('Save operation ignored - already in progress', {
-        isUpdatingRef: isUpdatingRef.current,
+  // Handle errors with consistent logging and user feedback
+  const handleError = useCallback((error: unknown) => {
+    logger.error('Error', {
+      context: { 
+        error,
         loadingState
-      });
-      return false;
-    }
+      },
+      category: LogCategory.ERROR
+    });
     
-    // Set updating flag
-    isUpdatingRef.current = true;
+    // Show error toast
+    showToast({
+      title: 'Error',
+      description: error instanceof Error ? error.message : String(error),
+      status: 'error',
+    });
     
-    // Clear any existing timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    // Retry loading if appropriate
+    retryLoading();
     
+    return error;
+  }, [retryLoading, showToast]);
+  
+  // Update profile with timeout handling and error management
+  const updateProfile = useCallback(async (profileData: Partial<UserProfile>) => {
     try {
-      // Start operation timer
+      // Start timing the operation
       operationStartTimeRef.current = Date.now();
-      logOperation('Starting profile save operation', { updatedProfile });
+      logOperation('updateProfile started', { profileData });
       
-      // Update profile
-      const success = await updateProfileData(updatedProfile);
+      // Set up timeout warning
+      const timeoutWarning = setTimeout(() => {
+        logger.warn('Operation is taking longer than expected', {
+          context: {
+            operation: 'updateProfile',
+            elapsedTime: Date.now() - operationStartTimeRef.current,
+            profileData
+          },
+          category: LogCategory.PERFORMANCE
+        });
+      }, 5000); // 5 second timeout warning
       
-      if (success) {
-        logOperation('Profile save completed successfully');
-        onSuccess();
-        return true;
-      } else {
-        logOperation('Profile save failed');
-        onError();
-        return false;
-      }
+      // Perform the update
+      const result = await updateProfileData(profileData);
+      
+      // Clear timeout warning
+      clearTimeout(timeoutWarning);
+      
+      // Log success
+      logOperation('updateProfile completed', { 
+        result,
+        profileData
+      });
+      
+      // Show success toast
+      showToast({
+        title: 'Profile updated',
+        description: 'Your profile has been updated successfully.',
+        status: 'success',
+      });
+      
+      return result;
     } catch (error) {
-      logOperation('Profile save error', { error });
-      handleError(error, 'Error saving profile');
-      onError();
-      return false;
-    } finally {
-      // Set timeout to reset updating flag after a delay
-      // This prevents rapid consecutive save attempts
-      timeoutRef.current = setTimeout(() => {
-        isUpdatingRef.current = false;
-        timeoutRef.current = null;
-        logOperation('Reset updating flag');
-      }, 1000);
+      // Log error with detailed context
+      logger.error('Error updating profile', {
+        context: {
+          error,
+          profileData,
+          elapsedTime: Date.now() - operationStartTimeRef.current
+        },
+        category: LogCategory.ERROR
+      });
+      
+      // Show error toast
+      showToast({
+        title: 'Error updating profile',
+        description: error instanceof Error ? error.message : 'Failed to update profile',
+        status: 'error',
+      });
+      
+      throw error;
     }
-  }, [updateProfileData, logOperation, handleError, isLoadingData, loadingState]);
+  }, [updateProfileData, logOperation, showToast]);
+  
+  // Batch update multiple profile fields in a single operation
+  const batchUpdateProfile = useCallback(async (profileData: Partial<UserProfile>) => {
+    try {
+      // Start timing the operation
+      operationStartTimeRef.current = Date.now();
+      logOperation('batchUpdateProfile started', { 
+        fieldCount: Object.keys(profileData).length,
+        fields: Object.keys(profileData)
+      });
+      
+      // Perform the update
+      const result = await updateProfileData(profileData);
+      
+      // Log success with performance metrics
+      logOperation('batchUpdateProfile completed', { 
+        result,
+        fieldCount: Object.keys(profileData).length
+      });
+      
+      // Show success toast
+      showToast({
+        title: 'Profile updated',
+        description: 'Your profile has been updated successfully.',
+        status: 'success',
+      });
+      
+      return result;
+    } catch (error) {
+      // Log error with detailed context
+      logger.error('Error batch updating profile', {
+        context: {
+          error,
+          fieldCount: Object.keys(profileData).length,
+          fields: Object.keys(profileData)
+        },
+        category: LogCategory.ERROR
+      });
+      
+      // Show error toast and handle the error
+      handleError(error);
+      throw error;
+    }
+  }, [updateProfileData, logOperation, showToast, handleError]);
   
   // Function to handle retry loading
   const handleRetryLoading = useCallback(() => {
@@ -175,7 +210,7 @@ export function useProfileOperations() {
     loadingState,
     isInLoadingState,
     logOperation,
-    handleSaveProfile,
+    handleSaveProfile: batchUpdateProfile,
     handleRetryLoading,
     updateProfile,
     handleError,

@@ -43,10 +43,12 @@ const customJestConfig = {
   ],
   globals: {
     'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.json',
+      tsconfig: '<rootDir>/tsconfig.jest.json', // Use our Jest-specific TypeScript config
     },
   },
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  // Removed the testRunner setting that was causing errors
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
