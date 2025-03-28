@@ -55,6 +55,7 @@ export interface UserMenuProps {
 export interface AuthButtonsProps {
   isLoggedIn: boolean;
   onLoginClick: (redirectPath?: string) => void;
+  onSignupClick?: () => void;
   onLogout: () => Promise<void>;
 }
 
@@ -65,6 +66,7 @@ export interface NavBarProps {
   activePage?: string;
   isLoggedIn?: boolean;
   onLoginClick?: (redirectPath?: string) => void;
+  onSignupClick?: () => void;
 }
 
 /**

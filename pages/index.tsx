@@ -44,6 +44,11 @@ const LoginModal = dynamic(() => import('../components/LoginModal'), {
   loading: () => <div>Loading...</div>
 });
 
+const SignupModal = dynamic(() => import('../components/SignupModal'), {
+  ssr: false,
+  loading: () => <div>Loading...</div>
+});
+
 const NavBar = dynamic(() => import('../components/NavBar'), {
   ssr: true
 });
@@ -161,7 +166,7 @@ const ClientOnly = ({ children }: { children: React.ReactNode }) => {
 };
 
 const Home: React.FC = () => {
-  const { isOpen, onOpen, onClose, setRedirectPath } = useModal();
+  const { isOpen, onOpen, onClose, setRedirectPath, isSignupModalOpen, closeSignupModal, openSignupModal } = useModal();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isSearching, setIsSearching] = useState(false);
@@ -206,6 +211,7 @@ const Home: React.FC = () => {
     }
   }, []);
   
+  // Handle login click
   const handleLoginClick = useCallback((redirectPath?: string) => {
     if (redirectPath) {
       setRedirectPath(redirectPath);
@@ -214,6 +220,11 @@ const Home: React.FC = () => {
     }
     onOpen();
   }, [onOpen, setRedirectPath]);
+
+  // Handle signup click
+  const handleSignupClick = useCallback(() => {
+    openSignupModal();
+  }, [openSignupModal]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -266,6 +277,7 @@ const Home: React.FC = () => {
                 activePage="home"
                 isLoggedIn={false}
                 onLoginClick={handleLoginClick}
+                onSignupClick={handleSignupClick}
               />
             </Box>
           </Suspense>
@@ -277,6 +289,7 @@ const Home: React.FC = () => {
           activePage="home"
           isLoggedIn={false}
           onLoginClick={handleLoginClick}
+          onSignupClick={handleSignupClick}
         />
       </Suspense>
 
@@ -525,9 +538,21 @@ const Home: React.FC = () => {
         onError={handleError}
       />
 
+      {/* Login Modal */}
       {isOpen && (
         <Suspense fallback={<Box>Loading login modal...</Box>}>
-          <LoginModal isOpen={isOpen} onClose={onClose} />
+          <LoginModal isOpen={isOpen} onClose={onClose} redirectPath={redirectPath} />
+        </Suspense>
+      )}
+
+      {/* Signup Modal */}
+      {isSignupModalOpen && (
+        <Suspense fallback={<Box>Loading signup modal...</Box>}>
+          <SignupModal 
+            isOpen={isSignupModalOpen} 
+            onClose={closeSignupModal} 
+            redirectPath="/profile" 
+          />
         </Suspense>
       )}
     </>

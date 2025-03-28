@@ -25,6 +25,7 @@ interface NavBarProps {
   activePage?: string;
   isLoggedIn?: boolean;
   onLoginClick?: (redirectPath?: string) => void;
+  onSignupClick?: (redirectPath?: string) => void;
 }
 
 /**
@@ -49,7 +50,8 @@ interface UserProfileData {
 function NavBar({ 
   activePage = 'home',
   isLoggedIn: propIsLoggedIn = false,
-  onLoginClick = () => {}
+  onLoginClick = () => {},
+  onSignupClick = () => {}
 }: NavBarProps) {
   // Use Firebase authentication
   const { 
@@ -263,6 +265,7 @@ function NavBar({
             <AuthButtons 
               isLoggedIn={isLoggedIn} 
               onLoginClick={onLoginClick} 
+              onSignupClick={onSignupClick}
               onLogout={handleLogout} 
             />
           )}

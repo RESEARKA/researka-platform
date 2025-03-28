@@ -14,6 +14,7 @@ const logger = createLogger('AuthButtons');
 function AuthButtons({ 
   isLoggedIn, 
   onLoginClick, 
+  onSignupClick,
   onLogout 
 }: AuthButtonsProps) {
   if (isLoggedIn) {
@@ -60,7 +61,12 @@ function AuthButtons({
           logger.info('User clicked signup button', {
             category: LogCategory.UI
           });
-          onLoginClick('/signup');
+          // Use the dedicated signup handler if provided, otherwise fall back to the login handler with redirect
+          if (onSignupClick) {
+            onSignupClick();
+          } else {
+            onLoginClick('/signup');
+          }
         }}
       >
         Sign Up

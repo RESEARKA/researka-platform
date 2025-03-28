@@ -4,6 +4,9 @@ interface ModalContextType {
   isLoginModalOpen: boolean;
   openLoginModal: (redirectPath?: string) => void;
   closeLoginModal: () => void;
+  isSignupModalOpen: boolean;
+  openSignupModal: () => void;
+  closeSignupModal: () => void;
   redirectPath: string;
   isOpen: boolean;
   onOpen: () => void;
@@ -15,15 +18,32 @@ const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/');
 
   const openLoginModal = (redirectPath = '/') => {
     setRedirectPath(redirectPath);
     setIsLoginModalOpen(true);
+    // Close signup modal if it's open
+    if (isSignupModalOpen) {
+      setIsSignupModalOpen(false);
+    }
   };
 
   const closeLoginModal = () => {
     setIsLoginModalOpen(false);
+  };
+
+  const openSignupModal = () => {
+    setIsSignupModalOpen(true);
+    // Close login modal if it's open
+    if (isLoginModalOpen) {
+      setIsLoginModalOpen(false);
+    }
+  };
+
+  const closeSignupModal = () => {
+    setIsSignupModalOpen(false);
   };
 
   const onOpen = () => {
@@ -40,6 +60,9 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         isLoginModalOpen,
         openLoginModal,
         closeLoginModal,
+        isSignupModalOpen,
+        openSignupModal,
+        closeSignupModal,
         redirectPath,
         isOpen: isLoginModalOpen,
         onOpen,

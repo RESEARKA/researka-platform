@@ -20,12 +20,14 @@ interface MobileNavProps {
   activePage?: string;
   isLoggedIn?: boolean;
   onLoginClick?: (redirectPath?: string) => void;
+  onSignupClick?: () => void;
 }
 
 const MobileNav: React.FC<MobileNavProps> = ({
   activePage = 'home',
   isLoggedIn: propIsLoggedIn = false,
-  onLoginClick = () => {}
+  onLoginClick = () => {},
+  onSignupClick = () => {}
 }) => {
   const { isOpen: navIsOpen, onToggle: onNavToggle } = useDisclosure();
   const activePageLower = activePage.toLowerCase();
@@ -233,25 +235,44 @@ const MobileNav: React.FC<MobileNavProps> = ({
               </Box>
             </>
           ) : (
-            <Box 
-              py={3}
-              px={4}
-              as="button"
-              onClick={() => {
-                onLoginClick('/profile');
-              }}
-              width="100%"
-              textAlign="left"
-              _hover={{ bg: "gray.100" }}
-              borderRadius="md"
-              transition="all 0.2s"
-              fontWeight="medium"
-            >
-              <HStack spacing={2}>
-                <FiUser />
-                <Text>LOGIN</Text>
-              </HStack>
-            </Box>
+            <HStack spacing={2} width="100%" justifyContent="space-between">
+              <Box 
+                py={3}
+                px={4}
+                as="button"
+                onClick={() => {
+                  onLoginClick('/profile');
+                }}
+                width="49%"
+                textAlign="left"
+                _hover={{ bg: "gray.100" }}
+                borderRadius="md"
+                transition="all 0.2s"
+                fontWeight="medium"
+              >
+                <HStack spacing={2}>
+                  <FiUser />
+                  <Text>LOGIN</Text>
+                </HStack>
+              </Box>
+              <Box 
+                py={3}
+                px={4}
+                as="button"
+                onClick={onSignupClick}
+                width="49%"
+                textAlign="left"
+                _hover={{ bg: "gray.100" }}
+                borderRadius="md"
+                transition="all 0.2s"
+                fontWeight="medium"
+              >
+                <HStack spacing={2}>
+                  <FiUser />
+                  <Text>SIGN UP</Text>
+                </HStack>
+              </Box>
+            </HStack>
           )}
         </VStack>
       </Collapse>
