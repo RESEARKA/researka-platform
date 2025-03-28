@@ -1,12 +1,13 @@
-import React, { useEffect, useRef } from 'react';
-import { useToast } from '@chakra-ui/react';
+import React, { useEffect, useRef, useCallback } from 'react';
+import { useToast, Spinner, Center, VStack, Text, Alert, AlertIcon, AlertTitle, AlertDescription } from '@chakra-ui/react';
 import { useProfileData } from '../../hooks/useProfileData';
 import { useProfileState } from '../../hooks/useProfileState';
-import { useProfileOperations } from '../../hooks/useProfileOperations';
+import { useProfileOperations, ExtendedProfileLoadingState } from '../../hooks/useProfileOperations';
 import useFirebaseInitialized from '../../hooks/useFirebaseInitialized';
 import ProfileManager from './ProfileManager';
 import ClientOnlyProfileContent from './ClientOnlyProfileContent';
 import { createLogger, LogCategory } from '../../utils/logger';
+import { ProfileLoadingState } from './types';
 
 // Create a logger instance for this component
 const logger = createLogger('ClientOnlyProfile');
@@ -21,7 +22,7 @@ function ClientOnlyProfile() {
   const toast = useToast();
   
   // Use our dedicated hook to ensure Firebase is initialized
-  const isFirebaseReady = useFirebaseInitialized();
+  const { initialized: isFirebaseReady, error: firebaseError } = useFirebaseInitialized();
   
   // Track component mount state to prevent state updates after unmount
   const isMounted = useRef(true);
@@ -37,11 +38,17 @@ function ClientOnlyProfile() {
   // Get profile operations from hook with improved state management
   const {
     isLoading,
-    isInLoadingState,
+    isInLoadingState: checkLoadingStates,
     updateProfile,
     handleError,
     logOperation
   } = useProfileOperations();
+  
+  // Create an adapter function to match the expected signature for ProfileManager
+  const isInLoadingState = useCallback((state: ProfileLoadingState) => {
+    // Safe conversion by using string comparison instead of direct casting
+    return checkLoadingStates([state as unknown as ExtendedProfileLoadingState]);
+  }, [checkLoadingStates]);
   
   // Set up component lifecycle with proper cleanup
   useEffect(() => {
@@ -50,36 +57,58 @@ function ClientOnlyProfile() {
     // Log component mount
     logOperation('ClientOnlyProfile component mounted');
     
-    // Load profile data when Firebase is ready
-    if (isFirebaseReady) {
-      logOperation('Firebase is ready, loading profile data');
+    // Log Firebase initialization status
+    logger.info('Firebase initialization status', {
+      context: { 
+        isReady: isFirebaseReady,
+        hasError: !!firebaseError
+      },
+      category: LogCategory.SYSTEM
+    });
+    
+    // If Firebase is ready and we're mounted, load profile data
+    if (isFirebaseReady && isMounted.current) {
       refreshProfileData();
     }
     
+    // Clean up on unmount
     return () => {
       isMounted.current = false;
       logOperation('ClientOnlyProfile component unmounted');
     };
-  }, [isFirebaseReady, refreshProfileData, logOperation]);
+  }, [isFirebaseReady, firebaseError, refreshProfileData, logOperation]);
   
-  // Handle retry loading
-  const handleRetryLoading = () => {
-    logger.info('Retrying profile data loading', {
-      category: LogCategory.DATA
-    });
-    refreshProfileData();
-  };
-  
-  // Show error toast when profile error occurs
+  // Handle Firebase initialization error
   useEffect(() => {
-    if (profileError && isMounted.current) {
-      logger.error('Profile error detected', {
-        error: profileError,
-        category: LogCategory.DATA
+    if (firebaseError && isMounted.current) {
+      logger.error('Firebase initialization error in profile component', {
+        context: { 
+          errorMessage: firebaseError.message 
+        },
+        category: LogCategory.ERROR
       });
       
       toast({
-        title: 'Error loading profile',
+        title: 'Firebase Error',
+        description: 'There was an error initializing Firebase. Some features may not work properly.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [firebaseError, toast]);
+  
+  // Handle retry loading
+  const handleRetryLoading = () => {
+    logOperation('Manually retrying profile data load');
+    refreshProfileData();
+  };
+  
+  // Handle profile errors
+  useEffect(() => {
+    if (profileError && isMounted.current) {
+      toast({
+        title: 'Error Loading Profile',
         description: profileError,
         status: 'error',
         duration: 5000,
@@ -88,10 +117,39 @@ function ClientOnlyProfile() {
     }
   }, [profileError, toast]);
   
+  // If Firebase is not initialized, show loading state
+  if (!isFirebaseReady) {
+    return (
+      <Center py={10}>
+        <VStack spacing={4}>
+          <Spinner size="xl" />
+          <Text>Initializing Firebase...</Text>
+        </VStack>
+      </Center>
+    );
+  }
+  
+  // If Firebase had an error, show error state but still try to render
+  if (firebaseError) {
+    return (
+      <Alert status="error" variant="subtle" flexDirection="column" alignItems="center" justifyContent="center" textAlign="center" py={6}>
+        <AlertIcon boxSize="40px" mr={0} />
+        <AlertTitle mt={4} mb={1} fontSize="lg">
+          Firebase Initialization Error
+        </AlertTitle>
+        <AlertDescription maxWidth="sm" mb={4}>
+          {firebaseError.message || "Failed to initialize Firebase. Some features may not work properly."}
+        </AlertDescription>
+        <Text mt={2}>Attempting to load profile anyway...</Text>
+      </Alert>
+    );
+  }
+  
+  // Render the profile content with proper loading states
   return (
     <ProfileManager
       profile={profile}
-      isLoading={isLoading}
+      isLoading={isProfileLoading || isLoading}
       isInLoadingState={isInLoadingState}
       updateProfile={updateProfile}
       handleError={handleError}
@@ -99,11 +157,11 @@ function ClientOnlyProfile() {
     >
       <ClientOnlyProfileContent
         profile={profile}
-        isLoading={isProfileLoading}
+        isLoading={isProfileLoading || isLoading}
         error={profileError}
         isInLoadingState={isInLoadingState}
         onRetryLoading={handleRetryLoading}
-        onSaveProfile={async () => false} // This will be overridden by ProfileManager
+        onSaveProfile={updateProfile}
       />
     </ProfileManager>
   );

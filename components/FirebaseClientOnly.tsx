@@ -1,8 +1,12 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useState, useEffect } from 'react';
 import { useFirebaseInitialization, FirebaseStatus } from '../hooks/useFirebaseInitialization';
 import { Box, Spinner, Text, VStack, Center, Alert, AlertIcon, AlertTitle, AlertDescription, Button } from '@chakra-ui/react';
 import { FiRefreshCw } from 'react-icons/fi';
 import useFirebaseInitialized from '../hooks/useFirebaseInitialized';
+import { createLogger, LogCategory } from '../utils/logger';
+
+// Create a logger instance for this component
+const logger = createLogger('FirebaseClientOnly');
 
 interface FirebaseClientOnlyProps {
   children: ReactNode;
@@ -23,16 +27,30 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
   loadingFallback = null,
   errorFallback = null
 }) => {
-  // Use the Firebase initialization hook
-  const { status, error, retry } = useFirebaseInitialization();
+  // Track if we're on the client side to prevent hydration errors
+  const [isClient, setIsClient] = useState(false);
   
-  // Also use our new dedicated hook to ensure Firebase is initialized
-  const isFirebaseReady = useFirebaseInitialized();
+  // Use the Firebase initialization hook only on the client side
+  const { status, error: legacyError, retry } = useFirebaseInitialization();
   
-  // Log Firebase initialization status for debugging
-  React.useEffect(() => {
-    console.log(`FirebaseClientOnly: Firebase initialization status - ${status}, ready: ${isFirebaseReady}`);
-  }, [status, isFirebaseReady]);
+  // Also use our enhanced dedicated hook to ensure Firebase is initialized
+  const { initialized, error, isTimedOut } = useFirebaseInitialized();
+  
+  // Set isClient to true once the component is mounted
+  useEffect(() => {
+    setIsClient(true);
+    
+    // Log Firebase initialization status for debugging
+    logger.debug('Firebase initialization status', {
+      context: {
+        status,
+        initialized,
+        hasError: !!error,
+        isTimedOut
+      },
+      category: LogCategory.SYSTEM
+    });
+  }, [status, initialized, error, isTimedOut]);
   
   // Default loading fallback if none provided
   const defaultLoadingFallback = (
@@ -40,6 +58,13 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
       <VStack spacing={4}>
         <Spinner size="xl" />
         <Text>Initializing Firebase...</Text>
+        {isTimedOut && (
+          <Alert status="warning" variant="subtle">
+            <AlertIcon />
+            <AlertTitle>Initialization is taking longer than expected</AlertTitle>
+            <AlertDescription>Please wait a moment...</AlertDescription>
+          </Alert>
+        )}
       </VStack>
     </Center>
   );
@@ -53,52 +78,52 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
       alignItems="center"
       justifyContent="center"
       textAlign="center"
-      height="200px"
-      borderRadius="lg"
-      my={6}
+      py={6}
     >
       <AlertIcon boxSize="40px" mr={0} />
       <AlertTitle mt={4} mb={1} fontSize="lg">
         Firebase Initialization Error
       </AlertTitle>
-      <AlertDescription maxWidth="sm">
-        {error?.message || 'Failed to initialize Firebase'}
+      <AlertDescription maxWidth="sm" mb={4}>
+        {error?.message || "Failed to initialize Firebase. Please try again."}
       </AlertDescription>
       <Button
-        mt={4}
         leftIcon={<FiRefreshCw />}
-        colorScheme="red"
         onClick={retry}
+        colorScheme="red"
+        variant="outline"
       >
         Retry
       </Button>
     </Alert>
   );
   
-  // Handle different Firebase initialization states
-  // Now we also check isFirebaseReady from our dedicated hook for extra safety
-  if (!isFirebaseReady && status !== FirebaseStatus.INITIALIZED) {
-    switch (status) {
-      case FirebaseStatus.INITIALIZING:
-        // During initialization, show loading fallback
-        return <>{loadingFallback || defaultLoadingFallback}</>;
-        
-      case FirebaseStatus.ERROR:
-      case FirebaseStatus.TIMEOUT:
-        // On error or timeout, show error fallback
-        return <>{errorFallback || defaultErrorFallback}</>;
-        
-      case FirebaseStatus.UNAVAILABLE:
-        // When Firebase is unavailable (e.g., during SSR), show the fallback
-        return <>{fallback}</>;
-        
-      default:
-        // Default case, show fallback
-        return <>{fallback}</>;
-    }
+  // If we're not on the client yet, render the fallback to avoid hydration errors
+  if (!isClient) {
+    return <>{fallback}</>;
   }
   
-  // When Firebase is successfully initialized, render children
+  // Handle loading state
+  if (!initialized && !error) {
+    logger.debug('Rendering loading fallback', {
+      category: LogCategory.UI
+    });
+    return <>{loadingFallback || defaultLoadingFallback}</>;
+  }
+  
+  // Handle error state
+  if (error) {
+    logger.error('Firebase initialization error', {
+      context: { error: error.message },
+      category: LogCategory.ERROR
+    });
+    return <>{errorFallback || defaultErrorFallback}</>;
+  }
+  
+  // Firebase is initialized, render children
+  logger.debug('Firebase initialized, rendering children', {
+    category: LogCategory.UI
+  });
   return <>{children}</>;
 };
 
