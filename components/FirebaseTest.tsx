@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { collection, getDocs, addDoc, doc, setDoc, Firestore } from 'firebase/firestore';
-import { Box, Button, Text, VStack, Code, Alert, AlertIcon } from '@chakra-ui/react';
+import { Box, Button, Text, VStack, Code, Alert, AlertIcon, Skeleton } from '@chakra-ui/react';
+import useClient from '../hooks/useClient';
+import ClientLoadingSkeleton from './ui/ClientLoadingSkeleton';
 
 export default function FirebaseTest() {
+  const isClient = useClient();
   const [testResults, setTestResults] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +75,10 @@ export default function FirebaseTest() {
       setError(e.message);
     }
   };
+
+  if (!isClient) {
+    return <ClientLoadingSkeleton />;
+  }
 
   return (
     <Box p={4} borderWidth="1px" borderRadius="lg" maxW="600px" mx="auto" my={4}>

@@ -21,12 +21,14 @@ import {
   FormErrorMessage,
   Alert,
   AlertIcon,
-  Link
+  Link,
+  Skeleton
 } from '@chakra-ui/react';
 import { FaEthereum } from 'react-icons/fa';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { useAuth } from '../contexts/AuthContext';
+import useClient from '../hooks/useClient';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -35,6 +37,7 @@ interface LoginModalProps {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/profile' }) => {
+  const isClient = useClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,8 +49,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
   
   // Debug: Log the redirectPath value when component mounts or redirectPath changes
   React.useEffect(() => {
-    console.log('LoginModal received redirectPath:', redirectPath);
-  }, [redirectPath]);
+    if (isClient) {
+      console.log('LoginModal received redirectPath:', redirectPath);
+    }
+  }, [redirectPath, isClient]);
 
   const handleWalletLogin = async () => {
     setIsLoading(true);
@@ -83,7 +88,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       onClose();
       
       // Use Next.js router for redirection
-      console.log('Redirecting to:', redirectPath);
+      if (isClient) {
+        console.log('Redirecting to:', redirectPath);
+      }
       router.push(redirectPath);
     } catch (err) {
       console.error('Wallet login error:', err);
@@ -120,7 +127,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       onClose();
       
       // Use Next.js router for redirection
-      console.log('Redirecting to:', redirectPath);
+      if (isClient) {
+        console.log('Redirecting to:', redirectPath);
+      }
       router.push(redirectPath);
     } catch (err: any) {
       console.error('Email login error:', err);

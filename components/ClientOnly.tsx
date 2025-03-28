@@ -1,9 +1,13 @@
 import React, { ReactNode } from 'react';
 import useClient from '../hooks/useClient';
+import ClientLoadingSkeleton from './ui/ClientLoadingSkeleton';
 
 interface ClientOnlyProps {
   children: ReactNode;
   fallback?: ReactNode;
+  showSkeleton?: boolean;
+  skeletonHeight?: string | number;
+  skeletonCount?: number;
 }
 
 /**
@@ -15,7 +19,10 @@ interface ClientOnlyProps {
  */
 const ClientOnly: React.FC<ClientOnlyProps> = ({ 
   children, 
-  fallback = null 
+  fallback = null,
+  showSkeleton = false,
+  skeletonHeight = '20px',
+  skeletonCount = 3
 }) => {
   // Use our dedicated hook to check if we're on the client
   const isClient = useClient();
@@ -23,6 +30,10 @@ const ClientOnly: React.FC<ClientOnlyProps> = ({
   // During SSR and initial client render before hydration, render the fallback
   // This ensures the HTML structure matches between server and client
   if (!isClient) {
+    // If showSkeleton is true, use the skeleton component as fallback
+    if (showSkeleton) {
+      return <ClientLoadingSkeleton height={skeletonHeight} count={skeletonCount} />;
+    }
     return <>{fallback}</>;
   }
   
