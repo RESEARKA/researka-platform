@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "type-check": "tsc --noEmit",
     "compile": "hardhat compile",
     "test:contracts": "hardhat test",
     "test:jest": "jest",
