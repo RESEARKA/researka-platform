@@ -11,7 +11,7 @@ import {
   Divider,
   Link as ChakraLink
 } from '@chakra-ui/react';
-import { FiChevronDown, FiUser, FiSettings, FiLogOut, FiShield } from 'react-icons/fi';
+import { FiChevronDown, FiUser, FiLogOut, FiShield } from 'react-icons/fi';
 import Link from 'next/link';
 import { UserMenuProps } from './types';
 import { createLogger, LogCategory } from '../../utils/logger';
@@ -38,8 +38,7 @@ function UserMenu({
       await onLogout();
     } catch (error) {
       logger.error('Error during logout', {
-        error,
-        context: { userId: userProfile?.id },
+        context: { userId: userProfile?.id, error: String(error) },
         category: LogCategory.AUTH
       });
     }
@@ -69,12 +68,6 @@ function UserMenu({
         <Link href="/profile" passHref legacyBehavior>
           <MenuItem as={ChakraLink} icon={<FiUser />} _hover={{ textDecoration: 'none' }}>
             Profile
-          </MenuItem>
-        </Link>
-        
-        <Link href="/settings" passHref legacyBehavior>
-          <MenuItem as={ChakraLink} icon={<FiSettings />} _hover={{ textDecoration: 'none' }}>
-            Settings
           </MenuItem>
         </Link>
         
