@@ -208,14 +208,15 @@ export const getUserReviews = async (userId: string): Promise<Review[]> => {
     const reviewsRef = collection(db, reviewsCollection);
     const reviews: Review[] = [];
     
+    // Try multiple query approaches to ensure we find all reviews
+    // First approach: Direct query with reviewerId
     try {
       console.log(`ReviewService: Querying reviews with reviewerId == ${userId}`);
       
       // First try with ordering (which requires an index)
       const q = query(
         reviewsRef,
-        where('reviewerId', '==', userId),
-        orderBy('createdAt', 'desc')
+        where('reviewerId', '==', userId)
       );
       
       const querySnapshot = await getDocs(q);
@@ -224,74 +225,65 @@ export const getUserReviews = async (userId: string): Promise<Review[]> => {
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         console.log(`ReviewService: Found review ${doc.id}:`, data);
+        
+        // Validate required fields and provide defaults for missing data
+        if (!data.articleTitle) {
+          console.warn(`ReviewService: Review ${doc.id} missing articleTitle, adding default`);
+        }
+        
         reviews.push({
           id: doc.id,
           ...data,
-          createdAt: data.createdAt,
-          date: data.date || data.createdAt?.toDate().toISOString().split('T')[0]
+          articleTitle: data.articleTitle || 'Untitled Article',
+          content: data.content || '',
+          reviewerId: userId, // Ensure consistent reviewerId
+          createdAt: data.createdAt || Timestamp.now(),
+          date: data.date || data.createdAt?.toDate().toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+          score: typeof data.score === 'number' ? data.score : 0,
+          recommendation: data.recommendation || 'accept'
         } as Review);
       });
       
-      console.log(`ReviewService: Found ${reviews.length} reviews with ordered query for user ${userId}`);
+      console.log(`ReviewService: Found ${reviews.length} reviews with query for user ${userId}`);
     } catch (error) {
-      console.warn('ReviewService: Error with ordered query, falling back to simple query:', error);
-      
-      // If the ordered query fails (e.g., missing index), try without ordering
-      const simpleQuery = query(
-        reviewsRef,
-        where('reviewerId', '==', userId)
-      );
-      
-      const simpleQuerySnapshot = await getDocs(simpleQuery);
-      console.log(`ReviewService: Simple query returned ${simpleQuerySnapshot.size} documents`);
-      
-      simpleQuerySnapshot.forEach((doc) => {
-        const data = doc.data();
-        console.log(`ReviewService: Found review ${doc.id} with simple query:`, data);
-        reviews.push({
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt,
-          date: data.date || data.createdAt?.toDate().toISOString().split('T')[0]
-        } as Review);
-      });
-      
-      console.log(`ReviewService: Found ${reviews.length} reviews with simple query for user ${userId}`);
+      console.error('ReviewService: Error with primary query:', error);
     }
     
-    // If still no reviews found, try a different approach - check if reviewerId field might be stored differently
+    // If no reviews found, try a different approach - check if reviewerId field might be stored differently
     if (reviews.length === 0) {
-      console.log(`ReviewService: No reviews found with standard queries, trying alternative approach`);
+      console.log(`ReviewService: No reviews found with standard query, trying alternative approach`);
       
-      // Get all reviews and filter client-side
-      const allReviewsQuery = query(reviewsRef);
-      const allReviewsSnapshot = await getDocs(allReviewsQuery);
-      console.log(`ReviewService: All reviews query returned ${allReviewsSnapshot.size} documents`);
-      
-      allReviewsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        console.log(`ReviewService: Checking review ${doc.id} for match with userId ${userId}`, {
-          reviewerId: data.reviewerId,
-          reviewer_id: data.reviewer_id,
-          authorId: data.authorId
-        });
+      // Get all reviews and filter client-side (less efficient but more thorough)
+      try {
+        const allReviewsQuery = query(reviewsRef);
+        const allReviewsSnapshot = await getDocs(allReviewsQuery);
+        console.log(`ReviewService: All reviews query returned ${allReviewsSnapshot.size} documents`);
         
-        // Check for reviewerId in different formats or fields
-        if (data.reviewerId === userId || 
-            data.reviewer_id === userId || 
-            data.authorId === userId) {
-          console.log(`ReviewService: Found review ${doc.id} with alternative field matching:`, data);
-          reviews.push({
-            id: doc.id,
-            ...data,
-            reviewerId: userId, // Ensure consistent field
-            createdAt: data.createdAt,
-            date: data.date || data.createdAt?.toDate().toISOString().split('T')[0]
-          } as Review);
-        }
-      });
-      
-      console.log(`ReviewService: Found ${reviews.length} reviews after alternative search for user ${userId}`);
+        allReviewsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          
+          // Check for reviewerId in different formats or fields
+          if (data.reviewerId === userId || 
+              data.reviewer_id === userId || 
+              data.authorId === userId) {
+            console.log(`ReviewService: Found review ${doc.id} with alternative field matching:`, data);
+            
+            reviews.push({
+              id: doc.id,
+              ...data,
+              articleTitle: data.articleTitle || 'Untitled Article',
+              content: data.content || '',
+              reviewerId: userId, // Ensure consistent reviewerId
+              createdAt: data.createdAt || Timestamp.now(),
+              date: data.date || data.createdAt?.toDate().toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+              score: typeof data.score === 'number' ? data.score : 0,
+              recommendation: data.recommendation || 'accept'
+            } as Review);
+          }
+        });
+      } catch (error) {
+        console.error('ReviewService: Error with alternative query:', error);
+      }
     }
     
     // Additional check: Log all reviews to help debug
@@ -301,14 +293,16 @@ export const getUserReviews = async (userId: string): Promise<Review[]> => {
         id: review.id,
         articleTitle: review.articleTitle,
         reviewerId: review.reviewerId,
-        date: review.date
+        date: review.date,
+        title: review.articleTitle || '[No Title]'
       });
     });
     
     return reviews;
   } catch (error) {
     console.error('ReviewService: Error getting reviews for user:', error);
-    throw new Error('Failed to get reviews for user');
+    // Return empty array instead of throwing to prevent breaking the UI
+    return [];
   }
 };
 

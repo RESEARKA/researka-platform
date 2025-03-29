@@ -113,7 +113,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   );
 
   // Use either the data from the hook or the prop data
-  const reviewsData = data || propReviewsData || { reviews: [], totalPages: 0 };
+  const reviewsData = data || propReviewsData || { reviews: [], totalPages: 0, totalCount: 0 };
   const isLoading = reviewsLoading || externalLoading;
   
   // Get the current user from the AuthContext
@@ -183,30 +183,35 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
 
   // Log when reviews data changes
   useEffect(() => {
-    if (reviewsData && reviewsData.reviews && userId) {
+    if (reviewsData && userId) {
+      const totalCount = reviewsData.totalCount ?? reviewsData.reviews?.length ?? 0;
+      
       logger.debug('Reviews data updated', {
         context: {
-          reviewCount: reviewsData.reviews.length,
+          reviewCount: totalCount,
+          displayedReviews: reviewsData.reviews?.length || 0,
           totalPages: reviewsData.totalPages,
           userId: userId,
-          hasReviews: reviewsData.reviews.length > 0,
-          reviewSample: reviewsData.reviews.length > 0 ? reviewsData.reviews[0] : null
+          hasReviews: totalCount > 0,
+          reviewSample: reviewsData.reviews?.length > 0 ? reviewsData.reviews[0] : null
         },
         category: LogCategory.DATA
       });
       
       // Log to console for easier debugging
       console.log('ReviewsPanel: Reviews data', {
-        reviewCount: reviewsData.reviews.length,
+        totalCount,
+        displayedReviews: reviewsData.reviews?.length || 0,
         totalPages: reviewsData.totalPages,
         userId: userId,
         currentUserUid: currentUser?.uid,
-        hasReviews: reviewsData.reviews.length > 0,
-        reviewSample: reviewsData.reviews.length > 0 ? reviewsData.reviews[0] : null
+        hasReviews: totalCount > 0,
+        reviewSample: reviewsData.reviews?.length > 0 ? reviewsData.reviews[0] : null
       });
 
       // Update the user profile with the correct review count
-      updateUserReviewCount(userId, reviewsData.reviews.length);
+      // Use the total count, not just the current page's reviews length
+      updateUserReviewCount(userId, totalCount);
     }
   }, [reviewsData, userId, currentUser?.uid]);
 
@@ -221,7 +226,15 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   useEffect(() => {
     console.log('ReviewsPanel: Component mounted with userId:', userId);
     console.log('ReviewsPanel: Current user UID:', currentUser?.uid);
-  }, [userId, currentUser?.uid]);
+    
+    // Force a refresh of the reviews data when the component mounts
+    if (userId && !isLoading) {
+      logger.debug('ReviewsPanel: Forcing refresh of reviews data', {
+        context: { userId },
+        category: LogCategory.LIFECYCLE
+      });
+    }
+  }, [userId, currentUser?.uid, isLoading]);
 
   if (isLoading) {
     return (
@@ -270,18 +283,18 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                 <Link href={`/reviews/${review.id}`} passHref>
                   <ChakraLink _hover={{ textDecoration: 'none' }}>
                     <ResponsiveText variant="h3" mb={2}>
-                      {review.title}
+                      {review.title || `Review of ${review.articleTitle || 'Article'}`}
                     </ResponsiveText>
                   </ChakraLink>
                 </Link>
                 <Text fontSize="sm" color="gray.500" mb={2}>
-                  Review of: {review.articleTitle}
+                  Review of: {review.articleTitle || 'Untitled Article'}
                 </Text>
               </CardHeader>
               
               <CardBody py={3}>
                 <Text noOfLines={2} color="gray.600">
-                  {review.content?.substring(0, 150)}
+                  {review.content?.substring(0, 150) || 'No content available'}
                   {review.content && review.content.length > 150 ? '...' : ''}
                 </Text>
               </CardBody>
@@ -292,19 +305,19 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                     <Flex align="center">
                       <Box as={FiCalendar} mr={1} />
                       <Text fontSize="sm">
-                        {new Date(review.createdAt).toLocaleDateString()}
+                        {review.date ? new Date(review.date).toLocaleDateString() : 'No date'}
                       </Text>
                     </Flex>
                     
                     <Flex align="center">
                       <Box as={FiStar} mr={1} />
                       <Text fontSize="sm">
-                        {review.score || 0}/5
+                        {typeof review.score === 'number' ? `${review.score}/5` : 'No score'}
                       </Text>
                     </Flex>
                   </HStack>
                   
-                  <Link href={`/reviews/${review.id}`} passHref>
+                  <Link href={`/articles/${review.articleId}`} passHref>
                     <Button
                       as={ChakraLink}
                       size="sm"

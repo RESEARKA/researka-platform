@@ -31,6 +31,7 @@ export interface Review {
 export interface ReviewsResponse {
   reviews: Review[];
   totalPages: number;
+  totalCount?: number; // Total number of reviews (across all pages)
   lastVisible: QueryDocumentSnapshot<DocumentData> | null;
   hasMore: boolean;
 }
@@ -59,6 +60,7 @@ const fetchReviews = async (
     return {
       reviews: [],
       totalPages: 0,
+      totalCount: 0,
       lastVisible: null,
       hasMore: false
     };
@@ -163,6 +165,7 @@ const fetchReviews = async (
     return {
       reviews: paginatedReviews,
       totalPages,
+      totalCount: totalItems,
       lastVisible: null, // Not needed with client-side pagination
       hasMore: page < totalPages
     };
