@@ -7,6 +7,7 @@ import {
   FormControl,
   FormLabel,
   FormErrorMessage,
+  FormHelperText,
   Heading,
   Input,
   Stack,
@@ -27,6 +28,17 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  Divider,
+  Image,
+  Tag,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Checkbox,
+  UnorderedList,
+  ListItem,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
 import { FiArrowLeft } from 'react-icons/fi';
