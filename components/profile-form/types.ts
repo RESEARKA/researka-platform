@@ -1,4 +1,5 @@
 import { UserProfile } from '../../hooks/useProfileData';
+import { verifyEmailDomain } from '../../utils/universityDomains';
 
 /**
  * Profile form data structure with strongly typed fields
@@ -55,41 +56,48 @@ export type FormSectionValidator = (data: ProfileFormData) => ValidationResult;
 
 /**
  * Convert profile form data to user profile data
+ * @param formData Form data to convert
+ * @param isEditMode Whether the form is in edit mode
+ * @returns Partial user profile data
  */
 export function formDataToUserProfile(formData: ProfileFormData, isEditMode = false): Partial<UserProfile> {
-  // In edit mode, only include the fields that should be editable
-  if (isEditMode) {
-    return {
-      // Only include editable fields
-      position: formData.position,
-      researchInterests: formData.researchInterests,
-      role: formData.role,
-      // Only include optional fields if they have values
-      ...(formData.personalWebsite ? { personalWebsite: formData.personalWebsite } : {}),
-      ...(formData.orcidId ? { orcidId: formData.orcidId } : {}),
-      ...(formData.twitter ? { twitter: formData.twitter } : {}),
-      ...(formData.linkedin ? { linkedin: formData.linkedin } : {}),
-      wantsToBeEditor: formData.wantsToBeEditor || false
-    };
-  }
-  
-  // For initial profile creation, include all fields
-  return {
-    name: `${formData.firstName} ${formData.lastName}`.trim(),
-    email: formData.email,
-    institution: formData.institution,
-    department: formData.department,
-    position: formData.position,
-    researchInterests: formData.researchInterests,
-    role: formData.role,
-    profileComplete: true,
-    // Only include optional fields if they have values
-    ...(formData.personalWebsite ? { personalWebsite: formData.personalWebsite } : {}),
-    ...(formData.orcidId ? { orcidId: formData.orcidId } : {}),
-    ...(formData.twitter ? { twitter: formData.twitter } : {}),
-    ...(formData.linkedin ? { linkedin: formData.linkedin } : {}),
+  // Create a base profile object
+  const profile: Partial<UserProfile> = {
+    researchInterests: formData.researchInterests || [],
+    role: formData.role || '',
     wantsToBeEditor: formData.wantsToBeEditor || false
   };
+
+  // Only include these fields if not in edit mode
+  // This prevents these fields from being updated when editing a profile
+  if (!isEditMode) {
+    profile.name = `${formData.firstName} ${formData.lastName}`.trim();
+    profile.email = formData.email;
+    profile.institution = formData.institution;
+    profile.department = formData.department;
+    profile.profileComplete = true;
+  }
+
+  // Always include optional fields
+  if (formData.twitter) profile.twitter = formData.twitter;
+  if (formData.linkedin) profile.linkedin = formData.linkedin;
+  if (formData.personalWebsite) profile.personalWebsite = formData.personalWebsite;
+  if (formData.orcidId) profile.orcidId = formData.orcidId;
+
+  // Include position only if it's provided and not in edit mode
+  if (formData.position && !isEditMode) {
+    profile.position = formData.position;
+  }
+
+  // Verify email domain for prestigious universities
+  if (!isEditMode && formData.institution && formData.email) {
+    const isDomainValid = verifyEmailDomain(formData.email, formData.institution);
+    if (!isDomainValid) {
+      throw new Error(`Email domain doesn't match the expected domain for ${formData.institution}`);
+    }
+  }
+
+  return profile;
 }
 
 /**
