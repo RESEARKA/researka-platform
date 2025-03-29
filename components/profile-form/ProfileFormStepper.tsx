@@ -232,7 +232,8 @@ function ProfileFormStepper({
       });
       
       // Convert form data to user profile format
-      const profileData = formDataToUserProfile(formData);
+      // Pass isEditMode to ensure restricted fields are excluded when in edit mode
+      const profileData = formDataToUserProfile(formData, isEditMode);
       
       // Call the onSave handler
       const success = await onSave(profileData);

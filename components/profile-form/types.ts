@@ -56,7 +56,24 @@ export type FormSectionValidator = (data: ProfileFormData) => ValidationResult;
 /**
  * Convert profile form data to user profile data
  */
-export function formDataToUserProfile(formData: ProfileFormData): Partial<UserProfile> {
+export function formDataToUserProfile(formData: ProfileFormData, isEditMode = false): Partial<UserProfile> {
+  // In edit mode, only include the fields that should be editable
+  if (isEditMode) {
+    return {
+      // Only include editable fields
+      position: formData.position,
+      researchInterests: formData.researchInterests,
+      role: formData.role,
+      // Only include optional fields if they have values
+      ...(formData.personalWebsite ? { personalWebsite: formData.personalWebsite } : {}),
+      ...(formData.orcidId ? { orcidId: formData.orcidId } : {}),
+      ...(formData.twitter ? { twitter: formData.twitter } : {}),
+      ...(formData.linkedin ? { linkedin: formData.linkedin } : {}),
+      wantsToBeEditor: formData.wantsToBeEditor || false
+    };
+  }
+  
+  // For initial profile creation, include all fields
   return {
     name: `${formData.firstName} ${formData.lastName}`.trim(),
     email: formData.email,
