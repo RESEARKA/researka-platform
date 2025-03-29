@@ -63,8 +63,9 @@ function BasicIdentitySection({
     onChange(name, value);
   };
 
-  // In edit mode, these fields should be non-editable
-  const isFieldDisabled = isDisabled || isLoading || isEditMode;
+  // Fields should be disabled if component is disabled, loading, or if in edit mode
+  const isNameDisabled = isDisabled || isLoading || (isEditMode && true);
+  const isEmailDisabled = isDisabled || isLoading || (isEditMode && true);
   
   return (
     <VStack spacing={6} align="stretch" width="100%">
@@ -72,7 +73,7 @@ function BasicIdentitySection({
       <Text>Please provide your basic identity information</Text>
       <Divider />
       
-      <FormControl isInvalid={!!errors.firstName} isRequired>
+      <FormControl isInvalid={!!errors.firstName} isRequired isDisabled={isNameDisabled}>
         <FormLabel htmlFor="firstName">First Name</FormLabel>
         <Input
           id="firstName"
@@ -80,18 +81,18 @@ function BasicIdentitySection({
           value={formData.firstName}
           onChange={handleInputChange}
           placeholder="Enter your first name"
-          isDisabled={isFieldDisabled}
           bg={isEditMode ? "gray.100" : undefined}
-          _disabled={isEditMode ? { 
+          _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
-          } : undefined}
+          }}
+          readOnly={isEditMode}
         />
         <FormErrorMessage>{errors.firstName}</FormErrorMessage>
       </FormControl>
       
-      <FormControl isInvalid={!!errors.lastName}>
+      <FormControl isInvalid={!!errors.lastName} isDisabled={isNameDisabled}>
         <FormLabel htmlFor="lastName">Last Name</FormLabel>
         <Input
           id="lastName"
@@ -99,18 +100,18 @@ function BasicIdentitySection({
           value={formData.lastName}
           onChange={handleInputChange}
           placeholder="Enter your last name"
-          isDisabled={isFieldDisabled}
           bg={isEditMode ? "gray.100" : undefined}
-          _disabled={isEditMode ? { 
+          _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
-          } : undefined}
+          }}
+          readOnly={isEditMode}
         />
         <FormErrorMessage>{errors.lastName}</FormErrorMessage>
       </FormControl>
       
-      <FormControl isInvalid={!!errors.email} isRequired>
+      <FormControl isInvalid={!!errors.email} isRequired isDisabled={isEmailDisabled}>
         <FormLabel htmlFor="email">Email</FormLabel>
         <Input
           id="email"
@@ -119,13 +120,13 @@ function BasicIdentitySection({
           value={formData.email}
           onChange={handleInputChange}
           placeholder="Enter your email address"
-          isDisabled={isFieldDisabled}
           bg={isEditMode ? "gray.100" : undefined}
-          _disabled={isEditMode ? { 
+          _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
-          } : undefined}
+          }}
+          readOnly={isEditMode}
         />
         <FormErrorMessage>{errors.email}</FormErrorMessage>
       </FormControl>

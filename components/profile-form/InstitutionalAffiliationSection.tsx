@@ -93,8 +93,11 @@ function InstitutionalAffiliationSection({
     onChange(name, value);
   };
 
-  // In edit mode, these fields should be non-editable
-  const isFieldDisabled = isDisabled || isLoading || isEditMode;
+  // Fields should be disabled if component is disabled, loading, or if in edit mode
+  const isInstitutionDisabled = isDisabled || isLoading || (isEditMode && true);
+  const isDepartmentDisabled = isDisabled || isLoading || (isEditMode && true);
+  // Position is still editable in edit mode
+  const isPositionDisabled = isDisabled || isLoading;
   
   return (
     <VStack spacing={6} align="stretch" width="100%">
@@ -107,7 +110,7 @@ function InstitutionalAffiliationSection({
       
       <Divider />
       
-      <FormControl isInvalid={!!errors.institution} isRequired>
+      <FormControl isInvalid={!!errors.institution} isRequired isDisabled={isInstitutionDisabled}>
         <FormLabel htmlFor="institution">Institution</FormLabel>
         {formData.institution === 'Other' ? (
           <Input
@@ -116,13 +119,13 @@ function InstitutionalAffiliationSection({
             value={formData.institution === 'Other' ? '' : formData.institution}
             onChange={handleInputChange}
             placeholder="Enter your institution name"
-            isDisabled={isFieldDisabled}
             bg={isEditMode ? "gray.100" : undefined}
-            _disabled={isEditMode ? { 
+            _disabled={{ 
               cursor: "not-allowed",
               opacity: 0.7,
               borderColor: "gray.300"
-            } : undefined}
+            }}
+            readOnly={isEditMode}
           />
         ) : (
           <Select
@@ -130,13 +133,13 @@ function InstitutionalAffiliationSection({
             value={formData.institution}
             onChange={handleInputChange}
             placeholder="Select your institution"
-            isDisabled={isFieldDisabled}
             bg={isEditMode ? "gray.100" : undefined}
-            _disabled={isEditMode ? { 
+            _disabled={{ 
               cursor: "not-allowed",
               opacity: 0.7,
               borderColor: "gray.300"
-            } : undefined}
+            }}
+            isReadOnly={isEditMode}
           >
             {MOCK_INSTITUTIONS.map((institution) => (
               <option key={institution} value={institution}>
@@ -149,27 +152,40 @@ function InstitutionalAffiliationSection({
         <FormErrorMessage>{errors.institution}</FormErrorMessage>
       </FormControl>
 
-      <FormControl isInvalid={!!errors.department}>
+      <FormControl isInvalid={!!errors.department} isDisabled={isDepartmentDisabled}>
         <FormLabel htmlFor="department">Department</FormLabel>
         <Select
           id="department"
           name="department"
           value={formData.department || ''}
           onChange={handleInputChange}
-          placeholder="Select department"
-          isDisabled={isFieldDisabled}
+          placeholder="Select your department"
           bg={isEditMode ? "gray.100" : undefined}
-          _disabled={isEditMode ? { 
+          _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
-          } : undefined}
+          }}
+          isReadOnly={isEditMode}
         >
           {MOCK_DEPARTMENTS.map((dept) => (
             <option key={dept} value={dept}>{dept}</option>
           ))}
+          <option value="Other">Other (not listed)</option>
         </Select>
         <FormErrorMessage>{errors.department}</FormErrorMessage>
+      </FormControl>
+      
+      <FormControl isInvalid={!!errors.position} isDisabled={isPositionDisabled}>
+        <FormLabel htmlFor="position">Position</FormLabel>
+        <Input
+          id="position"
+          name="position"
+          value={formData.position}
+          onChange={handleInputChange}
+          placeholder="Enter your position"
+        />
+        <FormErrorMessage>{errors.position}</FormErrorMessage>
       </FormControl>
     </VStack>
   );
