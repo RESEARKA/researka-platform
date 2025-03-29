@@ -125,21 +125,11 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
   return (
     <Tabs index={activeTab} onChange={onTabChange} variant="enclosed" colorScheme="teal">
       <TabList>
-        <Tab><Box as="span" mr={2}><FiUser /></Box> About</Tab>
         <Tab><Box as="span" mr={2}><FiFileText /></Box> Articles</Tab>
         <Tab><Box as="span" mr={2}><FiStar /></Box> Reviews</Tab>
       </TabList>
 
       <TabPanels>
-        {/* About Tab */}
-        <TabPanel>
-          <Box p={4} borderWidth="1px" borderRadius="lg">
-            <Text fontSize="md" whiteSpace="pre-wrap">
-              {profile.bio || 'No bio provided.'}
-            </Text>
-          </Box>
-        </TabPanel>
-
         {/* Articles Tab */}
         <TabPanel>
           <ArticlesPanel
