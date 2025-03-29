@@ -112,6 +112,26 @@ function ProfileFormStepper({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Initialize form data from initial data if provided
+  useEffect(() => {
+    if (initialData) {
+      const formData = userProfileToFormData(initialData);
+      // Set the isExistingProfile flag if this is an existing profile
+      formData.isExistingProfile = !!initialData.uid;
+      setFormData(formData);
+      
+      logger.debug('Form data initialized from initial data', {
+        context: { hasInitialData: true, isExistingProfile: !!initialData.uid },
+        category: LogCategory.UI
+      });
+    } else {
+      logger.debug('No initial data provided, using empty form', {
+        context: { hasInitialData: false },
+        category: LogCategory.UI
+      });
+    }
+  }, [initialData]);
+
   // Cleanup effect
   useEffect(() => {
     return () => {
@@ -121,22 +141,29 @@ function ProfileFormStepper({
 
   // Handle form field changes
   const handleChange = (name: string, value: any) => {
-    // In edit mode, prevent changing name and institution fields
-    if (isEditMode && ['firstName', 'lastName', 'email', 'institution', 'department'].includes(name)) {
-      logger.debug('Attempted to change restricted field in edit mode', {
-        context: { field: name },
-        category: LogCategory.UI
-      });
-      return;
+    // Always allow changes during initial profile creation
+    // Only restrict changes when editing an existing profile
+    if (isEditMode && formData.isExistingProfile) {
+      // These fields should be restricted for existing profiles
+      const restrictedFields = ['firstName', 'lastName', 'email', 'institution', 'department'];
+      
+      if (restrictedFields.includes(name)) {
+        logger.debug('Attempted to change restricted field for existing profile', {
+          context: { field: name },
+          category: LogCategory.UI
+        });
+        return;
+      }
     }
     
+    // Allow the change
     setFormData((prev) => ({
       ...prev,
       [name]: value
     }));
     
     logger.debug('Form field changed', {
-      context: { field: name },
+      context: { field: name, value },
       category: LogCategory.UI
     });
   };

@@ -9,7 +9,7 @@ import {
   Text,
   Divider
 } from '@chakra-ui/react';
-import { BaseFormSectionProps, FormSectionValidator, ValidationResult } from './types';
+import { BaseFormSectionProps, FormSectionValidator } from './types';
 import { createLogger, LogCategory } from '../../utils/logger';
 
 // Create a logger instance for this component
@@ -63,9 +63,10 @@ function BasicIdentitySection({
     onChange(name, value);
   };
 
-  // Fields should be disabled if component is disabled, loading, or if in edit mode
-  const isNameDisabled = isDisabled || isLoading || (isEditMode && true);
-  const isEmailDisabled = isDisabled || isLoading || (isEditMode && true);
+  // Only disable fields for existing profiles in edit mode
+  // For new profiles, fields should always be editable
+  const isNameDisabled = isDisabled || isLoading || (isEditMode && formData.isExistingProfile);
+  const isEmailDisabled = isDisabled || isLoading || (isEditMode && formData.isExistingProfile);
   
   return (
     <VStack spacing={6} align="stretch" width="100%">
@@ -81,13 +82,13 @@ function BasicIdentitySection({
           value={formData.firstName}
           onChange={handleInputChange}
           placeholder="Enter your first name"
-          bg={isEditMode ? "gray.100" : undefined}
+          bg={isEditMode && formData.isExistingProfile ? "gray.100" : undefined}
           _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
           }}
-          readOnly={isEditMode}
+          readOnly={isNameDisabled}
         />
         <FormErrorMessage>{errors.firstName}</FormErrorMessage>
       </FormControl>
@@ -100,13 +101,13 @@ function BasicIdentitySection({
           value={formData.lastName}
           onChange={handleInputChange}
           placeholder="Enter your last name"
-          bg={isEditMode ? "gray.100" : undefined}
+          bg={isEditMode && formData.isExistingProfile ? "gray.100" : undefined}
           _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
           }}
-          readOnly={isEditMode}
+          readOnly={isNameDisabled}
         />
         <FormErrorMessage>{errors.lastName}</FormErrorMessage>
       </FormControl>
@@ -120,13 +121,13 @@ function BasicIdentitySection({
           value={formData.email}
           onChange={handleInputChange}
           placeholder="Enter your email address"
-          bg={isEditMode ? "gray.100" : undefined}
+          bg={isEditMode && formData.isExistingProfile ? "gray.100" : undefined}
           _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
             borderColor: "gray.300"
           }}
-          readOnly={isEditMode}
+          readOnly={isEmailDisabled}
         />
         <FormErrorMessage>{errors.email}</FormErrorMessage>
       </FormControl>

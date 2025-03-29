@@ -18,6 +18,7 @@ export interface ProfileFormData {
   personalWebsite?: string;
   orcidId?: string;
   wantsToBeEditor?: boolean;
+  isExistingProfile?: boolean; // Flag to indicate if this is an existing profile
 }
 
 /**

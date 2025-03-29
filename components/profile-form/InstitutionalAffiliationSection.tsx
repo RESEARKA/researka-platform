@@ -189,9 +189,10 @@ function InstitutionalAffiliationSection({
     onChange(name, value);
   };
 
-  // Fields should be disabled if component is disabled, loading, or if in edit mode
-  const isInstitutionDisabled = isDisabled || isLoading || (isEditMode && true);
-  const isDepartmentDisabled = isDisabled || isLoading || (isEditMode && true);
+  // Only disable fields for existing profiles in edit mode
+  // For new profiles, fields should always be editable
+  const isInstitutionDisabled = isDisabled || isLoading || (isEditMode && formData.isExistingProfile);
+  const isDepartmentDisabled = isDisabled || isLoading || (isEditMode && formData.isExistingProfile);
   
   return (
     <VStack spacing={6} align="stretch" width="100%">
@@ -213,13 +214,13 @@ function InstitutionalAffiliationSection({
             value={formData.institution === 'Other' ? '' : formData.institution}
             onChange={handleInputChange}
             placeholder="Enter your institution name"
-            bg={isEditMode ? "gray.100" : undefined}
+            bg={isEditMode && formData.isExistingProfile ? "gray.100" : undefined}
             _disabled={{ 
               cursor: "not-allowed",
               opacity: 0.7,
-              borderColor: "gray.300"
+              bg: "gray.100"
             }}
-            readOnly={isEditMode}
+            readOnly={isInstitutionDisabled}
           />
         ) : (
           <Select
@@ -227,13 +228,13 @@ function InstitutionalAffiliationSection({
             value={formData.institution}
             onChange={handleInputChange}
             placeholder="Select your institution"
-            bg={isEditMode ? "gray.100" : undefined}
+            bg={isEditMode && formData.isExistingProfile ? "gray.100" : undefined}
             _disabled={{ 
               cursor: "not-allowed",
               opacity: 0.7,
-              borderColor: "gray.300"
+              bg: "gray.100"
             }}
-            isReadOnly={isEditMode}
+            isReadOnly={isInstitutionDisabled}
           >
             {MOCK_INSTITUTIONS.map((institution) => (
               <option key={institution} value={institution}>
@@ -273,13 +274,13 @@ function InstitutionalAffiliationSection({
           value={formData.department || ''}
           onChange={handleInputChange}
           placeholder="Select your department"
-          bg={isEditMode ? "gray.100" : undefined}
+          bg={isEditMode && formData.isExistingProfile ? "gray.100" : undefined}
           _disabled={{ 
             cursor: "not-allowed",
             opacity: 0.7,
-            borderColor: "gray.300"
+            bg: "gray.100"
           }}
-          isReadOnly={isEditMode}
+          isReadOnly={isDepartmentDisabled}
         >
           {MOCK_DEPARTMENTS.map((dept) => (
             <option key={dept} value={dept}>{dept}</option>
