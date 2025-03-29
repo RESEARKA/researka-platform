@@ -63,7 +63,7 @@ const ArticleReviewStatus: React.FC<ArticleReviewStatusProps> = ({
         label: 'Completed',
         icon: FiCheckCircle,
         color: 'green',
-        description: `This article has received all ${reviewsNeeded} required reviews.`
+        description: `This article has received all ${reviews.length} required reviews.`
       };
     }
     

@@ -24,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 interface ArticleReviewersProps {
   articleId: string;
   limit?: number;
+  reviews?: any[]; // Allow passing reviews directly
 }
 
 interface ReviewerProfile {
@@ -34,7 +35,7 @@ interface ReviewerProfile {
   researchInterests?: string[];
 }
 
-const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 3 }) => {
+const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 3, reviews }) => {
   const [reviewers, setReviewers] = useState<ReviewerProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { getUserProfile } = useAuth();
@@ -48,16 +49,18 @@ const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 
         setIsLoading(true);
         
         // Fetch reviews for this article
-        const reviews = await getReviewsForArticle(articleId);
+        const reviewsToUse = reviews || await getReviewsForArticle(articleId);
+        console.log('ArticleReviewers: Fetched reviews for article:', articleId, reviewsToUse);
         
-        if (!reviews || reviews.length === 0) {
+        if (!reviewsToUse || reviewsToUse.length === 0) {
           setReviewers([]);
           setIsLoading(false);
           return;
         }
         
         // Get unique reviewer IDs
-        const uniqueReviewerIds = Array.from(new Set(reviews.map(review => review.reviewerId)));
+        const uniqueReviewerIds = Array.from(new Set(reviewsToUse.map(review => review.reviewerId)));
+        console.log('ArticleReviewers: Unique reviewer IDs:', uniqueReviewerIds);
         
         // Limit the number of reviewers if specified
         const limitedReviewerIds = limit ? uniqueReviewerIds.slice(0, limit) : uniqueReviewerIds;
@@ -67,13 +70,15 @@ const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 
           limitedReviewerIds.map(async (reviewerId) => {
             try {
               const profile = await getUserProfile(reviewerId);
+              console.log('ArticleReviewers: Fetched profile for reviewer:', reviewerId, profile);
               
               if (!profile) {
-                // If profile not found, use basic info from review
-                const review = reviews.find(r => r.reviewerId === reviewerId);
+                // This shouldn't happen since only users with completed profiles can review
+                // But keeping as a fallback for data integrity
+                console.warn('Reviewer without profile found:', reviewerId);
                 return {
                   id: reviewerId,
-                  name: review?.reviewerName || 'Anonymous Reviewer',
+                  name: 'Reviewer',
                   institution: 'Unknown Institution',
                   researchInterests: [],
                 };
@@ -83,13 +88,14 @@ const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 
               let interests: string[] = [];
               if (profile.researchInterests) {
                 interests = typeof profile.researchInterests === 'string'
-                  ? profile.researchInterests.split(',').map(i => i.trim())
+                  ? profile.researchInterests.split(',').map((i: string) => i.trim())
                   : profile.researchInterests;
               }
               
+              // Since only completed profiles can review, we should always have a name
               return {
                 id: reviewerId,
-                name: profile.name || profile.displayName || 'Anonymous Reviewer',
+                name: profile.name || profile.displayName || 'Reviewer',
                 institution: profile.institution || 'Unknown Institution',
                 avatar: profile.avatarUrl || profile.photoURL,
                 researchInterests: interests,
@@ -97,10 +103,9 @@ const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 
             } catch (error) {
               console.error('Error fetching reviewer profile:', error);
               // Return basic profile if there's an error
-              const review = reviews.find(r => r.reviewerId === reviewerId);
               return {
                 id: reviewerId,
-                name: review?.reviewerName || 'Anonymous Reviewer',
+                name: 'Reviewer',
                 institution: 'Unknown Institution',
                 researchInterests: [],
               };
@@ -119,7 +124,7 @@ const ArticleReviewers: React.FC<ArticleReviewersProps> = ({ articleId, limit = 
     };
     
     fetchReviewers();
-  }, [articleId, getUserProfile, limit]);
+  }, [articleId, getUserProfile, limit, reviews]);
   
   return (
     <Box>

@@ -78,6 +78,15 @@ const ArticleDetailPage: React.FC = () => {
         
         if (fetchedArticle) {
           console.log('Fetched article:', fetchedArticle);
+          
+          // Fetch reviews for this article
+          const { getReviewsForArticle } = await import('../../services/reviewService');
+          const articleReviews = await getReviewsForArticle(id as string);
+          console.log('Fetched reviews:', articleReviews);
+          
+          // Set the reviews
+          setReviews(articleReviews);
+          
           // Convert to the format expected by the component
           const formattedArticle: Article = {
             id: fetchedArticle.id || '',
@@ -89,13 +98,12 @@ const ArticleDetailPage: React.FC = () => {
             publishedDate: fetchedArticle.date,
             views: 0,
             citations: 0,
-            reviewCount: 0,
+            reviewCount: articleReviews.length,
             status: (fetchedArticle.status === 'pending_review' ? 'under_review' : 
                     (fetchedArticle.status === 'published' ? 'accepted' : 
                     (fetchedArticle.status === 'rejected' ? 'rejected' : 'pending'))) as 'pending' | 'under_review' | 'accepted' | 'rejected',
           };
           setArticle(formattedArticle);
-          setReviews([]); // Clear mock reviews
         } else {
           console.error('Article not found with ID:', id);
           toast({
@@ -301,6 +309,7 @@ const ArticleDetailPage: React.FC = () => {
                   <ArticleReviewers 
                     articleId={article.id || id as string}
                     limit={3}
+                    reviews={reviews}
                   />
                 )}
               </VStack>
