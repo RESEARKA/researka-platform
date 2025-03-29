@@ -14,22 +14,23 @@ import {
   Button,
   useColorModeValue,
   Skeleton,
-  Link
+  Link,
+  Center,
+  Spinner
 } from '@chakra-ui/react';
 import { FiArrowLeft, FiCalendar, FiEye } from 'react-icons/fi';
 import Layout from '../../components/Layout';
-import { 
-  ALL_ARTICLES, 
-  BIOLOGY_ARTICLES, 
-  PHYSICS_ARTICLES, 
-  COMPUTER_SCIENCE_ARTICLES, 
-  MATHEMATICS_ARTICLES 
-} from '../../data/articles';
+import { getArticleById, Article } from '../../services/articleService';
+import FirebaseClientOnly from '../../components/FirebaseClientOnly';
+import { createLogger, LogCategory } from '../../utils/logger';
+
+// Create a logger instance for this component
+const logger = createLogger('ArticlePage');
 
 const ArticlePage = () => {
   const router = useRouter();
   const { id } = router.query;
-  const [article, setArticle] = useState<any>(null);
+  const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,30 +44,62 @@ const ArticlePage = () => {
   };
 
   useEffect(() => {
-    if (id) {
+    const fetchArticle = async () => {
+      if (!id) return;
+      
       setLoading(true);
-      // Find the article with the matching ID
-      const articleId = parseInt(id as string, 10);
-      const foundArticle = ALL_ARTICLES.find(article => article.id === articleId);
+      setError(null);
       
-      if (foundArticle) {
-        setArticle(foundArticle);
-        setError(null);
-      } else {
-        setError('Article not found');
+      try {
+        logger.info('Fetching article', {
+          context: { articleId: id },
+          category: LogCategory.DATA
+        });
+        
+        const fetchedArticle = await getArticleById(id as string);
+        
+        if (fetchedArticle) {
+          logger.info('Article fetched successfully', {
+            context: { 
+              articleId: id,
+              title: fetchedArticle.title
+            },
+            category: LogCategory.DATA
+          });
+          setArticle(fetchedArticle);
+        } else {
+          logger.warn('Article not found', {
+            context: { articleId: id },
+            category: LogCategory.DATA
+          });
+          setError('Article not found');
+        }
+      } catch (err) {
+        logger.error('Error fetching article', {
+          context: { 
+            articleId: id,
+            error: err instanceof Error ? err.message : String(err)
+          },
+          category: LogCategory.ERROR
+        });
+        setError('Failed to load article. Please try again later.');
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
+    };
+
+    if (id) {
+      fetchArticle();
     }
   }, [id]);
 
-  // Get the appropriate image URL based on the article's first category
-  const getImageUrl = (article: any) => {
-    if (!article || !article.categories || article.categories.length === 0) {
+  // Get the appropriate image URL based on the article's category
+  const getImageUrl = (article: Article) => {
+    if (!article || !article.category) {
       return imageUrls.DEFAULT;
     }
     
-    const category = article.categories[0];
+    const category = article.category.toUpperCase();
     
     if (category.includes('BIOLOGY')) return imageUrls.BIOLOGY;
     if (category.includes('PHYSICS')) return imageUrls.PHYSICS;
@@ -127,14 +160,13 @@ const ArticlePage = () => {
             leftIcon={<FiArrowLeft />} 
             variant="ghost" 
             alignSelf="flex-start"
-            as="a"
-            href="/"
+            onClick={() => router.push('/')}
           >
             Back
           </Button>
           
           <Image
-            src={article.imageUrl || getImageUrl(article)}
+            src={getImageUrl(article)}
             alt={article.title}
             borderRadius="md"
             width="100%"
@@ -152,17 +184,20 @@ const ArticlePage = () => {
             </Flex>
             <Flex align="center" color="gray.500">
               <FiEye style={{ marginRight: '4px' }} />
-              <Text fontSize="sm">{article.views} views</Text>
+              <Text fontSize="sm">{article.views || 0} views</Text>
             </Flex>
           </HStack>
           
-          <Text fontWeight="bold">Authors:</Text>
-          <Text>{article.authors}</Text>
+          <Text fontWeight="bold">Author:</Text>
+          <Text>{article.author}</Text>
           
           <HStack spacing={2} wrap="wrap">
-            {article.categories.map((category: string, index: number) => (
-              <Tag key={index} colorScheme="blue" size="md">
-                {category}
+            <Tag colorScheme="blue" size="md">
+              {article.category}
+            </Tag>
+            {article.keywords && article.keywords.map((keyword: string, index: number) => (
+              <Tag key={index} colorScheme="green" size="md">
+                {keyword}
               </Tag>
             ))}
           </HStack>
@@ -178,40 +213,52 @@ const ArticlePage = () => {
           
           <Box>
             <Heading as="h2" size="md" mb={4}>Full Paper</Heading>
-            <Text color="gray.600">
-              This is a placeholder for the full paper content. In a real application, this would contain the complete research paper with sections like Introduction, Methodology, Results, Discussion, and References.
-            </Text>
-            
-            <VStack spacing={4} mt={6} align="stretch">
-              <Heading as="h3" size="sm">Introduction</Heading>
-              <Text>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl.
-              </Text>
-              
-              <Heading as="h3" size="sm">Methodology</Heading>
-              <Text>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl.
-              </Text>
-              
-              <Heading as="h3" size="sm">Results</Heading>
-              <Text>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl.
-              </Text>
-              
-              <Heading as="h3" size="sm">Discussion</Heading>
-              <Text>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl. Nullam auctor, nisl eget ultricies tincidunt, nisl nisl aliquam nisl, eget ultricies nisl nisl eget nisl.
-              </Text>
-              
-              <Heading as="h3" size="sm">References</Heading>
-              <Text>
-                1. Author, A. (2025). Title of paper. Journal Name, Volume(Issue), Pages.
-                <br />
-                2. Author, B. & Author, C. (2024). Title of another paper. Journal Name, Volume(Issue), Pages.
-                <br />
-                3. Author, D., Author, E., & Author, F. (2023). Title of third paper. Journal Name, Volume(Issue), Pages.
-              </Text>
-            </VStack>
+            {article.content ? (
+              <Text>{article.content}</Text>
+            ) : (
+              <VStack spacing={4} mt={6} align="stretch">
+                {article.introduction && (
+                  <>
+                    <Heading as="h3" size="sm">Introduction</Heading>
+                    <Text>{article.introduction}</Text>
+                  </>
+                )}
+                
+                {article.methods && (
+                  <>
+                    <Heading as="h3" size="sm">Methodology</Heading>
+                    <Text>{article.methods}</Text>
+                  </>
+                )}
+                
+                {article.results && (
+                  <>
+                    <Heading as="h3" size="sm">Results</Heading>
+                    <Text>{article.results}</Text>
+                  </>
+                )}
+                
+                {article.discussion && (
+                  <>
+                    <Heading as="h3" size="sm">Discussion</Heading>
+                    <Text>{article.discussion}</Text>
+                  </>
+                )}
+                
+                {article.references && (
+                  <>
+                    <Heading as="h3" size="sm">References</Heading>
+                    <Text>{article.references}</Text>
+                  </>
+                )}
+                
+                {!article.introduction && !article.methods && !article.results && !article.discussion && !article.references && (
+                  <Text color="gray.600">
+                    Full paper content is not available for this article.
+                  </Text>
+                )}
+              </VStack>
+            )}
           </Box>
         </VStack>
       </Container>
@@ -219,4 +266,17 @@ const ArticlePage = () => {
   );
 };
 
-export default ArticlePage;
+// Wrap the ArticlePage component with FirebaseClientOnly to ensure Firebase is initialized
+const ArticlePageWithFirebase = () => {
+  return (
+    <FirebaseClientOnly fallback={
+      <Center h="100vh">
+        <Spinner size="xl" />
+      </Center>
+    }>
+      <ArticlePage />
+    </FirebaseClientOnly>
+  );
+};
+
+export default ArticlePageWithFirebase;
