@@ -18,9 +18,7 @@ import {
 import { 
   FiAlertCircle, 
   FiCheckCircle, 
-  FiClock, 
   FiInfo, 
-  FiUserCheck, 
   FiXCircle 
 } from 'react-icons/fi';
 import { Article } from '../utils/recommendationEngine';
@@ -50,88 +48,69 @@ const ArticleReviewStatus: React.FC<ArticleReviewStatusProps> = ({
   
   // Calculate average score (only if there are reviews)
   const totalScore = reviews.reduce((sum, review) => sum + review.score, 0);
-  const averageScore = reviews.length > 0 ? totalScore / reviews.length : 0;
+  let averageScore = reviews.length > 0 ? totalScore / reviews.length : 0;
+  
+  // If the average score is greater than 5, it's likely that we're dealing with summed criteria scores
+  // In this case, normalize it to a 5-point scale (assuming a maximum possible score of 25 from 5 criteria at 5 points each)
+  if (averageScore > 5) {
+    console.log(`ArticleReviewStatus: Detected high score (${averageScore}), normalizing to 5-point scale`);
+    // Assuming 5 criteria with max score of 5 each = 25 total possible
+    averageScore = (averageScore / 25) * 5;
+  }
   
   // Determine if article passes review threshold (average score >= 3.0 with at least 2 reviews)
-  const passesThreshold = averageScore >= 3.0 && reviews.length >= reviewsNeeded;
+  // For normalized scores, the threshold would be 3/5 = 0.6 of the total
+  const passesThreshold = (averageScore >= 3.0 && reviews.length >= reviewsNeeded);
   
   // Get status display information
   const getStatusInfo = () => {
     // If all required reviews are received, show "Completed" status regardless of article.status
     if (reviews.length >= reviewsNeeded) {
       return {
-        label: 'Completed',
-        icon: FiCheckCircle,
-        color: 'green',
-        description: `This article has received all ${reviews.length} required reviews.`
+        status: passesThreshold ? 'ACCEPTED' : 'REJECTED',
+        color: passesThreshold ? 'green' : 'red',
+        description: passesThreshold 
+          ? 'This article has passed peer review' 
+          : 'This article did not meet the review criteria'
       };
     }
     
+    // Otherwise, show status based on article.status
     switch (article.status) {
-      case 'pending':
-        return {
-          label: 'Pending Review',
-          icon: FiClock,
-          color: 'orange',
-          description: 'This article is waiting for reviewers to be assigned.'
-        };
       case 'under_review':
         return {
-          label: 'Under Review',
-          icon: FiUserCheck,
+          status: 'UNDER REVIEW',
           color: 'blue',
           description: `This article has ${reviews.length} of ${reviewsNeeded} required reviews.`
         };
+      case 'pending':
+        return {
+          status: 'PENDING',
+          color: 'yellow',
+          description: 'This article is awaiting review'
+        };
       case 'accepted':
         return {
-          label: 'Accepted',
-          icon: FiCheckCircle,
+          status: 'ACCEPTED',
           color: 'green',
-          description: 'This article has been accepted for publication.'
+          description: 'This article has been accepted for publication'
         };
       case 'rejected':
         return {
-          label: 'Rejected',
-          icon: FiXCircle,
+          status: 'REJECTED',
           color: 'red',
-          description: 'This article has been rejected.'
+          description: 'This article has been rejected'
         };
       default:
         return {
-          label: 'Unknown Status',
-          icon: FiInfo,
+          status: 'DRAFT',
           color: 'gray',
-          description: 'The status of this article is unknown.'
+          description: 'This article is in draft status'
         };
     }
   };
   
   const statusInfo = getStatusInfo();
-  
-  // Get recommendation display info
-  const getRecommendationInfo = (recommendation: string) => {
-    switch (recommendation) {
-      case 'accept':
-        return { label: 'Accept', color: 'green' };
-      case 'minor_revisions':
-        return { label: 'Minor Revisions', color: 'blue' };
-      case 'major_revisions':
-        return { label: 'Major Revisions', color: 'orange' };
-      case 'reject':
-        return { label: 'Reject', color: 'red' };
-      default:
-        return { label: 'Unknown', color: 'gray' };
-    }
-  };
-  
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
   
   return (
     <Card bg={cardBg} borderWidth="1px" borderColor={borderColor} shadow="sm">
@@ -144,10 +123,10 @@ const ArticleReviewStatus: React.FC<ArticleReviewStatusProps> = ({
         <VStack spacing={4} align="stretch">
           {/* Status Badge */}
           <Flex align="center" mb={2}>
-            <Icon as={statusInfo.icon} color={`${statusInfo.color}.500`} mr={2} boxSize={5} />
+            <Icon as={statusInfo.color === 'green' ? FiCheckCircle : statusInfo.color === 'red' ? FiXCircle : FiInfo} color={`${statusInfo.color}.500`} mr={2} boxSize={5} />
             <Box>
               <Badge colorScheme={statusInfo.color} fontSize="sm">
-                {statusInfo.label}
+                {statusInfo.status}
               </Badge>
               <Text fontSize="sm" color="gray.600" mt={1}>
                 {statusInfo.description}
@@ -201,59 +180,13 @@ const ArticleReviewStatus: React.FC<ArticleReviewStatusProps> = ({
               <Progress 
                 value={(averageScore / 5) * 100} 
                 size="sm" 
-                colorScheme={averageScore >= 3 ? "green" : averageScore >= 2 ? "yellow" : "red"}
+                colorScheme={averageScore >= 3.0 ? "green" : averageScore >= 2.0 ? "yellow" : "red"}
                 borderRadius="full"
               />
               
               <Text fontSize="xs" color="gray.500" mt={1} textAlign="right">
                 Threshold for publication: 3.0
               </Text>
-            </Box>
-          )}
-          
-          {/* Individual Reviews */}
-          {reviews.length > 0 && (
-            <Box mt={2}>
-              <Text fontSize="sm" fontWeight="medium" mb={2}>
-                Reviews Received
-              </Text>
-              <VStack spacing={3} align="stretch">
-                {reviews.map((review) => {
-                  const recommendationInfo = getRecommendationInfo(review.recommendation);
-                  
-                  return (
-                    <Box 
-                      key={review.id} 
-                      p={3} 
-                      borderWidth="1px" 
-                      borderColor={borderColor} 
-                      borderRadius="md"
-                      bg={useColorModeValue('gray.50', 'gray.700')}
-                    >
-                      <Flex justify="space-between" mb={1}>
-                        <Text fontSize="sm" fontWeight="medium">
-                          {review.reviewerName}
-                        </Text>
-                        <Text fontSize="xs" color="gray.500">
-                          {formatDate(review.createdAt)}
-                        </Text>
-                      </Flex>
-                      
-                      <Flex justify="space-between" align="center">
-                        <Badge colorScheme={recommendationInfo.color} variant="subtle">
-                          {recommendationInfo.label}
-                        </Badge>
-                        <HStack spacing={1}>
-                          <Text fontSize="sm" fontWeight="bold">
-                            {review.score.toFixed(1)}
-                          </Text>
-                          <Text fontSize="sm" color="gray.600">/ 5.0</Text>
-                        </HStack>
-                      </Flex>
-                    </Box>
-                  );
-                })}
-              </VStack>
             </Box>
           )}
           
