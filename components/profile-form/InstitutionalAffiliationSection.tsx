@@ -8,10 +8,8 @@ import {
   VStack,
   Heading,
   Text,
-  Divider,
-  Button
+  Divider
 } from '@chakra-ui/react';
-import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { BaseFormSectionProps, FormSectionValidator } from './types';
 import { createLogger, LogCategory } from '../../utils/logger';
 
@@ -37,7 +35,7 @@ const MOCK_INSTITUTIONS = [
   'Seoul National University'
 ];
 
-// Mock data for departments
+// Mock data for Departments
 const MOCK_DEPARTMENTS = [
   'Computer Science',
   'Electrical Engineering',
@@ -86,10 +84,8 @@ function InstitutionalAffiliationSection({
   errors, 
   onChange,
   isDisabled = false,
-  isLoading = false,
-  onPrevious,
-  onNext
-}: BaseFormSectionProps & { onPrevious: () => void, onNext: () => void }) {
+  isLoading = false
+}: BaseFormSectionProps) {
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -154,29 +150,6 @@ function InstitutionalAffiliationSection({
           <FormErrorMessage>{errors.department}</FormErrorMessage>
         )}
       </FormControl>
-
-      <VStack spacing={2} pt={4}>
-        <Button
-          w="full"
-          colorScheme="blue"
-          variant="outline"
-          leftIcon={<ChevronLeftIcon />}
-          onClick={onPrevious}
-          isDisabled={isDisabled || isLoading}
-        >
-          Previous
-        </Button>
-        <Button
-          w="full"
-          colorScheme="blue"
-          rightIcon={<ChevronRightIcon />}
-          onClick={onNext}
-          isDisabled={isDisabled || isLoading}
-          isLoading={isLoading}
-        >
-          Next
-        </Button>
-      </VStack>
     </VStack>
   );
 }

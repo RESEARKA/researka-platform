@@ -284,11 +284,7 @@ function ProfileFormStepper({
       case 0:
         return <BasicIdentitySection {...commonProps} />;
       case 1:
-        return <InstitutionalAffiliationSection 
-          {...commonProps} 
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-        />;
+        return <InstitutionalAffiliationSection {...commonProps} />;
       case 2:
         return <AcademicDetailsSection {...commonProps} />;
       case 3:
