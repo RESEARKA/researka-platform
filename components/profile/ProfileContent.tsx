@@ -15,7 +15,7 @@ import {
   AlertDescription,
   Button,
 } from '@chakra-ui/react';
-import { FiRefreshCw, FiFileText, FiStar, FiUser } from 'react-icons/fi';
+import { FiRefreshCw, FiFileText, FiStar } from 'react-icons/fi';
 import { UserProfile } from '../../hooks/useProfileData';
 import ArticlesPanel from './ArticlesPanel';
 import ReviewsPanel from './ReviewsPanel';

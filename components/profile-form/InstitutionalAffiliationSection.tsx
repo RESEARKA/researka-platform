@@ -96,8 +96,6 @@ function InstitutionalAffiliationSection({
   // Fields should be disabled if component is disabled, loading, or if in edit mode
   const isInstitutionDisabled = isDisabled || isLoading || (isEditMode && true);
   const isDepartmentDisabled = isDisabled || isLoading || (isEditMode && true);
-  // Position is still editable in edit mode
-  const isPositionDisabled = isDisabled || isLoading;
   
   return (
     <VStack spacing={6} align="stretch" width="100%">
@@ -174,18 +172,6 @@ function InstitutionalAffiliationSection({
           <option value="Other">Other (not listed)</option>
         </Select>
         <FormErrorMessage>{errors.department}</FormErrorMessage>
-      </FormControl>
-      
-      <FormControl isInvalid={!!errors.position} isDisabled={isPositionDisabled}>
-        <FormLabel htmlFor="position">Position</FormLabel>
-        <Input
-          id="position"
-          name="position"
-          value={formData.position}
-          onChange={handleInputChange}
-          placeholder="Enter your position"
-        />
-        <FormErrorMessage>{errors.position}</FormErrorMessage>
       </FormControl>
     </VStack>
   );
