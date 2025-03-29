@@ -6,6 +6,8 @@ import ProfileHeader from './ProfileHeader';
 import ProfileStats from './ProfileStats';
 import ProfileContent from './ProfileContent';
 import { createLogger, LogCategory } from '../../utils/logger';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFirebaseFirestore } from '../../config/firebase';
 
 // Create a logger instance for this component
 const logger = createLogger('ClientOnlyProfileContent');
@@ -211,7 +213,185 @@ function ClientOnlyProfileContent({
     });
     onRetryLoading();
   }, [onRetryLoading]);
-  
+
+  // Function to migrate old reviews to use consistent reviewerId format
+  const migrateReviews = async () => {
+    try {
+      if (!profile?.uid) {
+        logger.warn('Cannot migrate reviews without a user ID', {
+          category: LogCategory.AUTH
+        });
+        return;
+      }
+
+      logger.debug('Starting review migration', {
+        context: { userId: profile.uid },
+        category: LogCategory.DATA
+      });
+
+      // Import the migration function
+      const { migrateUserReviews } = await import('../../services/reviewService');
+      
+      // Get potential old reviewer IDs (shortened wallet address format)
+      let oldReviewerIds: string[] = [];
+      
+      // If user has a wallet address, add shortened versions as potential old IDs
+      if (profile?.walletAddress) {
+        const walletAddress = profile.walletAddress;
+        // Add shortened wallet address format that was previously used
+        oldReviewerIds.push(`${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`);
+        // Also add the full wallet address as a potential old ID
+        oldReviewerIds.push(walletAddress);
+      }
+      
+      // Add any other potential formats that might have been used
+      if (profile?.name) {
+        oldReviewerIds.push(profile.name);
+      }
+      
+      // Log the potential old IDs
+      logger.debug('Potential old reviewer IDs', {
+        context: { oldReviewerIds },
+        category: LogCategory.DATA
+      });
+      
+      // Migrate reviews
+      const migratedCount = await migrateUserReviews(profile.uid, oldReviewerIds);
+      
+      if (migratedCount > 0) {
+        logger.info(`Successfully migrated ${migratedCount} reviews`, {
+          context: { migratedCount },
+          category: LogCategory.DATA
+        });
+        
+        toast({
+          title: 'Reviews Updated',
+          description: `Successfully updated ${migratedCount} reviews to use your current user ID.`,
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        logger.debug('No reviews needed migration', {
+          category: LogCategory.DATA
+        });
+      }
+    } catch (error) {
+      logger.error('Error migrating reviews', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      
+      toast({
+        title: 'Error',
+        description: 'Failed to update reviews. Please try again later.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Function to refresh profile data
+  const refreshProfileData = useCallback(async () => {
+    try {
+      if (!profile?.uid) {
+        logger.warn('Cannot refresh profile data without a user ID', {
+          category: LogCategory.AUTH
+        });
+        return;
+      }
+
+      logger.debug('Refreshing profile data', {
+        context: { userId: profile.uid },
+        category: LogCategory.DATA
+      });
+
+      const db = getFirebaseFirestore();
+      if (!db) {
+        logger.error('Firestore not initialized', {
+          category: LogCategory.ERROR
+        });
+        return;
+      }
+
+      // Get user document reference
+      const userDocRef = doc(db, 'users', profile.uid);
+      
+      // Get user document
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        // User document exists, get data
+        const userData = userDoc.data() as UserProfile;
+        
+        logger.debug('Refreshed profile data', {
+          context: { 
+            reviewCount: userData.reviewCount || 0,
+            articleCount: userData.articleCount || 0
+          },
+          category: LogCategory.DATA
+        });
+
+        // Call onRetryLoading to refresh the profile data in the parent component
+        onRetryLoading();
+      }
+    } catch (error) {
+      logger.error('Error refreshing profile data', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+    }
+  }, [profile?.uid, onRetryLoading]);
+
+  // Run migration on component mount
+  useEffect(() => {
+    if (profile?.uid) {
+      migrateReviews();
+    }
+  }, [profile?.uid]);
+
+  // Refresh profile data when component mounts
+  useEffect(() => {
+    if (profile?.uid) {
+      refreshProfileData();
+    }
+  }, [profile?.uid, refreshProfileData]);
+
+  // Listen for review count updates
+  useEffect(() => {
+    if (typeof window === 'undefined' || !profile?.uid) return;
+
+    // Function to handle the custom event
+    const handleReviewCountUpdated = (event: CustomEvent) => {
+      logger.debug('Received profile-review-count-updated event', {
+        context: { reviewCount: event.detail.reviewCount },
+        category: LogCategory.DATA
+      });
+
+      // Update the profile with the new review count
+      if (profile) {
+        // Create a new profile object with the updated review count
+        const updatedProfile = {
+          ...profile,
+          reviewCount: event.detail.reviewCount,
+          reviews: event.detail.reviewCount // Update both fields for backward compatibility
+        };
+
+        // Update the profile in the state
+        onSaveProfile(updatedProfile);
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('profile-review-count-updated', handleReviewCountUpdated as EventListener);
+
+    // Cleanup function to remove event listener
+    return () => {
+      window.removeEventListener('profile-review-count-updated', handleReviewCountUpdated as EventListener);
+    };
+  }, [profile, onSaveProfile]);
+
   return (
     <Container maxW="container.lg" py={8}>
       {/* Profile Header */}
@@ -228,7 +408,6 @@ function ClientOnlyProfileContent({
         <ProfileStats
           articlesCount={profile.articleCount || 0}
           reviewsCount={profile.reviewCount || 0}
-          reputation={profile.reputation || 0}
           isLoading={isLoading}
         />
       )}

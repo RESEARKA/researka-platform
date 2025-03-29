@@ -80,7 +80,6 @@ export function useProfileData() {
   const retryCount = useRef<number>(0);
   const updateOperationInProgress = useRef<boolean>(false);
   const lastUpdateTimestamp = useRef<number>(0);
-  const maxRetries = 3;
   
   // Helper function to check if profile is complete
   const checkProfileComplete = useCallback((profileData: UserProfile | null): boolean => {
@@ -122,13 +121,12 @@ export function useProfileData() {
   
   // Function to load profile data
   const loadProfileData = useCallback(async () => {
-    // Skip if not initialized, no user, or already loading
-    if (!authIsInitialized || !currentUser || isLoadingData.current) {
-      logger.debug('Skipping profile data load', {
+    // Skip if not initialized or no user
+    if (!authIsInitialized || !currentUser) {
+      logger.warn('Cannot load profile: not initialized or no user', {
         context: {
           authIsInitialized,
-          hasUser: !!currentUser,
-          isLoading: isLoadingData.current
+          hasUser: !!currentUser
         },
         category: LogCategory.LIFECYCLE
       });
@@ -137,17 +135,27 @@ export function useProfileData() {
     
     // Skip if not on client side
     if (!isClient) {
-      logger.warn('Not on client side, skipping profile data load', {
+      logger.warn('Not on client side, skipping profile load', {
         category: LogCategory.LIFECYCLE
       });
       return;
     }
     
+    // Skip if already loading
+    if (isLoadingData.current) {
+      logger.warn('Already loading profile data', {
+        category: LogCategory.LIFECYCLE
+      });
+      return;
+    }
+    
+    // Set loading flag
+    isLoadingData.current = true;
+    
+    // Update loading state
+    setLoadingState(ProfileLoadingState.LOADING);
+    
     try {
-      // Set loading state
-      isLoadingData.current = true;
-      setLoadingState(ProfileLoadingState.LOADING);
-      setError(null);
       
       logger.info(`Loading profile data for user ${currentUser.uid}`, {
         category: LogCategory.LIFECYCLE
@@ -168,6 +176,28 @@ export function useProfileData() {
       if (userDoc.exists()) {
         // User document exists, get data
         const userData = userDoc.data() as UserProfile;
+        
+        // Get all reviews for the user to ensure accurate review count
+        const { getUserReviews } = await import('../services/reviewService');
+        const userReviews = await getUserReviews(currentUser.uid);
+        const actualReviewCount = userReviews.length;
+        
+        // Update the userData with the accurate review count
+        userData.reviewCount = actualReviewCount;
+        userData.reviews = actualReviewCount; // For backward compatibility
+        
+        // If the review count in Firestore is different, update it
+        if ((userData.reviewCount !== actualReviewCount) || (userData.reviews !== actualReviewCount)) {
+          logger.info(`Updating review count in Firestore from ${userData.reviewCount} to ${actualReviewCount}`, {
+            category: LogCategory.DATA
+          });
+          
+          await updateDoc(userDocRef, {
+            reviewCount: actualReviewCount,
+            reviews: actualReviewCount,
+            updatedAt: new Date().toISOString()
+          });
+        }
         
         // Check if profile is complete
         const isComplete = checkProfileComplete(userData);

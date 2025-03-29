@@ -13,7 +13,6 @@ import {
 interface ProfileStatsProps {
   articlesCount: number;
   reviewsCount: number;
-  reputation: number;
   isLoading?: boolean;
 }
 
@@ -24,13 +23,12 @@ interface ProfileStatsProps {
 const ProfileStats: React.FC<ProfileStatsProps> = ({ 
   articlesCount, 
   reviewsCount, 
-  reputation,
   isLoading = false
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   
   return (
-    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
+    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={6}>
       <Card bg={cardBg}>
         <CardBody>
           <Stat>
@@ -48,17 +46,6 @@ const ProfileStats: React.FC<ProfileStatsProps> = ({
             <StatLabel>Reviews</StatLabel>
             <Skeleton isLoaded={!isLoading}>
               <StatNumber>{reviewsCount}</StatNumber>
-            </Skeleton>
-          </Stat>
-        </CardBody>
-      </Card>
-      
-      <Card bg={cardBg}>
-        <CardBody>
-          <Stat>
-            <StatLabel>Reputation</StatLabel>
-            <Skeleton isLoaded={!isLoading}>
-              <StatNumber>{reputation}</StatNumber>
             </Skeleton>
           </Stat>
         </CardBody>

@@ -1,18 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   VStack,
   Card,
   CardHeader,
   CardBody,
   CardFooter,
-  Badge,
   Flex,
   Box,
   Text,
   Button,
-  Heading,
   HStack,
-  Divider,
   useColorModeValue,
   Link as ChakraLink,
   Spinner,
@@ -20,9 +17,16 @@ import {
 } from '@chakra-ui/react';
 import { FiCalendar, FiStar, FiExternalLink } from 'react-icons/fi';
 import ResponsiveText from '../ResponsiveText';
-import { Review, ReviewsResponse, SortOption, FilterOptions } from '../../hooks/useReviews';
+import { Review, ReviewsResponse, SortOption, FilterOptions, useReviews } from '../../hooks/useReviews';
 import Link from 'next/link';
 import ReviewFilters from './ReviewFilters';
+import { createLogger, LogCategory } from '../../utils/logger';
+import { useAuth } from '../../contexts/AuthContext';
+import { doc, updateDoc } from 'firebase/firestore';
+import { getFirebaseFirestore } from '../../config/firebase';
+
+// Create a logger instance for this component
+const logger = createLogger('ReviewsPanel');
 
 // Define default empty state component
 const DefaultEmptyState: React.FC<{ type: string }> = ({ type }) => (
@@ -94,19 +98,130 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   onSortChange,
   currentSort = 'date_desc',
   currentFilters = {},
-  isLoading = false,
+  isLoading: externalLoading = false,
 }) => {
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   
-  // Since we don't have a proper useReviews hook implementation, we'll just use the provided data
-  // In a real implementation, we would use the hook like this:
-  // const { data: reviews, isLoading, error } = useReviews(userId, currentPage, currentSort, currentFilters);
+  // Use the useReviews hook to fetch reviews data
+  const { data, isLoading: reviewsLoading, error } = useReviews(
+    userId,
+    currentPage,
+    5, // itemsPerPage
+    currentSort,
+    currentFilters
+  );
+
+  // Use either the data from the hook or the prop data
+  const reviewsData = data || propReviewsData || { reviews: [], totalPages: 0 };
+  const isLoading = reviewsLoading || externalLoading;
   
-  // For now, we'll just use the prop data
-  const reviewsData = propReviewsData || { reviews: [], totalPages: 0 };
-  const error = null;
+  // Get the current user from the AuthContext
+  const { currentUser } = useAuth();
   
+  // Function to update the user profile with the correct review count
+  const updateUserReviewCount = async () => {
+    try {
+      if (!userId) {
+        logger.warn('Cannot update review count without a user ID', {
+          category: LogCategory.DATA
+        });
+        return;
+      }
+
+      const db = getFirebaseFirestore();
+      if (!db) {
+        logger.error('Firestore not initialized', {
+          category: LogCategory.ERROR
+        });
+        return;
+      }
+
+      // Get the total number of reviews from the service directly
+      // This ensures we count ALL reviews, not just the ones on the current page
+      const { getUserReviews } = await import('../../services/reviewService');
+      const allReviews = await getUserReviews(userId);
+      const totalReviewCount = allReviews.length;
+
+      logger.debug('Updating user profile with review count', {
+        context: { userId, reviewCount: totalReviewCount },
+        category: LogCategory.DATA
+      });
+
+      // Get the current profile data first
+      const userRef = doc(db, 'users', userId);
+      
+      // Update the profile with the review count
+      await updateDoc(userRef, {
+        reviewCount: totalReviewCount,
+        reviews: totalReviewCount, // Update both fields for backward compatibility
+        updatedAt: new Date().toISOString()
+      });
+
+      logger.info('Successfully updated user profile with review count', {
+        context: { reviewCount: totalReviewCount },
+        category: LogCategory.DATA
+      });
+
+      // Update the UI without requiring a page reload
+      // This will update the profile stats in real-time
+      if (typeof window !== 'undefined') {
+        // Dispatch a custom event that other components can listen for
+        const event = new CustomEvent('profile-review-count-updated', { 
+          detail: { reviewCount: totalReviewCount } 
+        });
+        window.dispatchEvent(event);
+      }
+    } catch (error) {
+      logger.error('Error updating user profile with review count', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+    }
+  };
+
+  // Log when reviews data changes
+  useEffect(() => {
+    if (reviewsData && reviewsData.reviews) {
+      logger.debug('Reviews data updated', {
+        context: {
+          reviewCount: reviewsData.reviews.length,
+          totalPages: reviewsData.totalPages,
+          userId: userId,
+          hasReviews: reviewsData.reviews.length > 0,
+          reviewSample: reviewsData.reviews.length > 0 ? reviewsData.reviews[0] : null
+        },
+        category: LogCategory.DATA
+      });
+      
+      // Log to console for easier debugging
+      console.log('ReviewsPanel: Reviews data', {
+        reviewCount: reviewsData.reviews.length,
+        totalPages: reviewsData.totalPages,
+        userId: userId,
+        currentUserUid: currentUser?.uid,
+        hasReviews: reviewsData.reviews.length > 0,
+        reviewSample: reviewsData.reviews.length > 0 ? reviewsData.reviews[0] : null
+      });
+
+      // Update the user profile with the correct review count
+      updateUserReviewCount();
+    }
+  }, [reviewsData, userId, currentUser?.uid]);
+
+  // Log when there's an error
+  useEffect(() => {
+    if (error) {
+      console.error('ReviewsPanel: Error fetching reviews:', error);
+    }
+  }, [error]);
+
+  // Log when the component mounts
+  useEffect(() => {
+    console.log('ReviewsPanel: Component mounted with userId:', userId);
+    console.log('ReviewsPanel: Current user UID:', currentUser?.uid);
+  }, [userId, currentUser?.uid]);
+
   if (isLoading) {
     return (
       <Center py={10}>

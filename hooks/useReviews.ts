@@ -174,6 +174,7 @@ const fetchReviews = async (
 
 // React Query hook
 export const useReviews = (
+  userId?: string,
   page = 1,
   itemsPerPage = 5,
   sortBy: SortOption = 'date_desc',
@@ -181,10 +182,13 @@ export const useReviews = (
 ): UseQueryResult<ReviewsResponse, Error> => {
   const { currentUser } = useAuth();
   
+  // Use provided userId if available, otherwise use currentUser.uid
+  const targetUserId = userId || currentUser?.uid;
+  
   return useQuery({
-    queryKey: ['reviews', currentUser?.uid, page, itemsPerPage, sortBy, filters],
-    queryFn: () => fetchReviews(currentUser?.uid, page, itemsPerPage, sortBy, filters),
-    enabled: !!currentUser,
+    queryKey: ['reviews', targetUserId, page, itemsPerPage, sortBy, filters],
+    queryFn: () => fetchReviews(targetUserId, page, itemsPerPage, sortBy, filters),
+    enabled: !!targetUserId,
     placeholderData: (previousData) => previousData, // This replaces keepPreviousData
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: false
