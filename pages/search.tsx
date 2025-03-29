@@ -153,7 +153,7 @@ const Search = () => {
                         variant="solid"
                         colorScheme="blue"
                         size="sm"
-                        onClick={() => window.location.href = `/article/${article.id}`}
+                        onClick={() => window.location.href = `/articles/${article.id}`}
                       >
                         Read Paper
                       </Button>
@@ -161,7 +161,7 @@ const Search = () => {
                         variant="ghost"
                         colorScheme="gray"
                         size="sm"
-                        onClick={() => handleLoginClick(`/article/${article.id}`)}
+                        onClick={() => handleLoginClick(`/articles/${article.id}`)}
                       >
                         Save
                       </Button>

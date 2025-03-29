@@ -430,7 +430,7 @@ const Home: React.FC = () => {
                         <Box as="h3">
                           <LinkOverlay 
                             as={NextLink} 
-                            href={`/article/${article.id}`}
+                            href={`/articles/${article.id}`}
                           >
                             <Heading size="md" my={2}>
                               {article.title}

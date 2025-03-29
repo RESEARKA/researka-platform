@@ -56,7 +56,7 @@ const FeaturedArticle: React.FC<FeaturedArticleProps> = ({
           ))}
         </Flex>
         
-        <NextLink href={`/article/${articleId}`} passHref legacyBehavior>
+        <NextLink href={`/articles/${articleId}`} passHref legacyBehavior>
           <LinkOverlay>
             <Heading as="h3" size="md" mb={2} lineHeight="tight">
               {title}
