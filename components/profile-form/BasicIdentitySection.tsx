@@ -54,7 +54,8 @@ function BasicIdentitySection({
   errors, 
   onChange,
   isDisabled = false,
-  isLoading = false
+  isLoading = false,
+  isEditMode = false
 }: BaseFormSectionProps) {
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,47 +63,69 @@ function BasicIdentitySection({
     onChange(name, value);
   };
 
+  // In edit mode, these fields should be non-editable
+  const isFieldDisabled = isDisabled || isLoading || isEditMode;
+  
   return (
     <VStack spacing={6} align="stretch" width="100%">
-      <VStack align="flex-start" spacing={1}>
-        <Heading size="md">Basic Identity & Contact</Heading>
-        <Text fontSize="sm" color="gray.500">
-          Tell us who you are and how to reach you
-        </Text>
-      </VStack>
-      
+      <Heading size="md">Basic Identity</Heading>
+      <Text>Please provide your basic identity information</Text>
       <Divider />
       
-      <FormControl isInvalid={!!errors.firstName} isRequired isDisabled={isDisabled || isLoading}>
-        <FormLabel>First Name</FormLabel>
+      <FormControl isInvalid={!!errors.firstName} isRequired>
+        <FormLabel htmlFor="firstName">First Name</FormLabel>
         <Input
+          id="firstName"
           name="firstName"
           value={formData.firstName}
           onChange={handleInputChange}
           placeholder="Enter your first name"
+          isDisabled={isFieldDisabled}
+          bg={isEditMode ? "gray.100" : undefined}
+          _disabled={isEditMode ? { 
+            cursor: "not-allowed",
+            opacity: 0.7,
+            borderColor: "gray.300"
+          } : undefined}
         />
         <FormErrorMessage>{errors.firstName}</FormErrorMessage>
       </FormControl>
-
-      <FormControl isInvalid={!!errors.lastName} isDisabled={isDisabled || isLoading}>
-        <FormLabel>Last Name</FormLabel>
+      
+      <FormControl isInvalid={!!errors.lastName}>
+        <FormLabel htmlFor="lastName">Last Name</FormLabel>
         <Input
+          id="lastName"
           name="lastName"
           value={formData.lastName}
           onChange={handleInputChange}
           placeholder="Enter your last name"
+          isDisabled={isFieldDisabled}
+          bg={isEditMode ? "gray.100" : undefined}
+          _disabled={isEditMode ? { 
+            cursor: "not-allowed",
+            opacity: 0.7,
+            borderColor: "gray.300"
+          } : undefined}
         />
         <FormErrorMessage>{errors.lastName}</FormErrorMessage>
       </FormControl>
-
-      <FormControl isInvalid={!!errors.email} isRequired isDisabled={isDisabled || isLoading}>
-        <FormLabel>Email Address</FormLabel>
+      
+      <FormControl isInvalid={!!errors.email} isRequired>
+        <FormLabel htmlFor="email">Email</FormLabel>
         <Input
+          id="email"
           name="email"
           type="email"
           value={formData.email}
           onChange={handleInputChange}
           placeholder="Enter your email address"
+          isDisabled={isFieldDisabled}
+          bg={isEditMode ? "gray.100" : undefined}
+          _disabled={isEditMode ? { 
+            cursor: "not-allowed",
+            opacity: 0.7,
+            borderColor: "gray.300"
+          } : undefined}
         />
         <FormErrorMessage>{errors.email}</FormErrorMessage>
       </FormControl>

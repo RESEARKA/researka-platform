@@ -5,14 +5,11 @@ import {
   Flex,
   Progress,
   VStack,
-  HStack,
-  Heading,
   Text,
-  useToast,
   useColorModeValue,
   Icon
 } from '@chakra-ui/react';
-import { FiArrowRight, FiArrowLeft, FiCheck, FiSave } from 'react-icons/fi';
+import { FiArrowRight, FiArrowLeft, FiSave } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import useAppToast from '../../hooks/useAppToast';
 import { UserProfile } from '../../hooks/useProfileData';
@@ -79,7 +76,7 @@ function ProfileFormStepper({
     if (initialData) {
       logger.info('Initializing form with existing profile data', {
         context: { 
-          userId: initialData.id,
+          userId: initialData.uid || 'unknown',
           isComplete: initialData.profileComplete,
           hasName: !!initialData.name
         },
@@ -122,21 +119,26 @@ function ProfileFormStepper({
     };
   }, []);
 
-  // Handle field changes
-  const handleFieldChange = (name: string, value: any) => {
-    setFormData(prev => ({
+  // Handle form field changes
+  const handleChange = (name: string, value: any) => {
+    // In edit mode, prevent changing name and institution fields
+    if (isEditMode && ['firstName', 'lastName', 'email', 'institution', 'department'].includes(name)) {
+      logger.debug('Attempted to change restricted field in edit mode', {
+        context: { field: name },
+        category: LogCategory.UI
+      });
+      return;
+    }
+    
+    setFormData((prev) => ({
       ...prev,
       [name]: value
     }));
     
-    // Clear error for the field when it changes
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
+    logger.debug('Form field changed', {
+      context: { field: name },
+      category: LogCategory.UI
+    });
   };
 
   // Validate the current step
@@ -224,7 +226,7 @@ function ProfileFormStepper({
       logger.info('Submitting profile form', {
         context: { 
           isEditMode,
-          userId: initialData?.id
+          userId: initialData?.uid || 'unknown'
         },
         category: LogCategory.UI
       });
@@ -235,7 +237,15 @@ function ProfileFormStepper({
       // Call the onSave handler
       const success = await onSave(profileData);
       
-      if (success && isMounted.current) {
+      if (success) {
+        logger.info('Profile saved successfully', {
+          context: { 
+            userId: initialData?.uid || 'unknown',
+            isComplete: true
+          },
+          category: LogCategory.UI
+        });
+        
         showToast({
           title: isEditMode ? 'Profile Updated' : 'Profile Created',
           description: isEditMode 
@@ -249,11 +259,13 @@ function ProfileFormStepper({
           router.push('/profile');
         }
       }
-    } catch (error) {
-      logger.error('Error submitting profile form', {
-        error,
-        context: { isEditMode },
-        category: LogCategory.UI
+    } catch (err) {
+      logger.error('Error saving profile', {
+        context: { 
+          userId: initialData?.uid || 'unknown',
+          errorMessage: err instanceof Error ? err.message : String(err)
+        },
+        category: LogCategory.ERROR
       });
       
       if (isMounted.current) {
@@ -272,12 +284,14 @@ function ProfileFormStepper({
 
   // Render the current step content
   const renderStepContent = () => {
+    // Create common props for all form sections
     const commonProps = {
       formData,
       errors,
-      onChange: handleFieldChange,
-      isDisabled: isDisabled || isSubmitting,
-      isLoading: isLoading
+      onChange: handleChange,
+      isDisabled: isDisabled || isLoading,
+      isLoading,
+      isEditMode // Pass edit mode to form sections
     };
     
     switch (currentStep) {

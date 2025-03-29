@@ -28,6 +28,7 @@ export interface BaseFormSectionProps {
   onChange: (name: string, value: any) => void;
   isDisabled?: boolean;
   isLoading?: boolean;
+  isEditMode?: boolean;
 }
 
 /**
@@ -90,7 +91,7 @@ export function userProfileToFormData(profile: UserProfile): ProfileFormData {
     institution: profile.institution || '',
     department: profile.department || '',
     position: profile.position || '',
-    researchInterests: profile.researchInterests || [],
+    researchInterests: Array.isArray(profile.researchInterests) ? profile.researchInterests : [],
     role: profile.role || 'Researcher',
     // Optional fields
     personalWebsite: profile.personalWebsite || '',
