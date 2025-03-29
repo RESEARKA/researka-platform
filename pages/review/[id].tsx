@@ -298,19 +298,58 @@ const ReviewArticlePage: React.FC = () => {
   const handleSubmitReview = () => {
     if (validateForm()) {
       setIsSubmitting(true);
-
-      // Simulate API call
-      setTimeout(() => {
-        toast({
-          title: 'Review submitted',
-          description: `You've earned ${article?.compensation} for your contribution!`,
-          status: 'success',
-          duration: 5000,
-          isClosable: true,
-        });
-        setIsSubmitting(false);
-        router.push('/review');
-      }, 2000);
+      
+      // Create the review data object
+      const reviewData = {
+        articleId: id as string,
+        articleTitle: article?.title || 'Unknown Article',
+        reviewerId: account ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}` : 'anonymous',
+        reviewerName: account ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}` : 'Anonymous Reviewer',
+        score: parseInt(originalityRating) + parseInt(significanceRating) + parseInt(technicalQualityRating) + parseInt(clarityRating) + parseInt(relevanceRating),
+        recommendation: overallRecommendation === 'Accept' ? 'accept' : 
+                      overallRecommendation === 'Minor Revisions' ? 'minor_revisions' : 
+                      overallRecommendation === 'Major Revisions' ? 'major_revisions' : 'reject',
+        content: commentsToAuthor,
+        confidentialComments: confidentialComments,
+        date: new Date().toISOString().split('T')[0],
+      };
+      
+      // Submit the review to Firebase
+      const submitReviewToFirebase = async () => {
+        try {
+          // Import the submitReview function
+          const { submitReview } = await import('../../services/reviewService');
+          
+          console.log('ReviewArticlePage: Submitting review to Firebase', reviewData);
+          
+          // Submit the review
+          await submitReview(reviewData);
+          
+          toast({
+            title: 'Review submitted',
+            description: `You've earned ${article?.compensation} for your contribution!`,
+            status: 'success',
+            duration: 5000,
+            isClosable: true,
+          });
+          
+          // Navigate back to the review page
+          router.push('/review');
+        } catch (error) {
+          console.error('ReviewArticlePage: Error submitting review:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to submit review. Please try again.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+      
+      submitReviewToFirebase();
     }
   };
 

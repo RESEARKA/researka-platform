@@ -71,7 +71,7 @@ export function captureError(error: unknown, context?: Record<string, any>): str
  */
 export function handleError(error: unknown, operation: string, context?: Record<string, any>): AppError {
   // Determine error type and format appropriately
-  const appError = formatError(error, operation, context);
+  const appError = formatError(error, context);
   
   // Log the error with our centralized logger
   logger.error(`${operation} failed: ${appError.message}`, {
@@ -92,11 +92,10 @@ export function handleError(error: unknown, operation: string, context?: Record<
 /**
  * Formats an error into a standardized AppError object
  * @param error The error object or message
- * @param operation Description of the operation that failed
  * @param context Additional context information
  * @returns Formatted AppError object
  */
-function formatError(error: unknown, operation: string, context?: Record<string, any>): AppError {
+function formatError(error: unknown, context?: Record<string, any>): AppError {
   const appError = new Error() as AppError;
   
   // Determine error category
@@ -109,33 +108,104 @@ function formatError(error: unknown, operation: string, context?: Record<string,
   if (error instanceof Error) {
     message = error.message;
     
-    // Check for network errors
-    if (
-      message.includes('network') || 
-      message.includes('offline') || 
-      message.includes('connection')
-    ) {
-      category = ErrorCategory.NETWORK;
-      retry = true;
-    }
-    
-    // Check for timeout errors
-    if (
-      message.includes('timeout') || 
-      message.includes('timed out')
-    ) {
-      category = ErrorCategory.TIMEOUT;
-      retry = true;
-    }
-    
-    // Check for authentication errors
-    if (
-      message.includes('auth') || 
-      message.includes('login') || 
-      message.includes('sign in') ||
-      message.includes('token')
-    ) {
-      category = ErrorCategory.AUTHENTICATION;
+    // Extract Firebase error code if available
+    const firebaseError = error as any;
+    if (firebaseError.code) {
+      code = firebaseError.code;
+      
+      // Handle specific Firebase auth errors
+      switch (code) {
+        case 'auth/invalid-credential':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'Your session has expired. Please sign in again.';
+          break;
+        case 'auth/user-token-expired':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'Your session has expired. Please sign in again.';
+          break;
+        case 'auth/user-not-found':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'No account found with this email. Please check your email or create a new account.';
+          break;
+        case 'auth/wrong-password':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'Incorrect password. Please try again or reset your password.';
+          break;
+        case 'auth/too-many-requests':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'Too many unsuccessful login attempts. Please try again later or reset your password.';
+          break;
+        case 'auth/email-already-in-use':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'An account with this email already exists. Please sign in or use a different email.';
+          break;
+        case 'auth/weak-password':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'Password is too weak. Please use a stronger password.';
+          break;
+        case 'auth/invalid-email':
+          category = ErrorCategory.AUTHENTICATION;
+          message = 'Invalid email format. Please enter a valid email address.';
+          break;
+        default:
+          // Check for network errors
+          if (
+            message.includes('network') || 
+            message.includes('offline') || 
+            message.includes('connection')
+          ) {
+            category = ErrorCategory.NETWORK;
+            retry = true;
+          }
+          
+          // Check for timeout errors
+          else if (
+            message.includes('timeout') || 
+            message.includes('timed out')
+          ) {
+            category = ErrorCategory.TIMEOUT;
+            retry = true;
+          }
+          
+          // Check for authentication errors
+          else if (
+            message.includes('auth') || 
+            message.includes('login') || 
+            message.includes('sign in') ||
+            message.includes('token')
+          ) {
+            category = ErrorCategory.AUTHENTICATION;
+          }
+      }
+    } else {
+      // Check for network errors
+      if (
+        message.includes('network') || 
+        message.includes('offline') || 
+        message.includes('connection')
+      ) {
+        category = ErrorCategory.NETWORK;
+        retry = true;
+      }
+      
+      // Check for timeout errors
+      else if (
+        message.includes('timeout') || 
+        message.includes('timed out')
+      ) {
+        category = ErrorCategory.TIMEOUT;
+        retry = true;
+      }
+      
+      // Check for authentication errors
+      else if (
+        message.includes('auth') || 
+        message.includes('login') || 
+        message.includes('sign in') ||
+        message.includes('token')
+      ) {
+        category = ErrorCategory.AUTHENTICATION;
+      }
     }
     
     // Check for AppError
@@ -143,7 +213,11 @@ function formatError(error: unknown, operation: string, context?: Record<string,
       category = (error as AppError).category!;
       statusCode = (error as AppError).statusCode;
       retry = (error as AppError).retry || false;
-      code = (error as AppError).code || '';
+      if (!(error as AppError).code) {
+        // Keep the code we extracted above
+      } else {
+        code = (error as AppError).code || '';
+      }
     }
   } else if (typeof error === 'string') {
     message = error;

@@ -108,8 +108,9 @@ function ReviewForm({ articleId, articleTitle, onSuccess, onCancel }: ReviewForm
       setRecommendation('minor_revisions');
       setContent('');
       
-      // Call onSuccess callback if provided
+      // Call onSuccess callback if provided - this should trigger a refresh of the articles list
       if (onSuccess) {
+        console.log('ReviewForm: Calling onSuccess callback to refresh articles');
         onSuccess();
       }
     } catch (error) {

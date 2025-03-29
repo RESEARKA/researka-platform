@@ -1,6 +1,5 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentData, QueryDocumentSnapshot, Query } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { DocumentData, QueryDocumentSnapshot, Timestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 
 // Types
@@ -21,7 +20,7 @@ export interface Review {
   date: string;
   reviewerId: string;
   articleId: string;
-  createdAt: any;
+  createdAt: any; // Keep as 'any' to accommodate different timestamp formats
   score?: number;
   recommendation?: string;
   reviewerName?: string;
@@ -52,8 +51,7 @@ const fetchReviews = async (
   page = 1,
   itemsPerPage = 5,
   sortBy: SortOption = 'date_desc',
-  filters: FilterOptions = {},
-  lastVisible: QueryDocumentSnapshot<DocumentData> | null = null
+  filters: FilterOptions = {}
 ): Promise<ReviewsResponse> => {
   // Return empty response if no userId
   if (!userId) {
@@ -70,178 +68,107 @@ const fetchReviews = async (
   console.log('useReviews: Filters:', filters);
   
   try {
-    // Create a reference to the reviews collection
-    const reviewsRef = collection(db, 'reviews');
+    // Import getUserReviews from reviewService
+    const { getUserReviews } = await import('../services/reviewService');
     
-    // Create a query against the collection
-    let queryConstraints: any[] = [where('reviewerId', '==', userId)];
+    // Use the getUserReviews function to get all reviews for the user
+    const allReviews = await getUserReviews(userId);
     
-    // Add filters if provided
+    // Ensure all reviews have an id (required by our Review interface)
+    const validReviews = allReviews
+      .filter(review => review.id) // Filter out any reviews without an id
+      .map(review => ({
+        ...review,
+        id: review.id as string, // Cast to ensure it's a string
+        // Ensure other required fields have default values if missing
+        articleTitle: review.articleTitle || 'Untitled Article',
+        content: review.content || '',
+        date: review.date || new Date().toISOString().split('T')[0],
+        reviewerId: review.reviewerId || userId,
+        articleId: review.articleId || '',
+        createdAt: review.createdAt || Timestamp.now(), // Ensure createdAt is always present
+      })) as Review[]; // Cast the entire array to Review[]
+    
+    // Apply filters
+    let filteredReviews = validReviews;
+    
     if (filters.recommendation) {
-      queryConstraints.push(where('recommendation', '==', filters.recommendation));
+      filteredReviews = filteredReviews.filter(review => 
+        review.recommendation === filters.recommendation
+      );
     }
     
     if (filters.minScore !== undefined) {
-      queryConstraints.push(where('score', '>=', filters.minScore));
+      filteredReviews = filteredReviews.filter(review => 
+        (review.score || 0) >= (filters.minScore || 0)
+      );
     }
     
     if (filters.maxScore !== undefined) {
-      queryConstraints.push(where('score', '<=', filters.maxScore));
+      filteredReviews = filteredReviews.filter(review => 
+        (review.score || 0) <= (filters.maxScore || 0)
+      );
     }
     
-    // Add sorting based on sortBy parameter
-    let sortField: string;
-    let sortDirection: 'asc' | 'desc';
+    if (filters.dateFrom) {
+      const fromDate = new Date(filters.dateFrom).getTime();
+      filteredReviews = filteredReviews.filter(review => {
+        const reviewDate = review.date ? new Date(review.date).getTime() : 0;
+        return reviewDate >= fromDate;
+      });
+    }
     
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo).getTime();
+      filteredReviews = filteredReviews.filter(review => {
+        const reviewDate = review.date ? new Date(review.date).getTime() : 0;
+        return reviewDate <= toDate;
+      });
+    }
+    
+    // Apply sorting
     switch (sortBy) {
       case 'date_asc':
-        sortField = 'createdAt';
-        sortDirection = 'asc';
+        filteredReviews.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          return dateA - dateB;
+        });
         break;
       case 'score_desc':
-        sortField = 'score';
-        sortDirection = 'desc';
+        filteredReviews.sort((a, b) => (b.score || 0) - (a.score || 0));
         break;
       case 'score_asc':
-        sortField = 'score';
-        sortDirection = 'asc';
+        filteredReviews.sort((a, b) => (a.score || 0) - (b.score || 0));
         break;
       case 'date_desc':
       default:
-        sortField = 'createdAt';
-        sortDirection = 'desc';
+        filteredReviews.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          return dateB - dateA;
+        });
         break;
     }
     
-    queryConstraints.push(orderBy(sortField, sortDirection));
+    // Calculate pagination
+    const totalItems = filteredReviews.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedReviews = filteredReviews.slice(startIndex, endIndex);
     
-    // If sorting by something other than createdAt, we need to add a secondary sort by createdAt
-    // to ensure consistent pagination
-    if (sortField !== 'createdAt') {
-      queryConstraints.push(orderBy('createdAt', 'desc'));
-    }
-    
-    let reviewsQuery: Query<DocumentData>;
-    
-    if (lastVisible) {
-      // If we have a lastVisible document, start after it
-      reviewsQuery = query(
-        reviewsRef,
-        ...queryConstraints,
-        startAfter(lastVisible),
-        limit(itemsPerPage)
-      );
-      console.log('useReviews: Using pagination with lastVisible document');
-    } else {
-      // First page query
-      reviewsQuery = query(
-        reviewsRef,
-        ...queryConstraints,
-        limit(itemsPerPage)
-      );
-      console.log('useReviews: First page query without lastVisible document');
-    }
-    
-    // Execute the query
-    console.log('useReviews: Executing query...');
-    const reviewsSnapshot = await getDocs(reviewsQuery);
-    console.log(`useReviews: Query executed, got ${reviewsSnapshot.docs.length} documents`);
-    
-    // Check if there are any documents
-    if (reviewsSnapshot.empty) {
-      console.log('useReviews: No reviews found for user:', userId);
-      return {
-        reviews: [],
-        totalPages: 0,
-        lastVisible: null,
-        hasMore: false
-      };
-    }
-    
-    // Get the last visible document for pagination
-    const lastVisibleDoc = reviewsSnapshot.docs[reviewsSnapshot.docs.length - 1];
-    
-    // Check if there are more documents
-    const nextQueryConstraints = [...queryConstraints];
-    const nextQuery = query(
-      reviewsRef,
-      ...nextQueryConstraints,
-      startAfter(lastVisibleDoc),
-      limit(1)
-    );
-    
-    const nextSnapshot = await getDocs(nextQuery);
-    const hasMore = !nextSnapshot.empty;
-    
-    // Map the documents to an array of reviews
-    const reviews = reviewsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title || undefined,
-        articleTitle: data.articleTitle || 'Review of Article',
-        content: data.content || 'No review content provided',
-        date: data.createdAt?.toDate?.() 
-          ? new Date(data.createdAt.toDate()).toLocaleDateString() 
-          : new Date().toLocaleDateString(),
-        reviewerId: data.reviewerId || '',
-        articleId: data.articleId || '',
-        createdAt: data.createdAt,
-        score: data.score || 0,
-        recommendation: data.recommendation || '',
-        reviewerName: data.reviewerName || '',
-        responses: data.responses || [],
-        authorId: data.authorId
-      };
-    });
-    
-    console.log(`useReviews: Fetched ${reviews.length} reviews for user:`, userId);
-    console.log('useReviews: First review data:', reviews[0]);
-    
-    // Calculate total pages (this is an approximation)
-    const totalPages = page + (hasMore ? 1 : 0);
+    console.log(`useReviews: Found ${filteredReviews.length} reviews for user ${userId}, returning page ${page} with ${paginatedReviews.length} reviews`);
     
     return {
-      reviews,
+      reviews: paginatedReviews,
       totalPages,
-      lastVisible: lastVisibleDoc,
-      hasMore
+      lastVisible: null, // Not needed with client-side pagination
+      hasMore: page < totalPages
     };
-  } catch (error: any) {
-    // Check for specific error types
-    if (error?.name === 'FirebaseError') {
-      if (error.code === 'permission-denied') {
-        console.error('useReviews: Permission denied error. You need to update Firestore security rules:');
-        console.error(`
-        // Add this to your Firestore security rules
-        match /reviews/{reviewId} {
-          allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == resource.data.reviewerId;
-          allow update: if request.auth != null && 
-            (request.auth.uid == resource.data.reviewerId || 
-             request.auth.uid == resource.data.authorId);
-        }
-        `);
-        console.error('Visit the Firebase console to update security rules: https://console.firebase.google.com/project/_/firestore/rules');
-      } else if (error.code === 'failed-precondition') {
-        console.error('useReviews: Missing required index for query. You need to create a composite index on Firestore:');
-        console.error('Collection: reviews');
-        console.error('Fields to index: reviewerId (Ascending) and createdAt (Descending)');
-        console.error('Visit the Firebase console to create this index: https://console.firebase.google.com/project/_/firestore/indexes');
-      } else {
-        console.error('useReviews: Firebase error fetching reviews:', error.code, error.message);
-      }
-    } else {
-      console.error('useReviews: Error fetching reviews:', error);
-    }
-    
-    // Return empty data instead of throwing
-    return {
-      reviews: [],
-      totalPages: 0,
-      lastVisible: null,
-      hasMore: false
-    };
+  } catch (error) {
+    console.error('useReviews: Error fetching reviews:', error);
+    throw new Error('Failed to fetch reviews');
   }
 };
 
@@ -252,16 +179,14 @@ export const useReviews = (
   sortBy: SortOption = 'date_desc',
   filters: FilterOptions = {}
 ): UseQueryResult<ReviewsResponse, Error> => {
-  const { currentUser, authIsInitialized } = useAuth();
-  const userId = currentUser?.uid;
-
+  const { currentUser } = useAuth();
+  
   return useQuery({
-    queryKey: ['reviews', userId, page, itemsPerPage, sortBy, filters],
-    queryFn: () => fetchReviews(userId, page, itemsPerPage, sortBy, filters),
-    placeholderData: (previousData) => previousData,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false,
-    enabled: !!userId && authIsInitialized === true,
-    retry: 1
+    queryKey: ['reviews', currentUser?.uid, page, itemsPerPage, sortBy, filters],
+    queryFn: () => fetchReviews(currentUser?.uid, page, itemsPerPage, sortBy, filters),
+    enabled: !!currentUser,
+    placeholderData: (previousData) => previousData, // This replaces keepPreviousData
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false
   });
 };

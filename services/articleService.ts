@@ -6,8 +6,7 @@ import {
   query, 
   where, 
   orderBy, 
-  Timestamp,
-  DocumentData
+  Timestamp
 } from 'firebase/firestore';
 import { createLogger, LogCategory } from '../utils/logger';
 
@@ -146,8 +145,47 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       throw new Error('Firestore not initialized');
     }
     
+    // If no userId is provided, we can't filter by user's reviews
+    if (!userId) {
+      logger.warn('No userId provided, returning all articles without filtering user reviews', {
+        category: LogCategory.DATA
+      });
+      
+      // Create query for all articles, ordered by creation date
+      const q = query(
+        collection(db, articlesCollection),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return processQueryResults(querySnapshot);
+    }
+    
+    // First, get the user's reviews to know which articles they've already reviewed
+    logger.info('Getting user reviews to filter articles', {
+      context: { userId },
+      category: LogCategory.DATA
+    });
+    
+    // Import the review service
+    const { getUserReviews } = await import('./reviewService');
+    
+    // Get all reviews by this user
+    const userReviews = await getUserReviews(userId);
+    
+    // Extract the articleIds that the user has already reviewed
+    const reviewedArticleIds = new Set(userReviews.map(review => review.articleId));
+    
+    logger.info('User has already reviewed articles', {
+      context: { 
+        userId,
+        reviewCount: userReviews.length,
+        reviewedArticleIds: Array.from(reviewedArticleIds)
+      },
+      category: LogCategory.DATA
+    });
+    
     // Create query for all articles, ordered by creation date
-    // Temporarily removing the status filter to see all articles
     const q = query(
       collection(db, articlesCollection),
       orderBy('createdAt', 'desc')
@@ -185,12 +223,24 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
         category: LogCategory.DATA
       });
       
-      // Skip articles authored by the current user if userId is provided
-      if (userId && data.authorId === userId) {
+      // Skip articles authored by the current user
+      if (data.authorId === userId) {
         logger.debug('Skipping user\'s own article', {
           context: { 
             articleId: doc.id, 
             authorId: data.authorId 
+          },
+          category: LogCategory.DATA
+        });
+        return; // Skip this article
+      }
+      
+      // Skip articles that the user has already reviewed
+      if (reviewedArticleIds.has(doc.id)) {
+        logger.debug('Skipping already reviewed article', {
+          context: { 
+            articleId: doc.id, 
+            reviewerId: userId 
           },
           category: LogCategory.DATA
         });
@@ -224,7 +274,10 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
     });
     
     logger.info('Returning filtered articles for review', {
-      context: { count: articles.length },
+      context: { 
+        count: articles.length,
+        filteredOut: querySnapshot.size - articles.length
+      },
       category: LogCategory.DATA
     });
     

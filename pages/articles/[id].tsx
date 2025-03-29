@@ -11,7 +11,6 @@ import {
   Badge,
   Button,
   Flex,
-  Divider,
   Grid,
   GridItem,
   Icon,
@@ -20,32 +19,33 @@ import {
   useColorModeValue,
   useToast,
 } from '@chakra-ui/react';
-import { FiCalendar, FiDownload, FiEye, FiFileText, FiShare2, FiUser, FiArrowLeft } from 'react-icons/fi';
+import { FiArrowLeft, FiCalendar, FiDownload, FiEye, FiFileText, FiUser, FiShare2 } from 'react-icons/fi';
 import { Article } from '../../utils/recommendationEngine';
 import { getAllResearchFields } from '../../utils/researchTaxonomy';
 import ArticleReviewStatus from '../../components/ArticleReviewStatus';
-import RecommendedReviewers from '../../components/RecommendedReviewers';
+import ArticleReviewers from '../../components/ArticleReviewers';
 import { downloadArticlePdf } from '../../utils/pdfGenerator';
 
-// Mock reviews for demonstration
-const MOCK_REVIEWS = [
-  {
-    id: 'review1',
-    reviewerId: 'user1',
-    reviewerName: 'Dr. Emma Johnson',
-    score: 4.2,
-    recommendation: 'accept',
-    createdAt: '2023-02-10',
-  },
-  {
-    id: 'review2',
-    reviewerId: 'user8',
-    reviewerName: 'Prof. James Wilson',
-    score: 3.8,
-    recommendation: 'minor_revisions',
-    createdAt: '2023-02-15',
-  },
-];
+// Mock reviews for demonstration - will be replaced with real data in the future
+// Commented out for now as it's not being used
+// const MOCK_REVIEWS = [
+//   {
+//     id: 'review1',
+//     reviewerId: 'user1',
+//     reviewerName: 'Dr. Emma Johnson',
+//     score: 4.2,
+//     recommendation: 'accept',
+//     createdAt: '2023-02-10',
+//   },
+//   {
+//     id: 'review2',
+//     reviewerId: 'user8',
+//     reviewerName: 'Prof. James Wilson',
+//     score: 3.8,
+//     recommendation: 'minor_revisions',
+//     createdAt: '2023-02-15',
+//   },
+// ];
 
 const ArticleDetailPage: React.FC = () => {
   const router = useRouter();
@@ -138,16 +138,8 @@ const ArticleDetailPage: React.FC = () => {
     });
   };
   
-  // Handle inviting a reviewer
-  const handleInviteReviewer = (reviewerId: string) => {
-    toast({
-      title: 'Reviewer invited',
-      description: `Invitation sent to reviewer (ID: ${reviewerId})`,
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
-  };
+  // Note: Reviewer invitation feature is disabled for now
+  // Will be implemented when the real reviewer system is fully integrated
   
   return (
     <Container maxW="container.xl" py={8}>
@@ -316,9 +308,8 @@ const ArticleDetailPage: React.FC = () => {
                 />
                 
                 {article.status !== 'accepted' && article.status !== 'rejected' && (
-                  <RecommendedReviewers 
-                    article={article}
-                    onInvite={handleInviteReviewer}
+                  <ArticleReviewers 
+                    articleId={article.id || id as string}
                     limit={3}
                   />
                 )}

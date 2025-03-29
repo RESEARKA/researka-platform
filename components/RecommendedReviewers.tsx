@@ -278,6 +278,7 @@ const RecommendedReviewers: React.FC<RecommendedReviewersProps> = ({
                     size="sm" 
                     colorScheme="blue"
                     onClick={() => handleInvite(reviewer.id)}
+                    title="This feature will be available in a future update"
                   >
                     Invite to Review
                   </Button>
