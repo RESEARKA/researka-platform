@@ -9,25 +9,15 @@ import {
   FormErrorMessage,
   FormHelperText,
   Heading,
-  Input,
   Stack,
   Text,
   Textarea,
   RadioGroup,
   Radio,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
   useToast,
   VStack,
   HStack,
   Spinner,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription,
   Divider,
   Image,
   Tag,
@@ -44,7 +34,6 @@ import { useRouter } from 'next/router';
 import { FiArrowLeft } from 'react-icons/fi';
 import Layout from '../../components/Layout';
 import { useWallet } from '../../frontend/src/contexts/WalletContext';
-import useClient from '../../hooks/useClient';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { Review } from '../../services/reviewService';
 
@@ -57,6 +46,7 @@ interface Article {
   author: string;
   date: string;
   compensation: string;
+  keywords: string[];
 }
 
 // Form errors interface
@@ -68,6 +58,9 @@ interface FormErrors {
   clarityRating?: string;
   relevanceRating?: string;
   commentsToAuthor?: string;
+  openIdentity?: string;
+  noConflictOfInterest?: string;
+  agreedToGuidelines?: string;
 }
 
 const ReviewArticlePage: React.FC = () => {
@@ -75,7 +68,6 @@ const ReviewArticlePage: React.FC = () => {
   const { id } = router.query;
   const { account } = useWallet();
   const toast = useToast();
-  const isClient = useClient();
   const auth = getAuth();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -115,7 +107,12 @@ const ReviewArticlePage: React.FC = () => {
           
           if (firebaseArticle) {
             console.log(`ReviewArticlePage: Article loaded successfully: ${firebaseArticle.title}`);
-            setArticle(firebaseArticle);
+            // Ensure the article has all required properties including keywords
+            const articleWithDefaults = {
+              ...firebaseArticle,
+              keywords: firebaseArticle.keywords || []
+            };
+            setArticle(articleWithDefaults as Article);
             setError(null);
           } else {
             console.error(`ReviewArticlePage: Article not found with ID: ${id}`);
@@ -273,33 +270,29 @@ const ReviewArticlePage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Layout>
-        <Container maxW="container.xl" py={8}>
-          <Spinner size="xl" />
-        </Container>
-      </Layout>
+      <Container maxW="container.xl" py={8}>
+        <Spinner size="xl" />
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <Layout>
-        <Container maxW="container.xl" py={8}>
-          <Box textAlign="center" py={10}>
-            <Heading as="h2" size="xl" mb={4}>
-              {error}
-            </Heading>
-            <Text mb={6}>The article you're looking for could not be found.</Text>
-            <Button 
-              leftIcon={<FiArrowLeft />} 
-              colorScheme="green" 
-              onClick={() => router.push('/review')}
-            >
-              Back to Review Page
-            </Button>
-          </Box>
-        </Container>
-      </Layout>
+      <Container maxW="container.xl" py={8}>
+        <Box textAlign="center" py={10}>
+          <Heading as="h2" size="xl" mb={4}>
+            {error}
+          </Heading>
+          <Text mb={6}>The article you're looking for could not be found.</Text>
+          <Button 
+            leftIcon={<FiArrowLeft />} 
+            colorScheme="green" 
+            onClick={() => router.push('/review')}
+          >
+            Back to Review Page
+          </Button>
+        </Box>
+      </Container>
     );
   }
 
@@ -639,7 +632,7 @@ const ReviewArticlePage: React.FC = () => {
                 <FormControl isInvalid={!!formErrors.openIdentity} isRequired mb={4}>
                   <Checkbox 
                     isChecked={true} 
-                    onChange={(e) => {}}
+                    onChange={(_e: React.ChangeEvent<HTMLInputElement>) => {}}
                   >
                     I agree to have my identity revealed to the authors.
                   </Checkbox>
@@ -651,7 +644,7 @@ const ReviewArticlePage: React.FC = () => {
                 <FormControl isInvalid={!!formErrors.noConflictOfInterest} isRequired>
                   <Checkbox 
                     isChecked={true} 
-                    onChange={(e) => {}}
+                    onChange={(_e: React.ChangeEvent<HTMLInputElement>) => {}}
                   >
                     I declare that I have no conflict of interest with the authors or the research presented in this article.
                   </Checkbox>
@@ -664,7 +657,7 @@ const ReviewArticlePage: React.FC = () => {
               <FormControl isInvalid={!!formErrors.agreedToGuidelines} isRequired>
                 <Checkbox 
                   isChecked={true} 
-                  onChange={(e) => {}}
+                  onChange={(_e: React.ChangeEvent<HTMLInputElement>) => {}}
                 >
                   I have read and agreed to the review guidelines and ethical standards.
                 </Checkbox>

@@ -119,62 +119,63 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
   // Get the current user from the AuthContext
   const { currentUser } = useAuth();
   
-  // Function to update the user profile with the correct review count
-  const updateUserReviewCount = async () => {
+  /**
+   * Update the user's review count in their profile
+   * @param userId - The user ID
+   * @param reviewCount - The number of reviews
+   */
+  const updateUserReviewCount = async (userId: string, reviewCount: number) => {
     try {
-      if (!userId) {
-        logger.warn('Cannot update review count without a user ID', {
-          category: LogCategory.DATA
-        });
-        return;
-      }
+      logger.debug(`Updating user review count to ${reviewCount}`, {
+        context: { userId, reviewCount },
+        category: LogCategory.DATA
+      });
 
-      const db = getFirebaseFirestore();
-      if (!db) {
-        logger.error('Firestore not initialized', {
+      if (!userId) {
+        logger.error('Cannot update review count: No user ID provided', {
           category: LogCategory.ERROR
         });
         return;
       }
 
-      // Get the total number of reviews from the service directly
-      // This ensures we count ALL reviews, not just the ones on the current page
-      const { getUserReviews } = await import('../../services/reviewService');
-      const allReviews = await getUserReviews(userId);
-      const totalReviewCount = allReviews.length;
+      // Get Firestore instance
+      const db = getFirebaseFirestore();
+      if (!db) {
+        logger.error('Cannot update review count: Firestore not initialized', {
+          category: LogCategory.ERROR
+        });
+        return;
+      }
 
-      logger.debug('Updating user profile with review count', {
-        context: { userId, reviewCount: totalReviewCount },
-        category: LogCategory.DATA
-      });
-
-      // Get the current profile data first
-      const userRef = doc(db, 'users', userId);
+      // Get user document reference
+      const userDocRef = doc(db, 'users', userId);
       
-      // Update the profile with the review count
-      await updateDoc(userRef, {
-        reviewCount: totalReviewCount,
-        reviews: totalReviewCount, // Update both fields for backward compatibility
+      // Update the user document with the new review count
+      await updateDoc(userDocRef, {
+        reviewCount: reviewCount,
+        reviews: reviewCount, // For backward compatibility
         updatedAt: new Date().toISOString()
       });
 
-      logger.info('Successfully updated user profile with review count', {
-        context: { reviewCount: totalReviewCount },
+      logger.info(`Successfully updated user review count to ${reviewCount}`, {
+        context: { userId, reviewCount },
         category: LogCategory.DATA
       });
 
-      // Update the UI without requiring a page reload
-      // This will update the profile stats in real-time
+      // Dispatch a custom event to notify other components about the review count update
       if (typeof window !== 'undefined') {
-        // Dispatch a custom event that other components can listen for
-        const event = new CustomEvent('profile-review-count-updated', { 
-          detail: { reviewCount: totalReviewCount } 
+        const event = new CustomEvent('profile-review-count-updated', {
+          detail: { reviewCount }
         });
         window.dispatchEvent(event);
+        logger.debug('Dispatched profile-review-count-updated event', {
+          context: { reviewCount },
+          category: LogCategory.DATA
+        });
       }
     } catch (error) {
-      logger.error('Error updating user profile with review count', {
-        context: { error },
+      logger.error('Error updating user review count', {
+        context: { error, userId, reviewCount },
         category: LogCategory.ERROR
       });
     }
@@ -182,7 +183,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
 
   // Log when reviews data changes
   useEffect(() => {
-    if (reviewsData && reviewsData.reviews) {
+    if (reviewsData && reviewsData.reviews && userId) {
       logger.debug('Reviews data updated', {
         context: {
           reviewCount: reviewsData.reviews.length,
@@ -205,7 +206,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
       });
 
       // Update the user profile with the correct review count
-      updateUserReviewCount();
+      updateUserReviewCount(userId, reviewsData.reviews.length);
     }
   }, [reviewsData, userId, currentUser?.uid]);
 

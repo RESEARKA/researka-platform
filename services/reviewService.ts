@@ -294,6 +294,17 @@ export const getUserReviews = async (userId: string): Promise<Review[]> => {
       console.log(`ReviewService: Found ${reviews.length} reviews after alternative search for user ${userId}`);
     }
     
+    // Additional check: Log all reviews to help debug
+    console.log(`ReviewService: Final review count for user ${userId}: ${reviews.length}`);
+    reviews.forEach((review, index) => {
+      console.log(`ReviewService: Review ${index + 1}:`, {
+        id: review.id,
+        articleTitle: review.articleTitle,
+        reviewerId: review.reviewerId,
+        date: review.date
+      });
+    });
+    
     return reviews;
   } catch (error) {
     console.error('ReviewService: Error getting reviews for user:', error);
