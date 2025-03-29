@@ -110,6 +110,10 @@ export function userProfileToFormData(profile: UserProfile): ProfileFormData {
   const firstName = nameParts[0] || '';
   const lastName = nameParts.slice(1).join(' ') || '';
   
+  // Check if this is an existing profile that has been saved to the database
+  // A profile with uid, createdAt, and a non-empty name is considered existing
+  const isExistingProfile = !!(profile.uid && profile.createdAt && profile.name && profile.name.trim() !== '');
+  
   return {
     firstName,
     lastName,
@@ -124,6 +128,7 @@ export function userProfileToFormData(profile: UserProfile): ProfileFormData {
     orcidId: profile.orcidId || '',
     twitter: profile.twitter || '',
     linkedin: profile.linkedin || '',
-    wantsToBeEditor: profile.wantsToBeEditor || false
+    wantsToBeEditor: profile.wantsToBeEditor || false,
+    isExistingProfile: isExistingProfile
   };
 }

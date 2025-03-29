@@ -149,7 +149,7 @@ function ProfileFormStepper({
       
       if (restrictedFields.includes(name)) {
         logger.debug('Attempted to change restricted field for existing profile', {
-          context: { field: name },
+          context: { field: name, isExistingProfile: formData.isExistingProfile },
           category: LogCategory.UI
         });
         return;
@@ -163,7 +163,7 @@ function ProfileFormStepper({
     }));
     
     logger.debug('Form field changed', {
-      context: { field: name, value },
+      context: { field: name, value, isExistingProfile: formData.isExistingProfile },
       category: LogCategory.UI
     });
   };
