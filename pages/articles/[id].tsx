@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import {
   Box,
   Container,
@@ -287,15 +286,6 @@ const ArticleDetailPage: React.FC = () => {
               <Flex justify="space-between" mb={4}>
                 <Button leftIcon={<FiShare2 />} variant="outline">
                   Share
-                </Button>
-                
-                <Button 
-                  as={Link}
-                  href={`/articles/${id}/review`}
-                  colorScheme="blue" 
-                  variant="solid"
-                >
-                  Submit Review
                 </Button>
               </Flex>
             </GridItem>
