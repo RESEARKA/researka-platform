@@ -108,6 +108,7 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
         initialData={profile || undefined}
         onSave={onSaveProfile}
         isLoading={isInLoadingState(ProfileLoadingState.UPDATING)}
+        isEditMode={isEditMode}
       />
     );
   }
