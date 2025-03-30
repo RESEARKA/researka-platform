@@ -92,11 +92,12 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, redirectPath
         category: LogCategory.AUTH
       });
       
-      // Call signup function from AuthContext with empty name (will be set in profile)
-      const result = await signup(email, password, '');
+      // Step 1: Create the Firebase auth account
+      const result = await signup(email, password, ''); // Pass empty name initially
       
       if (!result || !result.user || !result.user.uid) {
-        throw new Error('Failed to create user account');
+        // This case should ideally be handled by the signup function throwing an error
+        throw new Error('Signup function did not return a valid user credential.');
       }
       
       logger.info('Signup successful', {
@@ -104,64 +105,109 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, redirectPath
         category: LogCategory.AUTH
       });
       
-      // Create default profile
-      await updateUserData({
-        name: '',
-        email: email,
-        role: 'Researcher',
-        institution: '',
-        department: '',
-        position: '',
-        researchInterests: [],
-        articles: 0,
-        reviews: 0,
-        reputation: 0,
-        profileComplete: false,
-        hasChangedName: false,
-        hasChangedInstitution: false,
-        createdAt: new Date().toISOString()
-      }, result.user.uid);
-      
-      logger.info('Default profile created', {
-        context: { userId: result.user.uid },
-        category: LogCategory.DATA
-      });
-      
-      toast({
-        title: 'Account created.',
-        description: "We've created your account. You can now complete your profile.",
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      onClose();
-      
-      // Use Next.js router for redirection
-      if (isClient) {
-        logger.debug('Redirecting to profile page', {
-          context: { redirectPath },
-          category: LogCategory.UI
+      // Step 2: Create default profile in Firestore within its own try/catch
+      try {
+        logger.info('Attempting to create default profile', {
+          context: { userId: result.user.uid },
+          category: LogCategory.DATA,
         });
+        await updateUserData({
+          name: '', // Will be set during profile completion
+          email: email,
+          role: 'Researcher', // Default role
+          institution: '',
+          department: '',
+          position: '', // Deprecated, kept for schema consistency if needed
+          researchInterests: [],
+          articles: 0,
+          reviews: 0,
+          reputation: 0,
+          profileComplete: false,
+          hasChangedName: false, // Initialize field
+          hasChangedInstitution: false, // Initialize field
+          createdAt: new Date().toISOString(),
+        }, result.user.uid);
+        
+        logger.info('Default profile created successfully', {
+          context: { userId: result.user.uid },
+          category: LogCategory.DATA
+        });
+        
+        // Show success toast only after both steps succeed
+        toast({
+          id: 'signup-success',
+          title: 'Account created.',
+          description: "We've created your account. You can now complete your profile.",
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        onClose(); // Close modal on success
+        
+        // Redirect after success
+        if (isClient) {
+          logger.debug('Redirecting to profile page after successful signup and profile creation', {
+            context: { redirectPath },
+            category: LogCategory.UI
+          });
+          router.push(redirectPath);
+        }
+        
+      } catch (profileError: any) {
+        // Handle failure during profile creation specifically
+        logger.error('Failed to create default profile after signup', {
+          context: { userId: result.user.uid, error: profileError instanceof Error ? profileError.message : String(profileError) },
+          category: LogCategory.DATA
+        });
+        // Show specific error toast to the user
+        toast({
+          id: 'profile-creation-error',
+          title: 'Profile Creation Failed',
+          description: 'Your account was created, but we failed to set up your initial profile. Please try logging in or contact support.',
+          status: 'error',
+          duration: 9000, // Longer duration for important errors
+          isClosable: true,
+        });
+        // Decide if we should still close the modal or keep it open
+        // Keeping it open might be confusing, closing allows login attempt
+        onClose(); 
+        // Do NOT redirect if profile creation failed
       }
-      router.push(redirectPath);
-    } catch (err: any) {
-      logger.error('Signup error', {
-        context: { error: err instanceof Error ? err.message : String(err) },
+
+    } catch (signupError: any) {
+      // Handle errors during the initial signup (Auth step)
+      logger.error('Signup error during auth creation', {
+        context: { error: signupError instanceof Error ? signupError.message : String(signupError), code: signupError.code },
         category: LogCategory.AUTH
       });
       
       // Handle specific Firebase auth errors
-      if (err.code === 'auth/email-already-in-use') {
-        setError('Email is already in use. Please use a different email or login.');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Invalid email address format.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password is too weak. Please use a stronger password.');
-      } else {
-        setError('Failed to create account. Please try again.');
-      }
+      let errorMessage = 'An unexpected error occurred during signup. Please try again.';
+      if (signupError.code === 'auth/email-already-in-use') {
+        errorMessage = 'Email is already in use. Please use a different email or login.';
+      } else if (signupError.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address format.';
+      } else if (signupError.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please use a stronger password.';
+      } // Add more specific error codes if needed
+      
+      setError(errorMessage); // Display error within the modal form
+      
+      // Show a generic error toast as well
+      toast({
+        id: 'signup-auth-error',
+        title: 'Signup Failed',
+        description: errorMessage,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      // Do not close modal or redirect on signup auth failure
+      
     } finally {
+      // *** Crucial: Ensure loading state is always reset ***
+      logger.info('Signup process finished (finally block), resetting loading state.', { category: LogCategory.AUTH });
       setIsLoading(false);
     }
   };
