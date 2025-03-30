@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Container,
-  Grid,
-  GridItem,
   Flex,
   Heading,
   Text,
@@ -25,15 +23,9 @@ import {
   Avatar,
   Tooltip,
   IconButton,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
   useToast,
 } from '@chakra-ui/react';
-import { FiSearch, FiFilter, FiStar, FiClock, FiCalendar, FiUser, FiBookmark, FiChevronDown } from 'react-icons/fi';
-import Head from 'next/head';
-import Link from 'next/link';
+import { FiSearch, FiFilter, FiStar, FiCalendar, FiBookmark } from 'react-icons/fi';
 import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
@@ -55,22 +47,98 @@ interface ReviewArticle {
 const ReviewPage: React.FC = () => {
   const router = useRouter();
   const toast = useToast();
+  
+  // State for user submissions
   const [userSubmissions, setUserSubmissions] = useState<ReviewArticle[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // State for search and filter
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
-  const { currentUser, getUserProfile, updateUserData } = useAuth();
-  const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Get authentication context
+  const { currentUser, getUserProfile } = useAuth();
 
-  // Load user submissions from Firebase
-  useEffect(() => {
-    console.log('Review: Loading articles from Firebase');
+  // Check if user is logged in and profile is complete - consolidated all profile checks here
+  React.useEffect(() => {
+    const checkUserProfile = async () => {
+      if (currentUser) {
+        try {
+          console.log('Review: Checking user profile...');
+          const profile = await getUserProfile();
+          
+          // Check if profile is complete using the profileComplete flag
+          if (!profile || profile.profileComplete !== true) {
+            console.log('Review: Profile is not complete, showing toast and redirecting');
+            if (!toast.isActive('profile-completion-warning')) {
+              toast({
+                id: 'profile-completion-warning',
+                title: 'Complete your profile',
+                description: 'Please complete your profile to submit articles for review',
+                status: 'warning',
+                duration: 5000,
+                isClosable: true,
+              });
+            }
+            
+            // Redirect to profile page
+            router.push('/profile');
+          } else {
+            console.log('Review: Profile is complete, proceeding to review page');
+            // Only load articles if profile is complete
+            loadArticlesFromFirebase();
+          }
+        } catch (error) {
+          console.error('Error checking user profile:', error);
+          
+          // Handle specific error types
+          const isFirebaseError = error && typeof error === 'object' && 'code' in error;
+          
+          if (isFirebaseError) {
+            const firebaseError = error as { code: string };
+            
+            // Handle permission denied errors
+            if (firebaseError.code === 'permission-denied') {
+              if (!toast.isActive('profile-permission-error')) {
+                toast({
+                  id: 'profile-permission-error',
+                  title: 'Access Error',
+                  description: 'You do not have permission to access this resource. Please log in again.',
+                  status: 'error',
+                  duration: 7000,
+                  isClosable: true,
+                });
+              }
+              
+              // Don't retry on permission errors - redirect to login
+              router.push('/login');
+              return;
+            }
+          }
+          
+          // Generic error handling for other error types
+          if (!toast.isActive('profile-error')) {
+            toast({
+              id: 'profile-error',
+              title: 'Error',
+              description: 'Failed to load your profile. Please try again later.',
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
+          }
+        }
+      }
+    };
     
+    // Function to load articles from Firebase
     const loadArticlesFromFirebase = async () => {
       setLoading(true);
       try {
+        console.log('Review: Loading articles from Firebase');
+        
         // Import the article service
         const { getArticlesForReview } = await import('../services/articleService');
         
@@ -78,26 +146,26 @@ const ReviewPage: React.FC = () => {
         if (!currentUser) {
           console.log('Review: User not logged in, unable to load articles');
           setUserSubmissions([]);
+          setLoading(false);
           return;
         }
         
         // Get articles from Firebase, passing currentUser.uid to filter out own submissions
         const articles = await getArticlesForReview(currentUser.uid);
-        console.log('Review: Articles loaded from Firebase:', articles);
+        console.log('Review: Loaded articles from Firebase:', articles);
         
         setUserSubmissions(articles);
         setError(null);
         
         if (articles.length === 0) {
-          console.log('Review: No articles found for review');
-          // Only show toast once for the warning
-          if (!toast.isActive('no-articles-warning')) {
+          console.log('Review: No articles found');
+          if (!toast.isActive('no-articles-info')) {
             toast({
-              id: 'no-articles-warning',
+              id: 'no-articles-info',
               title: 'No Articles',
               description: 'No articles are currently available for review',
               status: 'info',
-              duration: 5000,
+              duration: 3000,
               isClosable: true,
             });
           }
@@ -123,47 +191,11 @@ const ReviewPage: React.FC = () => {
       }
     };
     
-    if (router.isReady) {
-      loadArticlesFromFirebase();
-    }
-  }, [router.isReady, toast, currentUser]);
-
-  // Check if user is logged in and profile is complete
-  React.useEffect(() => {
-    const checkUserProfile = async () => {
-      if (currentUser) {
-        try {
-          console.log('Review: Checking user profile...');
-          const profile = await getUserProfile();
-          setUserProfile(profile);
-          
-          // Check if profile is complete using the profileComplete flag
-          if (!profile || profile.profileComplete !== true) {
-            console.log('Review: Profile is not complete, showing toast and redirecting');
-            toast({
-              title: 'Complete your profile',
-              description: 'Please complete your profile to submit articles for review',
-              status: 'warning',
-              duration: 5000,
-              isClosable: true,
-            });
-            
-            // Redirect to profile page
-            router.push('/profile');
-          } else {
-            console.log('Review: Profile is complete, proceeding to review page');
-          }
-        } catch (error) {
-          console.error('Error checking user profile:', error);
-        }
-      }
-    };
-    
-    if (currentUser) {
+    if (router.isReady && currentUser) {
       checkUserProfile();
     }
-  }, [currentUser, getUserProfile, updateUserData, router, toast]);
-  
+  }, [router.isReady, toast, currentUser, getUserProfile, router]);
+
   // Function to manually refresh user submissions from Firebase
   const refreshUserSubmissions = async () => {
     setLoading(true);
