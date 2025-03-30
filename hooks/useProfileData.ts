@@ -219,10 +219,14 @@ export function useProfileData() {
           uid: currentUser.uid,
           email: currentUser.email || '',
           name: currentUser.displayName || '',
-          role: '',
+          role: 'Author',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          isComplete: false
+          articleCount: 0,
+          reviewCount: 0,
+          reputation: 0,
+          isComplete: false,
+          profileComplete: false
         };
         
         // Save new profile to Firestore
@@ -308,24 +312,29 @@ export function useProfileData() {
       // Get user document reference
       const userDocRef = doc(db, 'users', currentUser.uid);
       
-      // Add updated timestamp
-      const updates = {
+      // Update document in Firestore
+      const isComplete = checkProfileComplete({
+        ...profile,
+        ...updatedProfile
+      });
+      
+      // Ensure both completion flags are set consistently
+      const updatesWithCompletion = {
         ...updatedProfile,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        isComplete: isComplete,
+        profileComplete: isComplete
       };
       
       // Update document in Firestore
-      await updateDoc(userDocRef, updates);
+      await updateDoc(userDocRef, updatesWithCompletion);
       
       // Update local state with merged profile using functional update
       // This ensures we're working with the latest state
       const updatedProfileData = {
         ...profile,
-        ...updates
+        ...updatesWithCompletion
       };
-      
-      // Check if profile is complete
-      const isComplete = checkProfileComplete(updatedProfileData);
       
       // Update state in a single batch
       batchUpdateState(updatedProfileData, isComplete, ProfileLoadingState.SUCCESS);

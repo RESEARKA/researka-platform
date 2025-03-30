@@ -238,13 +238,6 @@ export function useProfileOperations() {
         profileData
       });
       
-      // Show success toast
-      showToast({
-        title: 'Profile updated',
-        description: 'Your profile has been updated successfully.',
-        status: 'success',
-      });
-      
       // Reset operation flags
       updateInProgressRef.current = false;
       
@@ -328,21 +321,10 @@ export function useProfileOperations() {
         fieldCount: Object.keys(profileData).length
       });
       
-      // Show success toast
-      showToast({
-        title: 'Profile updated',
-        description: 'Your profile has been updated successfully.',
-        status: 'success',
-      });
-      
       // Reset operation flags
       updateInProgressRef.current = false;
       
-      // Process any pending updates
-      if (pendingUpdatesRef.current) {
-        processPendingUpdates();
-      }
-      
+      // Return the result
       return result;
     } catch (error) {
       // Log error with detailed context
@@ -362,7 +344,7 @@ export function useProfileOperations() {
       handleError(error);
       throw error;
     }
-  }, [canPerformOperation, handleError, logOperation, processPendingUpdates, showToast, updateProfileData]);
+  }, [canPerformOperation, handleError, logOperation, processPendingUpdates, updateProfileData]);
   
   // Function to handle retry loading
   const handleRetryLoading = useCallback(() => {

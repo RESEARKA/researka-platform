@@ -61,17 +61,105 @@ const ReviewPage: React.FC = () => {
   // Get authentication context
   const { currentUser, getUserProfile } = useAuth();
 
+  // Track if articles have been loaded
+  const [articlesLoaded, setArticlesLoaded] = React.useState(false);
+
+  // Function to load articles from Firebase
+  const loadArticlesFromFirebase = async () => {
+    if (loading || articlesLoaded) return; // Prevent duplicate loading
+    
+    setLoading(true);
+    try {
+      console.log('Review: Loading articles from Firebase');
+      
+      // Import the article service
+      const { getArticlesForReview } = await import('../services/articleService');
+      
+      // Only proceed if currentUser is available
+      if (!currentUser) {
+        console.log('Review: User not logged in, unable to load articles');
+        setUserSubmissions([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Get articles from Firebase, passing currentUser.uid to filter out own submissions
+      const articles = await getArticlesForReview(currentUser.uid);
+      console.log('Review: Loaded articles from Firebase:', articles);
+      
+      setUserSubmissions(articles);
+      setArticlesLoaded(true); // Mark as loaded
+      setError(null);
+      
+      if (articles.length === 0) {
+        console.log('Review: No articles found');
+        if (!toast.isActive('no-articles-info')) {
+          toast({
+            id: 'no-articles-info',
+            title: 'No Articles',
+            description: 'No articles are currently available for review',
+            status: 'info',
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Review: Error loading articles from Firebase:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load submitted articles';
+      setError(errorMessage);
+      
+      // Only show toast once for the error
+      if (!toast.isActive('article-load-error')) {
+        toast({
+          id: 'article-load-error',
+          title: 'Error',
+          description: errorMessage,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Check if user is logged in and profile is complete - consolidated all profile checks here
   React.useEffect(() => {
+    // Track retry attempts
+    const maxRetries = 3;
+    let retryCount = 0;
+    let retryTimeout: NodeJS.Timeout | null = null;
+    
     const checkUserProfile = async () => {
       if (currentUser) {
         try {
-          console.log('Review: Checking user profile...');
+          console.log(`Review: Checking user profile... (Attempt ${retryCount + 1}/${maxRetries + 1})`);
           const profile = await getUserProfile();
           
-          // Check if profile is complete using the profileComplete flag
-          if (!profile || profile.profileComplete !== true) {
-            console.log('Review: Profile is not complete, showing toast and redirecting');
+          // Check if profile is complete using both flags for redundancy
+          // This ensures we catch the profile status regardless of which flag is set
+          const isProfileComplete = profile && 
+            (profile.profileComplete === true || profile.isComplete === true);
+          
+          if (!isProfileComplete) {
+            console.log('Review: Profile is not complete');
+            
+            // If we haven't reached max retries, try again after a delay
+            // This helps with potential database update delays
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`Review: Scheduling retry ${retryCount}/${maxRetries} in 1 second...`);
+              
+              retryTimeout = setTimeout(() => {
+                checkUserProfile();
+              }, 1000); // 1 second delay between retries
+              
+              return;
+            }
+            
+            console.log('Review: Profile is not complete after retries, showing toast and redirecting');
             if (!toast.isActive('profile-completion-warning')) {
               toast({
                 id: 'profile-completion-warning',
@@ -133,131 +221,26 @@ const ReviewPage: React.FC = () => {
       }
     };
     
-    // Function to load articles from Firebase
-    const loadArticlesFromFirebase = async () => {
-      setLoading(true);
-      try {
-        console.log('Review: Loading articles from Firebase');
-        
-        // Import the article service
-        const { getArticlesForReview } = await import('../services/articleService');
-        
-        // Only proceed if currentUser is available
-        if (!currentUser) {
-          console.log('Review: User not logged in, unable to load articles');
-          setUserSubmissions([]);
-          setLoading(false);
-          return;
-        }
-        
-        // Get articles from Firebase, passing currentUser.uid to filter out own submissions
-        const articles = await getArticlesForReview(currentUser.uid);
-        console.log('Review: Loaded articles from Firebase:', articles);
-        
-        setUserSubmissions(articles);
-        setError(null);
-        
-        if (articles.length === 0) {
-          console.log('Review: No articles found');
-          if (!toast.isActive('no-articles-info')) {
-            toast({
-              id: 'no-articles-info',
-              title: 'No Articles',
-              description: 'No articles are currently available for review',
-              status: 'info',
-              duration: 3000,
-              isClosable: true,
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Review: Error loading articles from Firebase:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to load submitted articles';
-        setError(errorMessage);
-        
-        // Only show toast once for the error
-        if (!toast.isActive('article-load-error')) {
-          toast({
-            id: 'article-load-error',
-            title: 'Error',
-            description: errorMessage,
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-          });
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     if (router.isReady && currentUser) {
       checkUserProfile();
     }
+    
+    // Clean up any pending timeouts when component unmounts
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
   }, [router.isReady, toast, currentUser, getUserProfile, router]);
 
-  // Function to manually refresh user submissions from Firebase
-  const refreshUserSubmissions = async () => {
-    setLoading(true);
-    try {
-      console.log('Review: Manually refreshing articles from Firebase');
-      
-      // Import the article service
-      const { getArticlesForReview } = await import('../services/articleService');
-      
-      // Only proceed if currentUser is available
-      if (!currentUser) {
-        console.log('Review: User not logged in, unable to refresh articles');
-        setUserSubmissions([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Get articles from Firebase, passing currentUser.uid to filter out own submissions
-      const articles = await getArticlesForReview(currentUser.uid);
-      console.log('Review: Refreshed articles from Firebase:', articles);
-      
-      setUserSubmissions(articles);
-      setError(null);
-      
-      if (articles.length === 0) {
-        console.log('Review: No articles found after refresh');
-        toast({
-          title: 'No Articles',
-          description: 'No articles are currently available for review',
-          status: 'info',
-          duration: 3000,
-          isClosable: true,
-        });
-      } else {
-        toast({
-          title: 'Refreshed',
-          description: `Loaded ${articles.length} articles for review`,
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Review: Error refreshing articles from Firebase:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load submitted articles';
-      setError(errorMessage);
-      
-      // Only show toast once for the error
-      if (!toast.isActive('article-refresh-error')) {
-        toast({
-          id: 'article-refresh-error',
-          title: 'Error',
-          description: errorMessage,
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } finally {
-      setLoading(false);
+  // Load articles when the page loads and profile is complete
+  React.useEffect(() => {
+    // Only load articles if the user is logged in, router is ready, and articles haven't been loaded yet
+    if (router.isReady && currentUser && !articlesLoaded) {
+      console.log('Review: Auto-loading articles on page load');
+      loadArticlesFromFirebase();
     }
-  };
+  }, [router.isReady, currentUser, articlesLoaded]); // Remove loading from dependencies
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -301,25 +284,13 @@ const ReviewPage: React.FC = () => {
       <Box py={8} bg="gray.50" minH="calc(100vh - 64px)">
         <Container maxW="container.xl">
           <VStack spacing={8} align="stretch">
-            <Box>
-              <Heading as="h1" size="xl" mb={6}>
-                Review Articles
-              </Heading>
+            <Box mb={6}>
+              <Heading as="h1" size="xl" mb={2}>Review Articles</Heading>
               <Text color="gray.600" mt={2}>
                 Contribute to academic quality by reviewing articles in your area of expertise.
                 Earn tokens and reputation for each completed review.
               </Text>
             </Box>
-            
-            {/* Debug button - temporary */}
-            <Button 
-              size="sm" 
-              colorScheme="gray" 
-              mb={4} 
-              onClick={refreshUserSubmissions}
-            >
-              Refresh Articles
-            </Button>
             
             {/* Search and Filter Section */}
             <Flex 

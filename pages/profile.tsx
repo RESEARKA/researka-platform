@@ -290,7 +290,7 @@ const ProfilePage: React.FC = () => {
         }, 1000);
         
         showToast({
-          id: 'profile-updated',
+          id: 'profile-update-success',
           title: "Profile updated",
           description: "Your profile has been successfully updated",
           status: "success",

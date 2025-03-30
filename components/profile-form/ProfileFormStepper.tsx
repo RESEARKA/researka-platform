@@ -266,20 +266,13 @@ function ProfileFormStepper({
       const success = await onSave(profileData);
       
       if (success) {
-        logger.info('Profile saved successfully', {
-          context: { 
+        logger.info('Profile form completed successfully', {
+          context: {
+            isEditMode,
             userId: initialData?.uid || 'unknown',
             isComplete: true
           },
           category: LogCategory.UI
-        });
-        
-        showToast({
-          title: isEditMode ? 'Profile Updated' : 'Profile Created',
-          description: isEditMode 
-            ? 'Your profile has been successfully updated.' 
-            : 'Your profile has been successfully created.',
-          status: 'success'
         });
         
         // If not in edit mode, redirect to profile page
