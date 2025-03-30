@@ -168,7 +168,7 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
     });
     
     // Import the review service
-    const { getUserReviews } = await import('./reviewService');
+    const { getUserReviews, getReviewsForArticle } = await import('./reviewService');
     
     // Get all reviews by this user
     const userReviews = await getUserReviews(userId);
@@ -210,18 +210,11 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       category: LogCategory.DATA
     });
     
-    // Convert to array of articles
-    const articles: Article[] = [];
+    // First filter out articles authored by the current user and already reviewed
+    const potentialArticles: {doc: any, data: any}[] = [];
+    
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      logger.debug('Processing article document', {
-        context: { 
-          id: doc.id, 
-          title: data.title, 
-          status: data.status 
-        },
-        category: LogCategory.DATA
-      });
       
       // Skip articles authored by the current user
       if (data.authorId === userId) {
@@ -245,6 +238,39 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
           category: LogCategory.DATA
         });
         return; // Skip this article
+      }
+      
+      // Add to potential articles for further processing
+      potentialArticles.push({doc, data});
+    });
+    
+    logger.info('Initial filtering complete', {
+      context: { 
+        potentialArticlesCount: potentialArticles.length,
+        filteredOut: querySnapshot.size - potentialArticles.length
+      },
+      category: LogCategory.DATA
+    });
+    
+    // Now check review counts for the remaining articles
+    const articles: Article[] = [];
+    
+    // Process each potential article
+    for (const {doc, data} of potentialArticles) {
+      // Get all reviews for this article to check if it already has 2 or more reviews
+      const articleReviews = await getReviewsForArticle(doc.id);
+      const reviewCount = articleReviews.length;
+      
+      // Skip articles that already have 2 or more reviews
+      if (reviewCount >= 2) {
+        logger.debug('Skipping article with 2 or more reviews', {
+          context: { 
+            articleId: doc.id, 
+            reviewCount 
+          },
+          category: LogCategory.DATA
+        });
+        continue; // Skip this article
       }
       
       articles.push({
@@ -271,7 +297,7 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
         conflicts: data.conflicts,
         license: data.license
       });
-    });
+    }
     
     logger.info('Returning filtered articles for review', {
       context: { 

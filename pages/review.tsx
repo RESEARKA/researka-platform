@@ -142,10 +142,14 @@ const ReviewPage: React.FC = () => {
           console.log(`Review: Checking user profile... (Attempt ${retryCount + 1}/${maxRetries + 1})`);
           const profile = await getUserProfile();
           
+          console.log('Review: Profile data:', profile);
+          
           // Check if profile is complete using both flags for redundancy
           // This ensures we catch the profile status regardless of which flag is set
           const profileComplete = profile && 
             (profile.profileComplete === true || profile.isComplete === true);
+          
+          console.log('Review: Profile complete status:', profileComplete);
           
           // Set the profile status
           setIsProfileComplete(profileComplete);
@@ -244,7 +248,7 @@ const ReviewPage: React.FC = () => {
         clearTimeout(retryTimeout);
       }
     };
-  }, [router.isReady, toast, currentUser, getUserProfile, router, profileChecked]);
+  }, [router.isReady, toast, currentUser, getUserProfile, router, profileChecked, loadArticlesFromFirebase]);
 
   // Load articles when the page loads and profile is complete
   React.useEffect(() => {

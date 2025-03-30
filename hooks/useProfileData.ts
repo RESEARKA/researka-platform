@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { getFirebaseFirestore } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import useClient from './useClient';
 import { createLogger, LogCategory } from '../utils/logger';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Create a logger instance for this hook
 const logger = createLogger('useProfileData');
@@ -85,9 +85,15 @@ export function useProfileData() {
   const checkProfileComplete = useCallback((profileData: UserProfile | null): boolean => {
     if (!profileData) return false;
     
-    // Required fields for a complete profile
-    const requiredFields: (keyof UserProfile)[] = ['name', 'role', 'institution'];
+    // If the profile already has profileComplete or isComplete flags set to true, respect them
+    if (profileData.profileComplete === true || profileData.isComplete === true) {
+      return true;
+    }
     
+    // Required fields for a complete profile - making institution optional
+    const requiredFields: (keyof UserProfile)[] = ['name', 'role'];
+    
+    // Check required fields
     return requiredFields.every(field => {
       const value = profileData[field];
       return value !== undefined && value !== null && value !== '';
@@ -119,33 +125,23 @@ export function useProfileData() {
     });
   }, []);
   
-  // Function to load profile data
+  // Load profile data from Firestore
   const loadProfileData = useCallback(async () => {
-    // Skip if not initialized or no user
-    if (!authIsInitialized || !currentUser) {
-      logger.warn('Cannot load profile: not initialized or no user', {
-        context: {
-          authIsInitialized,
-          hasUser: !!currentUser
-        },
-        category: LogCategory.LIFECYCLE
-      });
-      return;
-    }
-    
-    // Skip if not on client side
-    if (!isClient) {
-      logger.warn('Not on client side, skipping profile load', {
-        category: LogCategory.LIFECYCLE
-      });
-      return;
-    }
-    
-    // Skip if already loading
+    // If already loading, prevent duplicate calls
     if (isLoadingData.current) {
-      logger.warn('Already loading profile data', {
+      logger.debug('Profile data already loading, skipping duplicate call', {
         category: LogCategory.LIFECYCLE
       });
+      return;
+    }
+    
+    // If no user, clear profile data
+    if (!currentUser) {
+      logger.info('No current user, clearing profile data', {
+        category: LogCategory.LIFECYCLE
+      });
+      
+      batchUpdateState(null, false, ProfileLoadingState.IDLE);
       return;
     }
     
@@ -156,13 +152,14 @@ export function useProfileData() {
     setLoadingState(ProfileLoadingState.LOADING);
     
     try {
-      
-      logger.info(`Loading profile data for user ${currentUser.uid}`, {
+      logger.info('Loading profile data from Firestore', {
+        context: { uid: currentUser.uid },
         category: LogCategory.LIFECYCLE
       });
       
       // Get Firestore instance
       const db = getFirebaseFirestore();
+      
       if (!db) {
         throw new Error('Firestore not initialized');
       }
@@ -171,33 +168,11 @@ export function useProfileData() {
       const userDocRef = doc(db, 'users', currentUser.uid);
       
       // Get user document
-      const userDoc = await getDoc(userDocRef);
+      const userDocSnap = await getDoc(userDocRef);
       
-      if (userDoc.exists()) {
+      if (userDocSnap.exists()) {
         // User document exists, get data
-        const userData = userDoc.data() as UserProfile;
-        
-        // Get all reviews for the user to ensure accurate review count
-        const { getUserReviews } = await import('../services/reviewService');
-        const userReviews = await getUserReviews(currentUser.uid);
-        const actualReviewCount = userReviews.length;
-        
-        // Update the userData with the accurate review count
-        userData.reviewCount = actualReviewCount;
-        userData.reviews = actualReviewCount; // For backward compatibility
-        
-        // If the review count in Firestore is different, update it
-        if ((userData.reviewCount !== actualReviewCount) || (userData.reviews !== actualReviewCount)) {
-          logger.info(`Updating review count in Firestore from ${userData.reviewCount} to ${actualReviewCount}`, {
-            category: LogCategory.DATA
-          });
-          
-          await updateDoc(userDocRef, {
-            reviewCount: actualReviewCount,
-            reviews: actualReviewCount,
-            updatedAt: new Date().toISOString()
-          });
-        }
+        const userData = userDocSnap.data() as UserProfile;
         
         // Check if profile is complete
         const isComplete = checkProfileComplete(userData);
@@ -250,174 +225,143 @@ export function useProfileData() {
       
       // Update state with error
       batchUpdateState(null, false, ProfileLoadingState.ERROR, errorMessage);
+      
+      // Retry loading if appropriate
+      if (retryCount.current < 3) {
+        retryCount.current++;
+        
+        logger.info(`Retrying profile load (attempt ${retryCount.current}/3)`, {
+          category: LogCategory.LIFECYCLE
+        });
+        
+        // Wait before retrying
+        setTimeout(() => {
+          isLoadingData.current = false;
+          loadProfileData();
+        }, 1000);
+      }
     } finally {
-      // Reset loading flag
-      isLoadingData.current = false;
+      // Reset loading flag if not retrying
+      if (retryCount.current >= 3 || !error) {
+        isLoadingData.current = false;
+        retryCount.current = 0;
+      }
     }
-  }, [authIsInitialized, batchUpdateState, currentUser, isClient]);
+  }, [batchUpdateState, checkProfileComplete, currentUser]);
   
-  // Function to update profile with debouncing and ref tracking
-  const updateProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
-    // Skip if not initialized, no user, or no profile
-    if (!authIsInitialized || !currentUser || !profile) {
-      logger.warn('Cannot update profile: not initialized, no user, or no profile', {
-        context: {
-          authIsInitialized,
-          hasUser: !!currentUser,
-          hasProfile: !!profile
-        },
-        category: LogCategory.LIFECYCLE
-      });
-      return false;
-    }
-    
-    // Skip if not on client side
-    if (!isClient) {
-      logger.warn('Not on client side, skipping profile update', {
-        category: LogCategory.LIFECYCLE
-      });
-      return false;
-    }
-    
-    // Skip if an update is already in progress
+  // Update profile data in Firestore
+  const updateProfileData = useCallback(async (updatedData: Partial<UserProfile>) => {
+    // If already updating, prevent duplicate calls
     if (updateOperationInProgress.current) {
-      const timeSinceLastUpdate = Date.now() - lastUpdateTimestamp.current;
-      logger.warn(`Update already in progress (${timeSinceLastUpdate}ms since last update)`, {
+      logger.warn('Update already in progress, skipping duplicate call', {
         category: LogCategory.LIFECYCLE
       });
-      return false;
+      return;
     }
+    
+    // Set updating flag
+    updateOperationInProgress.current = true;
+    lastUpdateTimestamp.current = Date.now();
+    
+    // Update loading state
+    setLoadingState(ProfileLoadingState.UPDATING);
     
     try {
-      // Set updating state and refs
-      updateOperationInProgress.current = true;
-      isUpdatingProfile.current = true;
-      lastUpdateTimestamp.current = Date.now();
-      
-      // Update loading state
-      setLoadingState(ProfileLoadingState.UPDATING);
-      setError(null);
-      
-      logger.info(`Updating profile for user ${currentUser.uid}`, {
-        context: { fieldCount: Object.keys(updatedProfile).length },
+      logger.info('Updating profile data in Firestore', {
+        context: { 
+          fields: Object.keys(updatedData),
+          uid: currentUser?.uid 
+        },
         category: LogCategory.LIFECYCLE
       });
       
       // Get Firestore instance
       const db = getFirebaseFirestore();
+      
       if (!db) {
         throw new Error('Firestore not initialized');
+      }
+      
+      // If no current user, throw error
+      if (!currentUser) {
+        throw new Error('No authenticated user');
       }
       
       // Get user document reference
       const userDocRef = doc(db, 'users', currentUser.uid);
       
-      // Update document in Firestore
-      const isComplete = checkProfileComplete({
-        ...profile,
-        ...updatedProfile
-      });
-      
-      // Ensure both completion flags are set consistently
-      const updatesWithCompletion = {
-        ...updatedProfile,
-        updatedAt: new Date().toISOString(),
-        isComplete: isComplete,
-        profileComplete: isComplete
-      };
-      
-      // Update document in Firestore
-      await updateDoc(userDocRef, updatesWithCompletion);
-      
-      // Update local state with merged profile using functional update
-      // This ensures we're working with the latest state
+      // Merge updated data with current profile
       const updatedProfileData = {
         ...profile,
-        ...updatesWithCompletion
+        ...updatedData,
+        updatedAt: new Date().toISOString()
       };
+      
+      // Check if profile is complete after update
+      const isComplete = checkProfileComplete({
+        ...profile,
+        ...updatedData
+      } as UserProfile);
+      
+      // Add profile completion flags
+      updatedProfileData.isComplete = isComplete;
+      updatedProfileData.profileComplete = isComplete;
+      
+      // Update document in Firestore
+      await updateDoc(userDocRef, updatedProfileData);
       
       // Update state in a single batch
       batchUpdateState(updatedProfileData, isComplete, ProfileLoadingState.SUCCESS);
       
       logger.info(`Profile updated successfully, isComplete: ${isComplete}`, {
         context: { 
-          fieldCount: Object.keys(updatedProfile).length,
-          fields: Object.keys(updatedProfile),
-          duration: Date.now() - lastUpdateTimestamp.current
+          fields: Object.keys(updatedData),
+          isComplete
         },
         category: LogCategory.LIFECYCLE
       });
       
-      return true;
-    } catch (err) {
+      return updatedProfileData;
+    } catch (error) {
       // Handle error
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error(`Error updating profile: ${errorMessage}`, {
-        context: { 
-          error: err,
-          fieldCount: Object.keys(updatedProfile).length,
-          fields: Object.keys(updatedProfile)
-        },
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error updating profile';
+      
+      logger.error('Error updating profile data', {
+        context: { error },
         category: LogCategory.ERROR
       });
       
-      // Update state in a single batch
+      // Update state with error
       batchUpdateState(profile, isProfileComplete, ProfileLoadingState.ERROR, errorMessage);
       
-      return false;
+      throw error;
     } finally {
-      // Reset updating flags
-      updateOperationInProgress.current = false;
-      isUpdatingProfile.current = false;
+      // Reset updating flag after a short delay
+      // This prevents rapid successive updates
+      setTimeout(() => {
+        updateOperationInProgress.current = false;
+      }, 500);
     }
-  }, [authIsInitialized, batchUpdateState, checkProfileComplete, currentUser, isClient, isProfileComplete, profile]);
-  
-  // Function to retry loading after an error
-  const retryLoading = useCallback(() => {
-    logger.info('Manually retrying profile load', {
-      category: LogCategory.LIFECYCLE
-    });
-    retryCount.current = 0;
-    setError(null);
-    loadProfileData();
-  }, [loadProfileData]);
+  }, [batchUpdateState, checkProfileComplete, currentUser, isProfileComplete, profile]);
   
   // Load profile data when auth is initialized and user changes
   useEffect(() => {
-    // Skip if not initialized or no user
-    if (!authIsInitialized || !currentUser) {
-      return;
+    if (isClient && authIsInitialized && !isLoadingData.current) {
+      loadProfileData();
     }
-    
-    // Skip if already loading or updating
-    if (isLoadingData.current || isUpdatingProfile.current) {
-      logger.debug('Already loading or updating data, skipping duplicate load', {
-        context: {
-          isLoading: isLoadingData.current,
-          isUpdating: isUpdatingProfile.current
-        },
-        category: LogCategory.LIFECYCLE
-      });
-      return;
-    }
-    
-    // Load profile data
-    loadProfileData();
-  }, [authIsInitialized, currentUser, loadProfileData]);
+  }, [authIsInitialized, isClient, loadProfileData]);
   
-  // Return profile data and functions
   return {
     profile,
-    isLoading: isInLoadingState([ProfileLoadingState.INITIALIZING, ProfileLoadingState.LOADING], loadingState),
-    isUpdating: isInLoadingState([ProfileLoadingState.UPDATING], loadingState),
-    error,
     isProfileComplete,
     loadingState,
-    updateProfile,
-    retryLoading,
-    isLoadingData,
-    isUpdatingProfile,
-    updateOperationInProgress,
-    loadData: loadProfileData
+    error,
+    isLoading: isInLoadingState([
+      ProfileLoadingState.INITIALIZING,
+      ProfileLoadingState.LOADING,
+      ProfileLoadingState.UPDATING
+    ], loadingState),
+    updateProfile: updateProfileData,
+    reloadProfile: loadProfileData
   };
 }
