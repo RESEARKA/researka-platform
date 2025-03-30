@@ -85,13 +85,37 @@ export function useProfileData() {
   const checkProfileComplete = useCallback((profileData: UserProfile | null): boolean => {
     if (!profileData) return false;
     
-    // Required fields for a complete profile
-    const requiredFields: (keyof UserProfile)[] = ['name', 'role', 'institution'];
+    // First, respect existing completion flags if they are explicitly set to true
+    if (profileData.profileComplete === true || profileData.isComplete === true) {
+      logger.debug('Profile marked as complete via explicit flag', {
+        context: { 
+          profileComplete: profileData.profileComplete,
+          isComplete: profileData.isComplete
+        },
+        category: LogCategory.DATA
+      });
+      return true;
+    }
     
-    return requiredFields.every(field => {
+    // Only require name and role as essential fields
+    const requiredFields: (keyof UserProfile)[] = ['name', 'role'];
+    
+    const isComplete = requiredFields.every(field => {
       const value = profileData[field];
       return value !== undefined && value !== null && value !== '';
     });
+    
+    logger.debug('Profile completion check result', {
+      context: { 
+        isComplete,
+        name: !!profileData.name,
+        role: !!profileData.role,
+        institution: !!profileData.institution
+      },
+      category: LogCategory.DATA
+    });
+    
+    return isComplete;
   }, []);
   
   // Batch update state to prevent multiple renders
@@ -256,15 +280,14 @@ export function useProfileData() {
     }
   }, [authIsInitialized, batchUpdateState, currentUser, isClient]);
   
-  // Function to update profile with debouncing and ref tracking
+  // Function to update profile data
   const updateProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
-    // Skip if not initialized, no user, or no profile
-    if (!authIsInitialized || !currentUser || !profile) {
-      logger.warn('Cannot update profile: not initialized, no user, or no profile', {
+    // Skip if not initialized or no user
+    if (!authIsInitialized || !currentUser) {
+      logger.warn('Cannot update profile: not initialized or no user', {
         context: {
           authIsInitialized,
-          hasUser: !!currentUser,
-          hasProfile: !!profile
+          hasUser: !!currentUser
         },
         category: LogCategory.LIFECYCLE
       });
@@ -283,6 +306,10 @@ export function useProfileData() {
     if (updateOperationInProgress.current) {
       const timeSinceLastUpdate = Date.now() - lastUpdateTimestamp.current;
       logger.warn(`Update already in progress (${timeSinceLastUpdate}ms since last update)`, {
+        context: {
+          timeSinceLastUpdate,
+          updatedFields: Object.keys(updatedProfile)
+        },
         category: LogCategory.LIFECYCLE
       });
       return false;
@@ -299,7 +326,10 @@ export function useProfileData() {
       setError(null);
       
       logger.info(`Updating profile for user ${currentUser.uid}`, {
-        context: { fieldCount: Object.keys(updatedProfile).length },
+        context: { 
+          fieldCount: Object.keys(updatedProfile).length,
+          fields: Object.keys(updatedProfile)
+        },
         category: LogCategory.LIFECYCLE
       });
       
@@ -312,11 +342,13 @@ export function useProfileData() {
       // Get user document reference
       const userDocRef = doc(db, 'users', currentUser.uid);
       
-      // Update document in Firestore
-      const isComplete = checkProfileComplete({
+      // Check if the profile will be complete after this update
+      const updatedProfileData = profile ? {
         ...profile,
         ...updatedProfile
-      });
+      } as UserProfile : null;
+      
+      const isComplete = checkProfileComplete(updatedProfileData);
       
       // Ensure both completion flags are set consistently
       const updatesWithCompletion = {
@@ -329,15 +361,14 @@ export function useProfileData() {
       // Update document in Firestore
       await updateDoc(userDocRef, updatesWithCompletion);
       
-      // Update local state with merged profile using functional update
-      // This ensures we're working with the latest state
-      const updatedProfileData = {
+      // Update local state with merged profile
+      const finalProfileData = profile ? {
         ...profile,
         ...updatesWithCompletion
-      };
+      } as UserProfile : null;
       
-      // Update state in a single batch
-      batchUpdateState(updatedProfileData, isComplete, ProfileLoadingState.SUCCESS);
+      // Update state in a single batch to prevent multiple renders
+      batchUpdateState(finalProfileData, isComplete, ProfileLoadingState.SUCCESS);
       
       logger.info(`Profile updated successfully, isComplete: ${isComplete}`, {
         context: { 
@@ -366,9 +397,13 @@ export function useProfileData() {
       
       return false;
     } finally {
-      // Reset updating flags
+      // Reset updating flags directly to ensure it happens synchronously
       updateOperationInProgress.current = false;
       isUpdatingProfile.current = false;
+      
+      logger.debug('Reset update operation flags synchronously in finally block', {
+        category: LogCategory.LIFECYCLE
+      });
     }
   }, [authIsInitialized, batchUpdateState, checkProfileComplete, currentUser, isClient, isProfileComplete, profile]);
   

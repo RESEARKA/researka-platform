@@ -121,31 +121,25 @@ export function useProfileOperations() {
     lastOperationTimestampRef.current = now;
   }, [loadingState]);
   
-  // Handle errors with consistent logging and user feedback
-  const handleError = useCallback((error: unknown) => {
-    logger.error('Error', {
-      context: { 
+  // Handle errors consistently
+  const handleError = useCallback((error: any) => {
+    // Log error with detailed context
+    logger.error('Error in profile operation', {
+      context: {
         error,
-        loadingState
+        message: error instanceof Error ? error.message : 'Unknown error'
       },
       category: LogCategory.ERROR
     });
     
-    // Show error toast
+    // Show error toast with a consistent ID to prevent duplicates
     showToast({
-      title: 'Error',
-      description: error instanceof Error ? error.message : String(error),
+      id: 'profile-operation-error',
+      title: 'Update failed',
+      description: 'There was a problem updating your profile. Please try again.',
       status: 'error',
     });
-    
-    // Reset operation flags
-    updateInProgressRef.current = false;
-    
-    // Retry loading if appropriate
-    retryLoading();
-    
-    return error;
-  }, [retryLoading, showToast, loadingState]);
+  }, [showToast]);
   
   // Clear any pending debounced updates
   const clearPendingUpdates = useCallback(() => {
@@ -238,9 +232,6 @@ export function useProfileOperations() {
         profileData
       });
       
-      // Reset operation flags
-      updateInProgressRef.current = false;
-      
       // Process any pending updates
       if (pendingUpdatesRef.current) {
         processPendingUpdates();
@@ -258,53 +249,55 @@ export function useProfileOperations() {
         category: LogCategory.ERROR
       });
       
-      // Reset operation flags
-      updateInProgressRef.current = false;
-      
       // Show error toast
       showToast({
+        id: 'profile-operation-error',
         title: 'Error updating profile',
         description: error instanceof Error ? error.message : 'Failed to update profile',
         status: 'error',
       });
       
-      throw error;
+      throw error; // Re-throw error after handling
+    } finally {
+      // Reset operation flags reliably
+      updateInProgressRef.current = false;
+      logger.debug('Reset updateInProgressRef in updateProfile finally block', { category: LogCategory.LIFECYCLE });
     }
   }, [canPerformOperation, logOperation, processPendingUpdates, showToast, updateProfileData]);
   
   // Batch update multiple profile fields in a single operation
   const batchUpdateProfile = useCallback(async (profileData: Partial<UserProfile>) => {
-    try {
-      // Check if we can perform the operation
-      if (!canPerformOperation()) {
-        // Queue the update for later
-        pendingUpdatesRef.current = {
-          ...pendingUpdatesRef.current,
-          ...profileData
-        };
-        
-        logger.debug('Batch operation queued for later processing', {
-          context: {
-            pendingFields: pendingUpdatesRef.current ? Object.keys(pendingUpdatesRef.current) : []
-          },
-          category: LogCategory.LIFECYCLE
-        });
-        
-        // Set up debounce timeout to process pending updates
-        if (debounceTimeoutRef.current) {
-          clearTimeout(debounceTimeoutRef.current);
-        }
-        
-        debounceTimeoutRef.current = setTimeout(() => {
-          processPendingUpdates();
-        }, MIN_OPERATION_INTERVAL);
-        
-        return false;
+    // Check if we can perform the operation
+    if (!canPerformOperation()) {
+      // Queue the update for later
+      pendingUpdatesRef.current = {
+        ...pendingUpdatesRef.current,
+        ...profileData
+      };
+      
+      logger.debug('Batch operation queued for later processing', {
+        context: {
+          pendingFields: pendingUpdatesRef.current ? Object.keys(pendingUpdatesRef.current) : []
+        },
+        category: LogCategory.LIFECYCLE
+      });
+      
+      // Set up debounce timeout to process pending updates
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
       }
       
-      // Set operation flags
-      updateInProgressRef.current = true;
+      debounceTimeoutRef.current = setTimeout(() => {
+        processPendingUpdates();
+      }, MIN_OPERATION_INTERVAL);
       
+      return false;
+    }
+    
+    // Set operation flags
+    updateInProgressRef.current = true;
+      
+    try {
       // Start timing the operation
       operationStartTimeRef.current = Date.now();
       logOperation('batchUpdateProfile started', { 
@@ -321,8 +314,15 @@ export function useProfileOperations() {
         fieldCount: Object.keys(profileData).length
       });
       
-      // Reset operation flags
-      updateInProgressRef.current = false;
+      // Show success toast with consistent ID
+      if (result) {
+        showToast({
+          id: 'profile-update-success',
+          title: 'Profile updated',
+          description: 'Your profile has been successfully updated.',
+          status: 'success',
+        });
+      }
       
       // Return the result
       return result;
@@ -336,15 +336,16 @@ export function useProfileOperations() {
         },
         category: LogCategory.ERROR
       });
-      
-      // Reset operation flags
-      updateInProgressRef.current = false;
-      
+            
       // Show error toast and handle the error
       handleError(error);
-      throw error;
+      throw error; // Re-throw error after handling
+    } finally {
+       // Reset operation flags reliably
+       updateInProgressRef.current = false;
+       logger.debug('Reset updateInProgressRef in batchUpdateProfile finally block', { category: LogCategory.LIFECYCLE });
     }
-  }, [canPerformOperation, handleError, logOperation, processPendingUpdates, updateProfileData]);
+  }, [canPerformOperation, handleError, logOperation, processPendingUpdates, showToast, updateProfileData]);
   
   // Function to handle retry loading
   const handleRetryLoading = useCallback(() => {
