@@ -64,6 +64,10 @@ const ReviewPage: React.FC = () => {
   // Track if articles have been loaded
   const [articlesLoaded, setArticlesLoaded] = React.useState(false);
 
+  // Track if profile has been checked
+  const [profileChecked, setProfileChecked] = React.useState(false);
+  const [isProfileComplete, setIsProfileComplete] = React.useState(false);
+
   // Function to load articles from Firebase
   const loadArticlesFromFirebase = async () => {
     if (loading || articlesLoaded) return; // Prevent duplicate loading
@@ -140,10 +144,14 @@ const ReviewPage: React.FC = () => {
           
           // Check if profile is complete using both flags for redundancy
           // This ensures we catch the profile status regardless of which flag is set
-          const isProfileComplete = profile && 
+          const profileComplete = profile && 
             (profile.profileComplete === true || profile.isComplete === true);
           
-          if (!isProfileComplete) {
+          // Set the profile status
+          setIsProfileComplete(profileComplete);
+          setProfileChecked(true);
+          
+          if (!profileComplete) {
             console.log('Review: Profile is not complete');
             
             // If we haven't reached max retries, try again after a delay
@@ -180,6 +188,7 @@ const ReviewPage: React.FC = () => {
           }
         } catch (error) {
           console.error('Error checking user profile:', error);
+          setProfileChecked(true); // Mark as checked even on error
           
           // Handle specific error types
           const isFirebaseError = error && typeof error === 'object' && 'code' in error;
@@ -218,11 +227,15 @@ const ReviewPage: React.FC = () => {
             });
           }
         }
+      } else {
+        setProfileChecked(true); // Mark as checked if no user
       }
     };
     
-    if (router.isReady && currentUser) {
+    if (router.isReady && currentUser && !profileChecked) {
       checkUserProfile();
+    } else if (router.isReady && !currentUser) {
+      setProfileChecked(true); // Mark as checked if no user
     }
     
     // Clean up any pending timeouts when component unmounts
@@ -231,16 +244,16 @@ const ReviewPage: React.FC = () => {
         clearTimeout(retryTimeout);
       }
     };
-  }, [router.isReady, toast, currentUser, getUserProfile, router]);
+  }, [router.isReady, toast, currentUser, getUserProfile, router, profileChecked]);
 
   // Load articles when the page loads and profile is complete
   React.useEffect(() => {
-    // Only load articles if the user is logged in, router is ready, and articles haven't been loaded yet
-    if (router.isReady && currentUser && !articlesLoaded) {
-      console.log('Review: Auto-loading articles on page load');
+    // Only load articles if the user is logged in, router is ready, profile is complete, and articles haven't been loaded yet
+    if (router.isReady && currentUser && profileChecked && isProfileComplete && !articlesLoaded) {
+      console.log('Review: Auto-loading articles on page load after profile check');
       loadArticlesFromFirebase();
     }
-  }, [router.isReady, currentUser, articlesLoaded]); // Remove loading from dependencies
+  }, [router.isReady, currentUser, profileChecked, isProfileComplete, articlesLoaded]);
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
