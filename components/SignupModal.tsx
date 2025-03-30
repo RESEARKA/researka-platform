@@ -128,6 +128,12 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, redirectPath
           createdAt: new Date().toISOString(),
         }, result.user.uid);
         
+        // Confirmation log as requested
+        logger.info('updateUserData call successful during signup', {
+          context: { userId: result.user.uid },
+          category: LogCategory.DATA
+        });
+        
         logger.info('Default profile created successfully', {
           context: { userId: result.user.uid },
           category: LogCategory.DATA
