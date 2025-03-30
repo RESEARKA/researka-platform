@@ -76,7 +76,6 @@ export function useProfileData() {
   
   // Refs to prevent duplicate operations and track loading state
   const isLoadingData = useRef<boolean>(false);
-  const isUpdatingProfile = useRef<boolean>(false);
   const retryCount = useRef<number>(0);
   const updateOperationInProgress = useRef<boolean>(false);
   const lastUpdateTimestamp = useRef<number>(0);
@@ -292,23 +291,36 @@ export function useProfileData() {
       
       // Merge updated data with current profile
       const updatedProfileData = {
-        ...profile,
+        ...(profile || {}),
         ...updatedData,
+        uid: currentUser.uid, // Ensure uid is always set and not undefined
         updatedAt: new Date().toISOString()
-      };
+      } as UserProfile;
       
       // Check if profile is complete after update
       const isComplete = checkProfileComplete({
-        ...profile,
-        ...updatedData
+        ...(profile || {}),
+        ...updatedData,
+        uid: currentUser.uid // Ensure uid is always set and not undefined
       } as UserProfile);
       
       // Add profile completion flags
       updatedProfileData.isComplete = isComplete;
       updatedProfileData.profileComplete = isComplete;
       
+      // Create a plain object for Firestore update
+      // This avoids TypeScript errors with the Firebase updateDoc function
+      const firestoreUpdateData = {
+        ...Object.fromEntries(
+          Object.entries(updatedProfileData).filter(([_, value]) => value !== undefined)
+        ),
+        isComplete,
+        profileComplete: isComplete,
+        updatedAt: new Date().toISOString()
+      };
+      
       // Update document in Firestore
-      await updateDoc(userDocRef, updatedProfileData);
+      await updateDoc(userDocRef, firestoreUpdateData);
       
       // Update state in a single batch
       batchUpdateState(updatedProfileData, isComplete, ProfileLoadingState.SUCCESS);

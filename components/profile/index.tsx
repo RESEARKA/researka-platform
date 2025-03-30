@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useToast, Spinner, Center, VStack, Text, Alert, AlertIcon, AlertTitle, AlertDescription } from '@chakra-ui/react';
-import { useProfileData } from '../../hooks/useProfileData';
-import { useProfileOperations, ExtendedProfileLoadingState } from '../../hooks/useProfileOperations';
+import { useProfileOperations } from '../../hooks/useProfileOperations';
 import useFirebaseInitialized from '../../hooks/useFirebaseInitialized';
 import ProfileManager from './ProfileManager';
 import ClientOnlyProfileContent from './ClientOnlyProfileContent';
 import { createLogger, LogCategory } from '../../utils/logger';
-import { ProfileLoadingState } from './types';
+import { UserProfile } from '../../hooks/useProfileData';
 
 // Create a logger instance for this component
 const logger = createLogger('ClientOnlyProfile');
@@ -32,17 +31,29 @@ function ClientOnlyProfile() {
     profile,
     isLoading,
     error: profileError,
-    isProfileComplete,
-    loadingState,
     isInComponentLoadingState,
-    updateProfile,
+    updateProfile: originalUpdateProfile,
     handleError,
     logOperation,
     refreshProfileData,
     updateInProgressRef,
-    pendingUpdatesRef,
     clearPendingUpdates
   } = useProfileOperations();
+  
+  // Wrapper for updateProfile to ensure it returns a boolean as expected by ProfileManager
+  const updateProfile = useCallback(async (profileData: Partial<UserProfile>): Promise<boolean> => {
+    try {
+      const result = await originalUpdateProfile(profileData);
+      // Convert the result to a boolean
+      return result ? true : false;
+    } catch (error) {
+      logger.error('Error in updateProfile wrapper', {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      return false;
+    }
+  }, [originalUpdateProfile]);
   
   // Set up component lifecycle with proper cleanup
   useEffect(() => {
