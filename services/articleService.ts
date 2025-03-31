@@ -486,6 +486,27 @@ export const getAllArticles = async (): Promise<Article[]> => {
         throw new Error('Firestore not initialized after retry');
       }
       
+      // Verify authentication before querying in retry
+      const { getAuth } = await import('firebase/auth');
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        logger.warn('No authenticated user found when querying articles (retry)', {
+          category: LogCategory.AUTH
+        });
+        
+        // In development, return mock data
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug('Returning mock data (not authenticated, retry)', {
+            category: LogCategory.DATA
+          });
+          return getMockArticles();
+        }
+        
+        return [];
+      }
+      
       // Create query for all articles, ordered by creation date
       logger.debug('Creating Firestore query after retry', {
         category: LogCategory.DATA
@@ -559,6 +580,27 @@ export const getAllArticles = async (): Promise<Article[]> => {
         
         throw queryError;
       }
+    }
+    
+    // Verify authentication before querying
+    const { getAuth } = await import('firebase/auth');
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      logger.warn('No authenticated user found when querying articles', {
+        category: LogCategory.AUTH
+      });
+      
+      // In development, return mock data
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('Returning mock data (not authenticated)', {
+          category: LogCategory.DATA
+        });
+        return getMockArticles();
+      }
+      
+      return [];
     }
     
     // Create query for all articles, ordered by creation date
