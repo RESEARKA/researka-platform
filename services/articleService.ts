@@ -273,15 +273,64 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       });
     });
     
-    logger.info('Returning filtered articles for review', {
+    // Now perform a second round of filtering to exclude articles that already have 2+ reviews
+    logger.info('Checking review counts to enforce 2-review limit', {
+      category: LogCategory.DATA
+    });
+    
+    // Get the review counts for all articles
+    const { getReviewsForArticle } = await import('./reviewService');
+    const reviewCountPromises = articles.map(async (article) => {
+      const reviews = await getReviewsForArticle(article.id!);
+      return { 
+        articleId: article.id, 
+        reviewCount: reviews.length 
+      };
+    });
+    
+    const reviewCounts = await Promise.all(reviewCountPromises);
+    
+    // Create a map for efficient lookup
+    const reviewCountMap = new Map();
+    reviewCounts.forEach(item => {
+      reviewCountMap.set(item.articleId, item.reviewCount);
+      logger.debug('Article review count', {
+        context: { 
+          articleId: item.articleId, 
+          reviewCount: item.reviewCount 
+        },
+        category: LogCategory.DATA
+      });
+    });
+    
+    // Filter out articles with 2+ reviews
+    const finalArticles = articles.filter(article => {
+      const reviewCount = reviewCountMap.get(article.id) || 0;
+      const hasLessThanTwoReviews = reviewCount < 2;
+      
+      if (!hasLessThanTwoReviews) {
+        logger.info('Excluding article with 2+ reviews from review list', {
+          context: { 
+            articleId: article.id, 
+            reviewCount 
+          },
+          category: LogCategory.DATA
+        });
+      }
+      
+      return hasLessThanTwoReviews;
+    });
+    
+    logger.info('Returning fully filtered articles for review (enforcing 2-review limit)', {
       context: { 
-        count: articles.length,
-        filteredOut: querySnapshot.size - articles.length
+        originalCount: articles.length,
+        finalCount: finalArticles.length,
+        removedDueToReviewLimit: articles.length - finalArticles.length
       },
       category: LogCategory.DATA
     });
     
-    return articles;
+    return finalArticles;
   } catch (error) {
     logger.error('Error getting articles for review', {
       context: { error },
