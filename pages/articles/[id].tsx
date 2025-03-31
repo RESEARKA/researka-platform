@@ -73,37 +73,57 @@ const ArticleDetailPage: React.FC = () => {
     const fetchArticle = async () => {
       try {
         setIsLoading(true);
-        const { getArticleById } = await import('../../services/articleService');
+        // Use the updated articleServiceV2 instead of the old service
+        const { getArticleById } = await import('../../services/articleServiceV2');
         const fetchedArticle = await getArticleById(id as string);
         
         if (fetchedArticle) {
           console.log('Fetched article:', fetchedArticle);
           
           // Fetch reviews for this article
-          const { getReviewsForArticle } = await import('../../services/reviewService');
-          const articleReviews = await getReviewsForArticle(id as string);
-          console.log('Fetched reviews:', articleReviews);
-          
-          // Set the reviews
-          setReviews(articleReviews);
+          let articleReviews: any[] = [];
+          try {
+            const { getReviewsForArticle } = await import('../../services/reviewService');
+            articleReviews = await getReviewsForArticle(id as string);
+            console.log('Fetched reviews:', articleReviews);
+          } catch (reviewError) {
+            console.error('Error fetching reviews:', reviewError);
+            // Continue without reviews if there's an error
+            toast({
+              title: 'Warning',
+              description: 'Unable to load reviews for this article',
+              status: 'warning',
+              duration: 3000,
+              isClosable: true,
+            });
+          }
           
           // Convert to the format expected by the component
           const formattedArticle: Article = {
             id: fetchedArticle.id || '',
-            title: fetchedArticle.title,
-            abstract: fetchedArticle.abstract,
+            title: fetchedArticle.title || 'Untitled Article',
+            abstract: fetchedArticle.abstract || 'No abstract available',
             keywords: fetchedArticle.keywords || [],
-            categories: [fetchedArticle.category],
+            categories: [fetchedArticle.category || 'Uncategorized'],
             authorId: fetchedArticle.authorId || 'unknown',
-            publishedDate: fetchedArticle.date,
-            views: 0,
+            publishedDate: fetchedArticle.date || new Date().toISOString().split('T')[0],
+            views: fetchedArticle.views || 0,
             citations: 0,
-            reviewCount: articleReviews.length,
-            status: (fetchedArticle.status === 'pending_review' ? 'under_review' : 
-                    (fetchedArticle.status === 'published' ? 'accepted' : 
-                    (fetchedArticle.status === 'rejected' ? 'rejected' : 'pending'))) as 'pending' | 'under_review' | 'accepted' | 'rejected',
+            reviewCount: articleReviews?.length || 0,
+            // Handle all possible article status values to prevent TypeScript errors
+            status: (() => {
+              // Convert backend status to UI status
+              switch(fetchedArticle.status) {
+                case 'pending_review': return 'under_review';
+                case 'published': return 'accepted';
+                case 'draft': 
+                case 'archived':
+                default: return 'pending';
+              }
+            })() as 'pending' | 'under_review' | 'accepted' | 'rejected',
           };
           setArticle(formattedArticle);
+          setReviews(articleReviews);
         } else {
           console.error('Article not found with ID:', id);
           toast({

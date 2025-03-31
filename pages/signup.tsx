@@ -42,8 +42,8 @@ const SignupPage: React.FC = () => {
     if (!isClient) return; // Skip on server-side
     
     if (authIsInitialized && currentUser) {
-      console.log('Signup page: User already logged in, redirecting to profile...');
-      router.replace('/profile');
+      console.log('Signup page: User already logged in, redirecting to homepage...');
+      router.replace('/');
     }
   }, [isClient, authIsInitialized, currentUser, router]);
 
@@ -242,11 +242,11 @@ const SignupPage: React.FC = () => {
       // Add a longer delay before redirecting to ensure all state updates have propagated
       await new Promise(resolve => setTimeout(resolve, 1000)); // Increased from 500ms to 1000ms for more reliability
       
-      console.log('Signup page: Redirecting to profile page...');
+      console.log('Signup page: Redirecting to homepage...');
       try {
         // First try to navigate using router.push
         await router.push({
-          pathname: '/profile',
+          pathname: '/',
           query: { new: 'true' } // Add a query parameter to indicate this is a new signup
         });
         
@@ -254,15 +254,15 @@ const SignupPage: React.FC = () => {
         // This is a more forceful approach but ensures navigation happens
         setTimeout(() => {
           console.log('Signup page: Checking if redirect happened, using fallback if needed');
-          if (window.location.pathname !== '/profile') {
+          if (window.location.pathname !== '/') {
             console.log('Signup page: Using fallback redirect method');
-            window.location.href = '/profile?new=true';
+            window.location.href = '/?new=true';
           }
         }, 1500);
       } catch (navError) {
         console.error('Signup page: Navigation error:', navError);
         // Fallback to direct location change if router.push fails
-        window.location.href = '/profile?new=true';
+        window.location.href = '/?new=true';
       }
     } catch (err: any) {
       console.error('Signup page: Error during signup:', err);

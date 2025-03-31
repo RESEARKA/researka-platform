@@ -33,7 +33,7 @@ export function useProfileOperations() {
   
   // Create refs to track operation state
   const operationStartTimeRef = useRef<number>(0);
-  const updateInProgressRef = useRef<boolean>(false);
+  const updateInProgressRef = useRef(false);
   const lastOperationTimestampRef = useRef<number>(0);
   const pendingUpdatesRef = useRef<Partial<UserProfile> | null>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);

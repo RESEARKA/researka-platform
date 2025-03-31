@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Container, useToast } from '@chakra-ui/react';
 import { UserProfile } from '../../hooks/useProfileData';
-import { ProfileLoadingState } from './types';
 import ProfileHeader from './ProfileHeader';
 import ProfileStats from './ProfileStats';
 import ProfileContent from './ProfileContent';
@@ -19,7 +18,6 @@ interface ClientOnlyProfileContentProps {
   profile: UserProfile | null;
   isLoading: boolean;
   error: string | null;
-  isInLoadingState: (state: ProfileLoadingState) => boolean;
   onSaveProfile: (updatedProfile: Partial<UserProfile>) => Promise<boolean>;
   onRetryLoading: () => void;
 }
@@ -32,7 +30,6 @@ function ClientOnlyProfileContent({
   profile,
   isLoading,
   error,
-  isInLoadingState,
   onSaveProfile,
   onRetryLoading
 }: ClientOnlyProfileContentProps) {
@@ -392,13 +389,14 @@ function ClientOnlyProfileContent({
     };
   }, [profile, onSaveProfile]);
 
+  // Main content rendering
   return (
     <Container maxW="container.lg" py={8}>
       {/* Profile Header */}
       <ProfileHeader
         profile={profile}
-        isEditMode={isEditMode}
         isLoading={isLoading}
+        isEditMode={isEditMode}
         onEditClick={handleEditProfile}
         onCancelEdit={handleCancelEdit}
       />
@@ -421,7 +419,6 @@ function ClientOnlyProfileContent({
           isLoading={isLoading}
           error={error}
           currentPage={currentPage}
-          isInLoadingState={isInLoadingState}
           onTabChange={handleTabChange}
           onPageChange={handlePageChange}
           onSaveProfile={handleSaveProfile}

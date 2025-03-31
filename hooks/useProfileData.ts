@@ -81,41 +81,16 @@ export function useProfileData() {
   const updateOperationInProgress = useRef<boolean>(false);
   const lastUpdateTimestamp = useRef<number>(0);
   
-  // Helper function to check if profile is complete
+  // Revised checkProfileComplete function
   const checkProfileComplete = useCallback((profileData: UserProfile | null): boolean => {
     if (!profileData) return false;
-    
-    // First, respect existing completion flags if they are explicitly set to true
-    if (profileData.profileComplete === true || profileData.isComplete === true) {
-      logger.debug('Profile marked as complete via explicit flag', {
-        context: { 
-          profileComplete: profileData.profileComplete,
-          isComplete: profileData.isComplete
-        },
-        category: LogCategory.DATA
-      });
-      return true;
-    }
-    
-    // Only require name and role as essential fields
+
+    // Only require essential fields for review access
     const requiredFields: (keyof UserProfile)[] = ['name', 'role'];
-    
-    const isComplete = requiredFields.every(field => {
+    return requiredFields.every(field => {
       const value = profileData[field];
       return typeof value === 'string' && value.trim().length > 0;
     });
-    
-    logger.debug('Profile completion check result', {
-      context: { 
-        isComplete,
-        name: !!profileData.name,
-        role: !!profileData.role,
-        institution: !!profileData.institution
-      },
-      category: LogCategory.DATA
-    });
-    
-    return isComplete;
   }, []);
   
   // Batch update state to prevent multiple renders

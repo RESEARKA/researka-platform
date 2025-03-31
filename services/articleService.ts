@@ -505,15 +505,6 @@ export const getAllArticles = async (): Promise<Article[]> => {
         logger.error('Failed to initialize Firebase after retry', {
           category: LogCategory.DATA
         });
-        
-        // In development, return mock data
-        if (process.env.NODE_ENV === 'development') {
-          logger.debug('Returning mock data due to initialization failure', {
-            category: LogCategory.DATA
-          });
-          return getMockArticles();
-        }
-        
         throw new Error('Firestore not initialized');
       }
       
@@ -523,15 +514,6 @@ export const getAllArticles = async (): Promise<Article[]> => {
         logger.error('Firestore still not initialized after retry', {
           category: LogCategory.DATA
         });
-        
-        // In development, return mock data
-        if (process.env.NODE_ENV === 'development') {
-          logger.debug('Returning mock data due to initialization failure', {
-            category: LogCategory.DATA
-          });
-          return getMockArticles();
-        }
-        
         throw new Error('Firestore not initialized after retry');
       }
       
@@ -544,15 +526,6 @@ export const getAllArticles = async (): Promise<Article[]> => {
         logger.warn('No authenticated user found when querying articles (retry)', {
           category: LogCategory.AUTH
         });
-        
-        // In development, return mock data
-        if (process.env.NODE_ENV === 'development') {
-          logger.debug('Returning mock data (not authenticated, retry)', {
-            category: LogCategory.DATA
-          });
-          return getMockArticles();
-        }
-        
         return [];
       }
       
@@ -585,7 +558,7 @@ export const getAllArticles = async (): Promise<Article[]> => {
         
         // Process results with timing
         const processingStartTime = performance.now();
-        const results = processQueryResults(querySnapshot);
+        let results = processQueryResults(querySnapshot);
         processingTime = performance.now() - processingStartTime;
         
         logger.info('Results processed', {
@@ -596,7 +569,14 @@ export const getAllArticles = async (): Promise<Article[]> => {
           category: LogCategory.DATA
         });
         
-        return results;
+        // TEMPORARILY DISABLE FILTERING FOR DIAGNOSTICS
+        // Return all articles to identify what's being filtered out
+        logger.info('DIAGNOSTICS: Temporarily disabling review count filtering', {
+          context: { articleCount: results.length },
+          category: LogCategory.DATA
+        });
+        
+        return results; // Return all articles for diagnostics
       } catch (queryError) {
         // Check for permission errors specifically
         const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
@@ -640,15 +620,6 @@ export const getAllArticles = async (): Promise<Article[]> => {
       logger.warn('No authenticated user found when querying articles', {
         category: LogCategory.AUTH
       });
-      
-      // In development, return mock data
-      if (process.env.NODE_ENV === 'development') {
-        logger.debug('Returning mock data (not authenticated)', {
-          category: LogCategory.DATA
-        });
-        return getMockArticles();
-      }
-      
       return [];
     }
     
@@ -681,7 +652,7 @@ export const getAllArticles = async (): Promise<Article[]> => {
       
       // Process results with timing
       const processingStartTime = performance.now();
-      const results = processQueryResults(querySnapshot);
+      let results = processQueryResults(querySnapshot);
       processingTime = performance.now() - processingStartTime;
       
       logger.info('Results processed', {
@@ -692,7 +663,14 @@ export const getAllArticles = async (): Promise<Article[]> => {
         category: LogCategory.DATA
       });
       
-      return results;
+      // TEMPORARILY DISABLE FILTERING FOR DIAGNOSTICS
+      // Return all articles to identify what's being filtered out
+      logger.info('DIAGNOSTICS: Temporarily disabling review count filtering', {
+        context: { articleCount: results.length },
+        category: LogCategory.DATA
+      });
+      
+      return results; // Return all articles for diagnostics
     } catch (queryError) {
       // Check for permission errors specifically
       const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
@@ -739,13 +717,10 @@ export const getAllArticles = async (): Promise<Article[]> => {
       category: LogCategory.ERROR
     });
     
-    // In development, return mock data on error
-    if (process.env.NODE_ENV === 'development') {
-      logger.debug('Returning mock data due to error', {
-        category: LogCategory.DATA
-      });
-      return getMockArticles();
-    }
+    // In development, throw the error instead of returning mock data
+    logger.debug('Error occurred in development mode', {
+      category: LogCategory.DATA
+    });
     
     throw new Error(error instanceof Error ? 
       `Failed to get articles: ${error.message}` : 
@@ -762,15 +737,6 @@ function processQueryResults(querySnapshot: any): Article[] {
     logger.debug('No articles found in the database', {
       category: LogCategory.DATA
     });
-    
-    // In development, return mock data
-    if (process.env.NODE_ENV === 'development') {
-      logger.debug('No articles found, returning mock data for development', {
-        category: LogCategory.DATA
-      });
-      return getMockArticles();
-    }
-    
     return [];
   }
   
@@ -829,60 +795,5 @@ function processQueryResults(querySnapshot: any): Article[] {
     category: LogCategory.DATA
   });
   
-  // If no valid articles were found, return mock data for development
-  if (articles.length === 0 && process.env.NODE_ENV === 'development') {
-    logger.debug('No valid articles found, returning mock data for development', {
-      category: LogCategory.DATA
-    });
-    return getMockArticles();
-  }
-  
   return articles;
-}
-
-/**
- * Get mock articles for development and testing
- */
-function getMockArticles(): Article[] {
-  return [
-    {
-      id: 'mock-article-1',
-      title: 'Advances in Quantum Computing',
-      abstract: 'This paper explores recent advances in quantum computing and their implications for cryptography.',
-      category: 'Computer Science',
-      keywords: ['quantum computing', 'cryptography', 'algorithms'],
-      author: 'Dr. Jane Smith',
-      authorId: 'mock-author-1',
-      date: new Date().toISOString(),
-      compensation: 'Open Access',
-      status: 'published',
-      views: 1250
-    },
-    {
-      id: 'mock-article-2',
-      title: 'Climate Change Impact on Marine Ecosystems',
-      abstract: 'A comprehensive study of how climate change affects marine biodiversity and ecosystem health.',
-      category: 'Environmental Science',
-      keywords: ['climate change', 'marine biology', 'ecosystems'],
-      author: 'Prof. Michael Johnson',
-      authorId: 'mock-author-2',
-      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
-      compensation: 'Open Access',
-      status: 'published',
-      views: 843
-    },
-    {
-      id: 'mock-article-3',
-      title: 'Neural Networks in Medical Diagnosis',
-      abstract: 'This research demonstrates how neural networks can improve accuracy in medical diagnostics.',
-      category: 'Medicine',
-      keywords: ['neural networks', 'AI', 'medical diagnosis'],
-      author: 'Dr. Sarah Chen',
-      authorId: 'mock-author-3',
-      date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days ago
-      compensation: 'Open Access',
-      status: 'published',
-      views: 1567
-    }
-  ];
 }

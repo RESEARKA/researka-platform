@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useToast, Spinner, Center, VStack, Text, Alert, AlertIcon, AlertTitle, AlertDescription } from '@chakra-ui/react';
-import { useProfileData } from '../../hooks/useProfileData';
-import { useProfileOperations, ExtendedProfileLoadingState } from '../../hooks/useProfileOperations';
+import { useProfileOperations } from '../../hooks/useProfileOperations';
 import useFirebaseInitialized from '../../hooks/useFirebaseInitialized';
 import ProfileManager from './ProfileManager';
 import ClientOnlyProfileContent from './ClientOnlyProfileContent';
 import { createLogger, LogCategory } from '../../utils/logger';
-import { ProfileLoadingState } from './types';
 
 // Create a logger instance for this component
 const logger = createLogger('ClientOnlyProfile');
@@ -32,15 +30,12 @@ function ClientOnlyProfile() {
     profile,
     isLoading,
     error: profileError,
-    isProfileComplete,
-    loadingState,
     isInComponentLoadingState,
     updateProfile,
     handleError,
     logOperation,
     refreshProfileData,
     updateInProgressRef,
-    pendingUpdatesRef,
     clearPendingUpdates
   } = useProfileOperations();
   
@@ -185,7 +180,6 @@ function ClientOnlyProfile() {
         profile={profile}
         isLoading={isLoading}
         error={profileError}
-        isInLoadingState={isInComponentLoadingState}
         onRetryLoading={handleRetryLoading}
         onSaveProfile={updateProfile}
       />

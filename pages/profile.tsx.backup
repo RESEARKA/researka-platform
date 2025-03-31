@@ -1,0 +1,176 @@
+import React, { useEffect, useRef, useCallback } from 'react';
+import {
+  Container,
+  Spinner,
+  Center,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Button,
+} from '@chakra-ui/react';
+import { FiRefreshCw } from 'react-icons/fi';
+import { useAuth } from '../contexts/AuthContext';
+import { useProfileData, UserProfile } from '../hooks/useProfileData';
+import ClientOnlyProfile from '../components/profile/index';
+import { createLogger, LogCategory } from '../utils/logger';
+import useAppToast from '../hooks/useAppToast';
+import Layout from '../components/Layout';
+
+const logger = createLogger('ProfilePage');
+
+function ProfilePage() {
+  const { currentUser } = useAuth();
+  const {
+    profile,
+    isLoading: profileIsLoading,
+    error,
+    retryLoading,
+    updateProfile,
+    isProfileComplete,
+  } = useProfileData();
+  const toast = useAppToast();
+  const isUpdatingProfile = useRef(false);
+
+  useEffect(() => {
+    logger.info('ProfilePage mounted', { category: LogCategory.LIFECYCLE });
+    logger.debug('Initial Profile Data:', {
+      context: {
+        profile: profile,
+        isLoading: profileIsLoading,
+        error: error,
+        isProfileComplete: isProfileComplete,
+      },
+      category: LogCategory.LIFECYCLE,
+    });
+
+    return () => {
+      logger.info('ProfilePage unmounted', { category: LogCategory.LIFECYCLE });
+    };
+  }, []);
+
+  useEffect(() => {
+    logger.debug('Profile data updated in ProfilePage:', {
+      context: {
+        profile: profile,
+        isLoading: profileIsLoading,
+        error: error,
+        isProfileComplete: isProfileComplete,
+      },
+      category: LogCategory.DATA,
+    });
+  }, [profile, profileIsLoading, error, isProfileComplete]);
+
+  const handleSaveProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
+    if (!currentUser) {
+      logger.warn('Save profile attempt without logged-in user', { category: LogCategory.AUTH });
+      toast({
+        id: 'profile-save-error',
+        title: "Authentication Error",
+        description: "You must be logged in to save your profile.",
+        status: "error",
+        duration: 5000,
+      });
+      return false;
+    }
+
+    if (isUpdatingProfile.current) {
+      logger.warn('Duplicate profile save attempt ignored', { category: LogCategory.UI });
+      return false;
+    }
+
+    isUpdatingProfile.current = true;
+    logger.info('Attempting to save profile', { context: { userId: currentUser.uid }, category: LogCategory.DATA });
+
+    try {
+      const success = await updateProfile(updatedProfile);
+
+      if (success) {
+        logger.info('Profile save successful', { context: { userId: currentUser.uid }, category: LogCategory.DATA });
+        toast({
+          id: 'profile-save-success',
+          title: "Profile Saved",
+          description: "Your profile information has been updated.",
+          status: "success",
+          duration: 3000,
+        });
+        return true;
+      } else {
+        logger.warn('Profile save failed (returned false)', { context: { userId: currentUser.uid }, category: LogCategory.DATA });
+        toast({
+          id: 'profile-save-failed',
+          title: "Save Failed",
+          description: "Could not save profile. Please try again.",
+          status: "warning",
+          duration: 5000,
+        });
+        return false;
+      }
+    } catch (err: any) {
+      logger.error('Error saving profile', { context: { userId: currentUser.uid, error: err }, category: LogCategory.DATA });
+      toast({
+        id: 'profile-save-error',
+        title: "Save Error",
+        description: err.message || 'An unexpected error occurred.',
+        status: "error",
+        duration: 5000,
+      });
+      return false;
+    } finally {
+      isUpdatingProfile.current = false;
+    }
+  }, [currentUser, updateProfile, toast]);
+
+  if (profileIsLoading && !profile && !error) {
+    return (
+      <Center height="80vh">
+        <Spinner size="xl" />
+      </Center>
+    );
+  }
+
+  if (error && !profile) {
+    return (
+      <Center height="80vh">
+        <Alert
+          status="error"
+          variant="subtle"
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
+          textAlign="center"
+          maxWidth="md"
+          py={10}
+          px={6}
+          borderRadius="md"
+        >
+          <AlertIcon boxSize="40px" mr={0} />
+          <AlertTitle mt={4} mb={1} fontSize="lg">
+            Error Loading Profile
+          </AlertTitle>
+          <AlertDescription maxWidth="sm">
+            {error}
+          </AlertDescription>
+          <Button
+            leftIcon={<FiRefreshCw />}
+            mt={4}
+            onClick={retryLoading}
+            isLoading={profileIsLoading}
+          >
+            Retry Loading
+          </Button>
+        </Alert>
+      </Center>
+    );
+  }
+
+  return (
+    <Layout>
+      <Container maxW="container.lg" py={10}>
+        <ClientOnlyProfile />
+      </Container>
+    </Layout>
+  );
+}
+
+export default ProfilePage;

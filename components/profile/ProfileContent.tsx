@@ -20,7 +20,6 @@ import { UserProfile } from '../../hooks/useProfileData';
 import ArticlesPanel from './ArticlesPanel';
 import ReviewsPanel from './ReviewsPanel';
 import ProfileCompletionForm from '../ProfileCompletionForm';
-import { ProfileLoadingState } from './types';
 
 // Define a default empty state component
 const DefaultEmptyState: React.FC<{ type: string }> = ({ type }) => (
@@ -37,7 +36,6 @@ interface ProfileContentProps {
   isLoading: boolean;
   error: string | null;
   currentPage: number;
-  isInLoadingState: (state: ProfileLoadingState) => boolean;
   onTabChange: (index: number) => void;
   onPageChange: (page: number) => void;
   onSaveProfile: (updatedProfile: Partial<UserProfile>) => Promise<boolean>;
@@ -54,7 +52,6 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
   isLoading,
   error,
   currentPage,
-  isInLoadingState,
   onTabChange,
   onPageChange,
   onSaveProfile,
@@ -107,7 +104,7 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
       <ProfileCompletionForm
         initialData={profile || undefined}
         onSave={onSaveProfile}
-        isLoading={isInLoadingState(ProfileLoadingState.UPDATING)}
+        isLoading={isLoading}
         isEditMode={isEditMode}
       />
     );
@@ -137,7 +134,7 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
             userId={profile?.uid || ''}
             currentPage={currentPage}
             onPageChange={onPageChange}
-            isLoading={isInLoadingState(ProfileLoadingState.LOADING_ARTICLES)}
+            isLoading={isLoading}
             EmptyState={() => <DefaultEmptyState type="Articles" />}
           />
         </TabPanel>
@@ -148,7 +145,7 @@ const ProfileContent: React.FC<ProfileContentProps> = ({
             userId={profile?.uid || ''}
             currentPage={currentPage}
             onPageChange={onPageChange}
-            isLoading={isInLoadingState(ProfileLoadingState.LOADING_REVIEWS)}
+            isLoading={isLoading}
             EmptyState={() => <DefaultEmptyState type="Reviews" />}
           />
         </TabPanel>

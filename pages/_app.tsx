@@ -7,8 +7,6 @@ import { AuthProvider } from '../contexts/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Head from 'next/head';
 import ErrorBoundary from '../components/ErrorBoundary';
-import * as Sentry from '@sentry/nextjs';
-import AnimatedPage from '../components/AnimatedPage';
 import '../styles/pagination.css'; // Import pagination styles
 import useClient from '../hooks/useClient';
 import { isClientSide } from '../utils/imageOptimizer';
@@ -42,9 +40,9 @@ function MyApp({ Component, pageProps }: AppProps) {
         {/* Disable caching for development */}
         {process.env.NODE_ENV === 'development' && (
           <>
-            <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-            <meta http-equiv="Pragma" content="no-cache" />
-            <meta http-equiv="Expires" content="0" />
+            <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+            <meta httpEquiv="Pragma" content="no-cache" />
+            <meta httpEquiv="Expires" content="0" />
           </>
         )}
       </Head>

@@ -1,139 +1,95 @@
-import { useState, useEffect, useRef } from 'react';
-import { initializeFirebase, isFirebaseInitialized } from '../config/firebase';
+import { useState, useEffect } from 'react';
+import { getApps, initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { firebaseConfig } from '../config/firebase'; // Corrected path to firebase config
+import { isSupported, getAnalytics } from 'firebase/analytics';
 import { createLogger, LogCategory } from '../utils/logger';
 
 // Create a logger instance for this hook
 const logger = createLogger('useFirebaseInitialized');
 
-// Constants
-const INITIALIZATION_TIMEOUT_MS = 5000; // 5 seconds timeout
+export let app: any;
+export let auth: any;
+export let db: any;
+export let analytics: any;
+let isInitialized = false;
 
-/**
- * Custom hook to ensure Firebase is initialized on the client side
- * and provide a clean way for components to know when Firebase is ready
- * 
- * Enhanced with better error handling, logging, and timeout detection
- * 
- * @returns {Object} Object containing:
- *   - initialized: boolean indicating if Firebase is initialized and ready to use
- *   - error: Error object if initialization failed, null otherwise
- *   - isTimedOut: boolean indicating if initialization timed out
- */
-export function useFirebaseInitialized() {
-  const [initialized, setInitialized] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
-  
-  // Use refs to track initialization attempts and timeouts
-  const initAttempts = useRef<number>(0);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isMounted = useRef<boolean>(true);
-  
-  useEffect(() => {
-    // Set mounted flag
-    isMounted.current = true;
-    
-    // Only run on client side
-    if (typeof window === 'undefined') {
-      logger.debug('Skipping Firebase initialization in server environment', {
-        category: LogCategory.SYSTEM
-      });
-      return;
-    }
-    
-    // Check if already initialized
-    if (isFirebaseInitialized()) {
-      logger.info('Firebase already initialized', {
-        category: LogCategory.SYSTEM
-      });
-      
-      if (isMounted.current) {
-        setInitialized(true);
-      }
-      return;
-    }
-    
-    // Set timeout to detect slow initialization
-    timeoutRef.current = setTimeout(() => {
-      if (isMounted.current) {
-        logger.warn('Firebase initialization timeout exceeded', {
-          context: {
-            timeoutMs: INITIALIZATION_TIMEOUT_MS,
-            attempts: initAttempts.current
-          },
-          category: LogCategory.PERFORMANCE
+// Define the return type for the hook
+export interface FirebaseInitStatus {
+  initialized: boolean;
+  error: Error | null;
+  isTimedOut: boolean;
+}
+
+export function initializeFirebase(): { success: boolean; error: Error | null } {
+  if (typeof window === 'undefined') {
+    return { success: false, error: new Error('Cannot initialize Firebase on server side') };
+  }
+
+  try {
+    if (!isInitialized) {
+      if (getApps().length === 0) {
+        logger.debug('Initializing Firebase for the first time', {
+          category: LogCategory.SYSTEM
         });
-        setIsTimedOut(true);
+        app = initializeApp(firebaseConfig);
+      } else {
+        logger.debug('Reusing existing Firebase app', {
+          category: LogCategory.SYSTEM
+        });
+        app = getApps()[0];
       }
-    }, INITIALIZATION_TIMEOUT_MS);
-    
-    // Initialize Firebase
-    try {
-      initAttempts.current += 1;
-      
-      logger.info('Initializing Firebase', {
-        context: { attempt: initAttempts.current },
-        category: LogCategory.SYSTEM
-      });
-      
-      const result = initializeFirebase();
-      
-      if (isMounted.current) {
-        setInitialized(result);
-        
-        // Log initialization status
-        if (result) {
-          logger.info('Firebase initialized successfully', {
-            context: { attempts: initAttempts.current },
-            category: LogCategory.SYSTEM
-          });
-        } else {
-          const initError = new Error('Firebase initialization failed');
-          logger.error('Firebase initialization failed', {
-            context: { 
-              error: initError,
-              attempts: initAttempts.current
-            },
-            category: LogCategory.ERROR
-          });
-          setError(initError);
+      auth = getAuth(app);
+      db = getFirestore(app);
+
+      // Initialize analytics if supported
+      isSupported().then((supported) => {
+        if (supported) {
+          analytics = getAnalytics(app);
         }
-      }
-    } catch (err) {
-      // Handle initialization error
-      const initError = err instanceof Error ? err : new Error('Unknown Firebase initialization error');
-      
-      logger.error('Firebase initialization error', {
-        context: { 
-          error: initError,
-          attempts: initAttempts.current
-        },
-        category: LogCategory.ERROR
       });
-      
-      if (isMounted.current) {
-        setError(initError);
-        setInitialized(false);
-      }
+      isInitialized = true;
+      return { success: true, error: null };
     }
-    
-    // Cleanup function
-    return () => {
-      isMounted.current = false;
-      
-      // Clear timeout if it exists
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
+    return { success: true, error: null };
+  } catch (error) {
+    logger.error('Error initializing Firebase:', {
+      context: { error },
+      category: LogCategory.SYSTEM
+    });
+    return { success: false, error: error instanceof Error ? error : new Error('Unknown error initializing Firebase') };
+  }
+}
+
+export function useFirebaseInitialized(): FirebaseInitStatus {
+  const [status, setStatus] = useState<FirebaseInitStatus>({
+    initialized: false,
+    error: null,
+    isTimedOut: false
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Set a timeout to detect slow initialization
+      const timeoutId = setTimeout(() => {
+        setStatus(prev => ({ ...prev, isTimedOut: true }));
+      }, 5000);
+
+      const result = initializeFirebase();
+      setStatus({
+        initialized: result.success,
+        error: result.error,
+        isTimedOut: false
+      });
+
+      // Clear timeout if initialization completes
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined; // Explicit return for server-side rendering
   }, []);
-  
-  return {
-    initialized,
-    error,
-    isTimedOut
-  };
+
+  return status;
 }
 
 export default useFirebaseInitialized;

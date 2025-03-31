@@ -50,8 +50,9 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     if (authIsInitialized && currentUser) {
       console.log('Login page: User already logged in, redirecting...');
+      // Always redirect to home by default - users can access profile later if needed
       if (redirectPath === '/') {
-        router.replace('/profile');
+        router.replace('/');
       } else {
         router.replace(redirectPath);
       }
@@ -130,7 +131,7 @@ const LoginPage: React.FC = () => {
             isClosable: true,
           });
           
-          router.push(redirectPath);
+          router.push('/');
         } else {
           // Get existing profile or create new one
           const existingProfile = isClient ? localStorage.getItem('userProfile') : null;
@@ -156,7 +157,7 @@ const LoginPage: React.FC = () => {
             isClosable: true,
           });
           
-          router.push('/profile');
+          router.push('/');
         }
       }
     } catch (error) {

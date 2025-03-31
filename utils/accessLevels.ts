@@ -32,30 +32,26 @@ export function getUserAccessLevel(profile: UserProfile | null): UserAccessLevel
     return UserAccessLevel.BASIC;
   }
   
-  // For existing users with complete profiles, always grant COMPLETE access
-  // This ensures backward compatibility
-  if (profile.profileComplete === true || profile.isComplete === true) {
-    return UserAccessLevel.COMPLETE;
-  }
+  // Instead of checking strict profileComplete flag,
+  // we use our lenient check for review access.
+  const isComplete = profile.profileComplete || checkProfileComplete(profile);
   
-  // Use a lenient check: only require 'name' and 'role'
-  const essentialComplete = typeof profile.name === 'string' && profile.name.trim() !== '' &&
-                          typeof profile.role === 'string' && profile.role.trim() !== '';
-  
-  // If the essential fields are complete, grant REVIEWER access
-  if (essentialComplete) {
-    logger.debug('User granted REVIEWER access based on essential fields', {
-      context: { 
-        name: !!profile.name,
-        role: !!profile.role
-      },
-      category: LogCategory.DATA
-    });
-    return UserAccessLevel.REVIEWER;
-  }
-  
-  // Otherwise, grant only basic access
-  return UserAccessLevel.BASIC;
+  return isComplete ? UserAccessLevel.COMPLETE : UserAccessLevel.REVIEWER;
+}
+
+/**
+ * Checks if a profile is considered complete based on required fields
+ * Updated to be more lenient - only requiring name and role fields
+ */
+function checkProfileComplete(profileData: UserProfile | null): boolean {
+  if (!profileData) return false;
+
+  // Only require essential fields for review access
+  const requiredFields: (keyof UserProfile)[] = ['name', 'role'];
+  return requiredFields.every(field => {
+    const value = profileData[field];
+    return typeof value === 'string' && value.trim().length > 0;
+  });
 }
 
 /**

@@ -1,6 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import * as Sentry from '@sentry/nextjs';
-import { Box, Heading, Text, Button, VStack, useColorModeValue } from '@chakra-ui/react';
 
 interface Props {
   children: ReactNode;
@@ -40,12 +39,6 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Log the error to Sentry
     Sentry.withScope((scope) => {
-      // Convert ErrorInfo to a plain object that can be used with setExtras
-      const errorInfoObj = {
-        componentStack: errorInfo.componentStack,
-        ...errorInfo
-      };
-      
       scope.setExtra('componentStack', errorInfo.componentStack);
       Sentry.captureException(error);
     });
@@ -97,31 +90,42 @@ interface ErrorFallbackProps {
 }
 
 const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, resetErrorBoundary }) => {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const simpleStyle: React.CSSProperties = {
+    padding: '1rem',
+    margin: '1rem',
+    border: '1px solid #E2E8F0', 
+    borderRadius: '0.375rem', 
+    backgroundColor: '#FFFFFF', 
+    color: '#1A202C' 
+  };
+
+  const headingStyle: React.CSSProperties = {
+    fontSize: '1.25rem', 
+    fontWeight: '600', 
+    color: '#E53E3E', 
+    marginBottom: '1rem'
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#3182CE', 
+    color: 'white',
+    border: 'none',
+    borderRadius: '0.375rem',
+    cursor: 'pointer',
+    marginTop: '1rem'
+  };
 
   return (
-    <Box
-      p={6}
-      m={4}
-      borderRadius="lg"
-      bg={bgColor}
-      borderWidth="1px"
-      borderColor={borderColor}
-      boxShadow="md"
-    >
-      <VStack spacing={4} align="flex-start">
-        <Heading size="md" color="red.500">
-          Something went wrong
-        </Heading>
-        <Text>
-          {error?.message || 'An unexpected error occurred. Our team has been notified.'}
-        </Text>
-        <Button colorScheme="blue" onClick={resetErrorBoundary}>
-          Try again
-        </Button>
-      </VStack>
-    </Box>
+    <div style={simpleStyle}>
+      <h2 style={headingStyle}>Something went wrong</h2>
+      <p>
+        {error?.message || 'An unexpected error occurred. Our team has been notified.'}
+      </p>
+      <button style={buttonStyle} onClick={resetErrorBoundary}>
+        Try again
+      </button>
+    </div>
   );
 };
 

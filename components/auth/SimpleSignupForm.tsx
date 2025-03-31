@@ -20,9 +20,9 @@ import {
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { saveUserProfile } from '../../services/profileService';
 import { createLogger, LogCategory } from '../../utils/logger';
 import { useRouter } from 'next/router';
+import { useProfileData } from '../../hooks/useProfileData';
 
 // Create a logger instance for this component
 const logger = createLogger('SimpleSignupForm');
@@ -103,17 +103,18 @@ const RESEARCH_INTERESTS = [
  * @param existingProfile - Optional existing profile data for editing mode
  * @param onComplete - Callback function to execute when the profile is saved
  */
-function SimpleSignupForm({ 
+const SimpleSignupForm = ({ 
   existingProfile, 
   onComplete 
 }: { 
   existingProfile?: any; 
   onComplete?: () => void 
-}) {
+}) => {
   // Get authentication context
   const { currentUser } = useAuth();
-  const toast = useToast();
   const router = useRouter();
+  const toast = useToast();
+  const { updateProfile, updateOperationInProgress } = useProfileData();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -241,6 +242,14 @@ function SimpleSignupForm({
       return;
     }
     
+    // Check if an update is already in progress
+    if (updateOperationInProgress.current) {
+      logger.warn('Update already in progress, skipping duplicate submission', {
+        category: LogCategory.LIFECYCLE
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -248,24 +257,19 @@ function SimpleSignupForm({
         category: LogCategory.LIFECYCLE
       });
       
-      // Save profile directly to Firestore
-      const success = await saveUserProfile(currentUser.uid, {
+      // Use the centralized profile operations hook
+      const profileData = {
         name: formData.name.trim(),
         role: formData.role,
         institution: formData.institution,
         researchInterests: formData.researchInterests,
         email: formData.email,
-      });
+        profileComplete: true
+      };
+      
+      const success = await updateProfile(profileData);
       
       if (success) {
-        toast({
-          title: 'Profile Saved',
-          description: 'Your profile has been successfully saved',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-        
         // Call completion callback if provided
         if (onComplete) {
           onComplete();
@@ -273,8 +277,6 @@ function SimpleSignupForm({
           // Otherwise, redirect to homepage
           router.push('/');
         }
-      } else {
-        throw new Error('Failed to save profile');
       }
     } catch (error) {
       logger.error('Error saving profile', {

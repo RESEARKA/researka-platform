@@ -13,23 +13,21 @@ import {
   Select, 
   Button, 
   useColorModeValue, 
-  Image, 
   useToast, 
-  Flex,
-  Divider,
   Tag,
   Wrap,
   WrapItem
 } from '@chakra-ui/react';
 import { 
-  FiSearch, FiCalendar, FiEye, FiRefreshCw, FiChevronLeft, FiChevronRight, FiShuffle
+  FiSearch, FiCalendar, FiEye, FiRefreshCw, FiShuffle 
 } from 'react-icons/fi';
 import Layout from '../components/Layout';
 import ArticleSkeleton from '../components/ArticleSkeleton';
 import PageTransition from '../components/PageTransition';
 import SimplePagination from '../components/SimplePagination';
-import { PageArticle, convertToPageArticles } from '../utils/articleAdapter';
+import { PageArticle, convertToPageArticles } from '../utils/articleAdapterV2';
 import { useRouter } from 'next/router';
+import { isClientSide } from '../utils/imageOptimizer';
 
 export default function ArticlesPage() {
   // State
@@ -40,32 +38,64 @@ export default function ArticlesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [articles, setArticles] = useState<PageArticle[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // We need this error state for catching errors, even if not referenced directly in JSX
+  const [, setError] = useState<string | null>(null);
   const toast = useToast();
   const router = useRouter();
-  
-  // Hard limit to ensure we never show more than 10 articles per page
-  const ARTICLES_PER_PAGE = 5;
+  const itemsPerPage = 9;
 
   // Load articles from Firebase
   useEffect(() => {
     const loadArticles = async () => {
+      if (!isClientSide()) {
+        console.log('Article load skipped: Not on client side.');
+        setIsLoading(false); 
+        return; 
+      }
+      
       setIsLoading(true);
       setError(null);
       
       try {
-        // Import the article service
-        const { getAllArticles } = await import('../services/articleService');
+        console.log('⏳ Starting to load articles from Firebase...');
         
-        // Get articles from Firebase
-        const firebaseArticles = await getAllArticles();
-        console.log('Articles loaded from Firebase:', firebaseArticles);
+        const { getAllArticles } = await import('../services/articleServiceV2');
         
-        // Convert to the format expected by the articles page
-        const convertedArticles = convertToPageArticles(firebaseArticles);
-        setArticles(convertedArticles);
+        try {
+          const { isFirebaseInitialized } = await import('../config/firebase');
+          console.log(`🔥 Firebase initialized: ${isFirebaseInitialized()}`);
+          
+          const firebaseArticles = await getAllArticles();
+          console.log(`✅ Articles loaded from Firebase (${firebaseArticles.length}):`);
+          
+          if (firebaseArticles.length === 0) {
+            console.warn('⚠️ No articles returned from getAllArticles');
+          } else {
+            firebaseArticles.forEach(article => {
+              console.log(`📄 Article: ${article.id} - "${article.title}" by ${article.author} - Reviews: ${article.reviewCount}`);
+            });
+          }
+          
+          const convertedArticles = convertToPageArticles(firebaseArticles);
+          console.log(`🔄 Converted ${convertedArticles.length} articles for display`);
+          setArticles(convertedArticles);
+        } catch (error) {
+          console.error('❌ Error in article loading:', error);
+          setError('Failed to load articles: ' + (error instanceof Error ? error.message : String(error)));
+          toast({
+            title: 'Error',
+            description: 'Failed to load articles. See console for details.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        } finally {
+          if (isClientSide()) {
+            setIsLoading(false);
+          }
+        }
       } catch (error) {
-        console.error('Error loading articles from Firebase:', error);
+        console.error('❌ Error loading articles from Firebase:', error);
         setError('Failed to load articles');
         toast({
           title: 'Error',
@@ -75,7 +105,9 @@ export default function ArticlesPage() {
           isClosable: true,
         });
       } finally {
-        setIsLoading(false);
+        if (isClientSide()) {
+          setIsLoading(false);
+        }
       }
     };
     
@@ -88,24 +120,44 @@ export default function ArticlesPage() {
     setError(null);
     
     try {
-      // Import the article service
-      const { getAllArticles } = await import('../services/articleService');
+      const { getAllArticles } = await import('../services/articleServiceV2');
       
-      // Get articles from Firebase
-      const firebaseArticles = await getAllArticles();
-      console.log('Refreshed articles from Firebase:', firebaseArticles);
-      
-      // Convert to the format expected by the articles page
-      const convertedArticles = convertToPageArticles(firebaseArticles);
-      setArticles(convertedArticles);
-      
-      toast({
-        title: 'Refreshed',
-        description: `Loaded ${firebaseArticles.length} articles`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
+      try {
+        const firebaseArticles = await getAllArticles();
+        console.log(`Articles loaded from Firebase (${firebaseArticles.length}):`);
+        
+        if (firebaseArticles.length === 0) {
+          console.warn('⚠️ No articles returned from getAllArticles');
+        } else {
+          firebaseArticles.forEach(article => {
+            console.log(`Article: ${article.id} - "${article.title}" by ${article.author}`);
+          });
+        }
+        
+        const convertedArticles = convertToPageArticles(firebaseArticles);
+        console.log(`Converted ${convertedArticles.length} articles for display`);
+        setArticles(convertedArticles);
+        
+        toast({
+          title: 'Refreshed',
+          description: `Loaded ${firebaseArticles.length} articles`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } catch (error) {
+        console.error('Error in article loading:', error);
+        setError('Failed to load articles: ' + (error instanceof Error ? error.message : String(error)));
+        toast({
+          title: 'Error',
+          description: 'Failed to load articles. See console for details.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
     } catch (error) {
       console.error('Error refreshing articles from Firebase:', error);
       setError('Failed to load articles');
@@ -125,27 +177,23 @@ export default function ArticlesPage() {
   const filteredSortedArticles = useMemo(() => {
     console.log('Filtering and sorting articles');
     
-    // Start with all articles
     let result = [...articles];
     
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(article => 
         article.title?.toLowerCase().includes(query) || 
-        (article.description?.toLowerCase().includes(query) || article.abstract?.toLowerCase().includes(query)) ||
-        article.categories.some(cat => cat.toLowerCase().includes(query))
+        article.abstract?.toLowerCase().includes(query) ||
+        article.category?.toLowerCase().includes(query)
       );
     }
     
-    // Apply category filter
     if (categoryFilter !== 'all') {
       result = result.filter(article => 
-        article.categories.some(cat => cat.toLowerCase() === categoryFilter.toLowerCase())
+        article.category?.toLowerCase() === categoryFilter.toLowerCase()
       );
     }
     
-    // Apply sorting
     if (sortBy === 'newest') {
       result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } else if (sortBy === 'oldest') {
@@ -156,7 +204,6 @@ export default function ArticlesPage() {
       result.sort((a, b) => a.title.localeCompare(b.title));
     }
     
-    // Apply random shuffle if enabled
     if (showRandom) {
       result = [...result].sort(() => Math.random() - 0.5);
     }
@@ -167,39 +214,35 @@ export default function ArticlesPage() {
 
   // Calculate total pages
   const totalPages = useMemo(() => {
-    return Math.ceil(filteredSortedArticles.length / ARTICLES_PER_PAGE);
-  }, [filteredSortedArticles.length, ARTICLES_PER_PAGE]);
+    return Math.ceil(filteredSortedArticles.length / itemsPerPage);
+  }, [filteredSortedArticles.length, itemsPerPage]);
 
   // Calculate displayed articles based on current page
   const displayedArticles = useMemo(() => {
     console.log('Calculating displayed articles');
     console.log(`Current page: ${currentPage}, Total pages: ${totalPages}`);
     
-    // Safety check for empty articles
     if (filteredSortedArticles.length === 0) {
       console.log('No articles to display');
       return [];
     }
     
-    // Calculate start and end indices
-    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
-    const endIndex = startIndex + ARTICLES_PER_PAGE;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
     
     console.log(`Start index: ${startIndex}, End index: ${endIndex}`);
     
-    // Slice the array to get the current page's articles
     const paginatedArticles = filteredSortedArticles.slice(startIndex, endIndex);
     
     console.log(`Displaying ${paginatedArticles.length} articles`);
     
     return paginatedArticles;
-  }, [filteredSortedArticles, currentPage, ARTICLES_PER_PAGE, totalPages]);
+  }, [filteredSortedArticles, currentPage, itemsPerPage, totalPages]);
 
   // Handle page change
   const handlePageChange = useCallback((newPage: number) => {
     console.log(`Changing to page ${newPage} (total pages: ${totalPages})`);
     
-    // Validate page number
     if (newPage < 1) {
       console.log('Invalid page: less than 1');
       return;
@@ -210,10 +253,8 @@ export default function ArticlesPage() {
       return;
     }
     
-    // Update state
     setCurrentPage(newPage);
     
-    // Scroll to top for better UX
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     console.log(`Page changed to ${newPage}`);
@@ -221,7 +262,6 @@ export default function ArticlesPage() {
 
   // Ensure current page is valid (between 1 and totalPages)
   useEffect(() => {
-    // If there are no articles, reset to page 1
     if (filteredSortedArticles.length === 0) {
       if (currentPage !== 1) {
         console.log('No articles, resetting to page 1');
@@ -230,7 +270,6 @@ export default function ArticlesPage() {
       return;
     }
     
-    // If current page is greater than total pages, reset to page 1
     if (currentPage > totalPages) {
       console.log(`Current page (${currentPage}) is greater than total pages (${totalPages}), resetting to page 1`);
       setCurrentPage(1);
@@ -284,9 +323,7 @@ export default function ArticlesPage() {
   const allCategories = useMemo(() => {
     const categories = new Set<string>();
     articles.forEach(article => {
-      article.categories.forEach(category => {
-        categories.add(category.toLowerCase());
-      });
+      article.category && categories.add(article.category.toLowerCase());
     });
     return Array.from(categories).sort();
   }, [articles]);
@@ -389,12 +426,10 @@ export default function ArticlesPage() {
               {/* Articles List */}
               <VStack align="stretch" spacing={6}>
                 {isLoading ? (
-                  // Loading skeletons
-                  Array.from({ length: 3 }).map((_, i) => (
+                  Array.from({ length: itemsPerPage }).map((_, i) => (
                     <ArticleSkeleton key={i} />
                   ))
                 ) : filteredSortedArticles.length === 0 ? (
-                  // No results
                   <Box 
                     p={8} 
                     textAlign="center" 
@@ -419,31 +454,32 @@ export default function ArticlesPage() {
                     </Button>
                   </Box>
                 ) : (
-                  // Articles
-                  displayedArticles.map((article, index) => (
+                  displayedArticles.map(article => (
                     <Box 
                       key={article.id} 
-                      p={5} 
+                      p={{ base: 4, md: 6 }}
                       borderWidth="1px" 
                       borderRadius="lg" 
-                      borderColor={borderColor}
-                      bg={bgColor}
                       boxShadow="sm"
-                      _hover={{ boxShadow: "md", borderColor: "blue.300" }}
+                      bg={bgColor}
                       transition="all 0.2s"
+                      _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
                     >
                       <Grid templateColumns={{ base: "1fr", md: "200px 1fr" }} gap={5}>
                         <Box>
-                          <img
-                            src={article.image || article.imageUrl || "https://via.placeholder.com/400x200?text=Article+Image"}
-                            alt={article.title}
-                            style={{ 
-                              borderRadius: "8px", 
-                              width: "100%", 
-                              height: "150px", 
-                              objectFit: "cover" 
-                            }}
-                          />
+                          {/* Optional Image Placeholder - Remove or replace if PageArticle lacks image */}
+                          {/* {article.imageUrl && (
+                            <img
+                              src={article.imageUrl} 
+                              alt={article.title} 
+                              style={{ 
+                                borderRadius: "8px", 
+                                width: "100%", 
+                                height: "150px", 
+                                objectFit: "cover" 
+                              }}
+                            />
+                          )} */}
                         </Box>
                         <Box>
                           <Heading as="h2" size="md" mb={2}>
@@ -462,23 +498,23 @@ export default function ArticlesPage() {
                           </HStack>
                           
                           <Text color={textColor} noOfLines={3} mb={3}>
-                            {article.description || article.abstract}
+                            {article.abstract}
                           </Text>
                           
                           <Wrap spacing={2} mb={2}>
-                            {article.categories.map(category => (
-                              <WrapItem key={category}>
+                            {article.category && (
+                              <WrapItem key={article.category}>
                                 <Tag 
                                   size="sm" 
                                   colorScheme="blue" 
                                   borderRadius="full"
                                   cursor="pointer"
-                                  onClick={() => setCategoryFilter(category.toLowerCase())}
+                                  onClick={() => setCategoryFilter(article.category.toLowerCase())}
                                 >
-                                  {category}
+                                  {article.category}
                                 </Tag>
                               </WrapItem>
-                            ))}
+                            )}
                           </Wrap>
                           
                           <Button 
