@@ -282,22 +282,22 @@ export function useProfileData() {
   
   // Function to update profile data
   const updateProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
-    // Skip if not initialized or no user
+    // Skip if auth is not initialized or no user
     if (!authIsInitialized || !currentUser) {
-      logger.warn('Cannot update profile: not initialized or no user', {
-        context: {
+      logger.error('Cannot update profile: Auth not initialized or no user', {
+        context: { 
           authIsInitialized,
           hasUser: !!currentUser
         },
-        category: LogCategory.LIFECYCLE
+        category: LogCategory.ERROR
       });
       return false;
     }
     
-    // Skip if not on client side
+    // Skip if not client-side
     if (!isClient) {
-      logger.warn('Not on client side, skipping profile update', {
-        category: LogCategory.LIFECYCLE
+      logger.error('Cannot update profile: Not on client side', {
+        category: LogCategory.ERROR
       });
       return false;
     }
@@ -342,30 +342,75 @@ export function useProfileData() {
       // Get user document reference
       const userDocRef = doc(db, 'users', currentUser.uid);
       
-      // Check if the profile will be complete after this update
-      const updatedProfileData = profile ? {
-        ...profile,
-        ...updatedProfile
-      } as UserProfile : null;
-      
-      const isComplete = checkProfileComplete(updatedProfileData);
-      
-      // Ensure both completion flags are set consistently
-      const updatesWithCompletion = {
-        ...updatedProfile,
-        updatedAt: new Date().toISOString(),
-        isComplete: isComplete,
-        profileComplete: isComplete
+      // Ensure we have the complete profile data
+      const updatedData: Partial<UserProfile> = {
+        ...updatedProfile,      // Start with the updates
+        uid: currentUser.uid,   // Ensure uid is set
+        email: currentUser.email || '',  // Ensure email is set
+        updatedAt: new Date().toISOString()
       };
+
+      // If this is a new profile, add createdAt timestamp
+      if (!profile || !profile.createdAt) {
+        updatedData.createdAt = new Date().toISOString();
+      }
       
-      // Update document in Firestore
-      await updateDoc(userDocRef, updatesWithCompletion);
+      // Apply the lenient check - only require name and role
+      const hasName = typeof updatedData.name === 'string' && updatedData.name.trim() !== '';
+      const hasRole = typeof updatedData.role === 'string' && updatedData.role.trim() !== '';
+      const isComplete = hasName && hasRole;
       
-      // Update local state with merged profile
-      const finalProfileData = profile ? {
-        ...profile,
-        ...updatesWithCompletion
-      } as UserProfile : null;
+      // Set the completion flags
+      updatedData.isComplete = isComplete;
+      updatedData.profileComplete = isComplete;
+      
+      // Log the complete profile data being saved
+      logger.debug('Profile data being saved to Firestore', {
+        context: { 
+          isComplete,
+          hasName,
+          hasRole,
+          profileData: updatedData
+        },
+        category: LogCategory.DATA
+      });
+
+      // Attempt to write to Firestore
+      logger.debug('[DEBUG] Attempting setDoc for profile update', {
+        context: { 
+          userId: currentUser.uid,
+          dataToWrite: updatedData
+        },
+        category: LogCategory.DATA
+      });
+      
+      try {
+        // Update document in Firestore using setDoc with merge: true for robustness
+        await setDoc(userDocRef, updatedData, { merge: true });
+        
+        logger.debug('[DEBUG] setDoc for profile update SUCCESSFUL', {
+          context: {
+            userId: currentUser.uid
+          },
+          category: LogCategory.DATA
+        });
+      } catch (firestoreError) {
+        logger.error('Firestore setDoc operation failed', {
+          context: {
+            error: firestoreError,
+            userId: currentUser.uid,
+            errorMessage: firestoreError instanceof Error ? firestoreError.message : String(firestoreError)
+          },
+          category: LogCategory.ERROR
+        });
+        throw firestoreError;
+      }
+      
+      // Update local state with the complete updated profile
+      // If we have an existing profile, merge it with the updates
+      const finalProfileData = profile 
+        ? { ...profile, ...updatedData } as UserProfile 
+        : updatedData as UserProfile;
       
       // Update state in a single batch to prevent multiple renders
       batchUpdateState(finalProfileData, isComplete, ProfileLoadingState.SUCCESS);
@@ -381,6 +426,14 @@ export function useProfileData() {
       
       return true;
     } catch (err) {
+      logger.error('[DEBUG] setDoc for profile update FAILED', {
+        context: {
+          userId: currentUser.uid,
+          error: err
+        },
+        category: LogCategory.ERROR
+      });
+      
       // Handle error
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error(`Error updating profile: ${errorMessage}`, {
@@ -425,11 +478,12 @@ export function useProfileData() {
     }
     
     // Skip if already loading or updating
-    if (isLoadingData.current || isUpdatingProfile.current) {
+    // Use updateOperationInProgress as it guards the full update cycle
+    if (isLoadingData.current || updateOperationInProgress.current) {
       logger.debug('Already loading or updating data, skipping duplicate load', {
         context: {
           isLoading: isLoadingData.current,
-          isUpdating: isUpdatingProfile.current
+          isUpdating: updateOperationInProgress.current // Log the correct flag
         },
         category: LogCategory.LIFECYCLE
       });

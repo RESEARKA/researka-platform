@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { UserProfile, useProfileData, isInLoadingState as checkLoadingState } from './useProfileData';
+import { UserProfile, useProfileData } from './useProfileData';
 import useAppToast from './useAppToast';
 import { createLogger, LogCategory } from '../utils/logger';
 import { ProfileLoadingState } from '../components/profile/types';
@@ -19,13 +19,10 @@ export function useProfileOperations() {
   const { 
     profile, 
     isLoading,
-    isUpdating,
     error, 
     isProfileComplete, 
     updateProfile: updateProfileData, 
     retryLoading,
-    isLoadingData,
-    isUpdatingProfile,
     updateOperationInProgress,
     loadingState,
     loadData
@@ -171,100 +168,6 @@ export function useProfileOperations() {
     }
   }, []);
   
-  // Update profile with timeout handling and error management
-  const updateProfile = useCallback(async (profileData: Partial<UserProfile>) => {
-    try {
-      // Check if we can perform the operation
-      if (!canPerformOperation()) {
-        // Queue the update for later
-        pendingUpdatesRef.current = {
-          ...pendingUpdatesRef.current,
-          ...profileData
-        };
-        
-        logger.debug('Operation queued for later processing', {
-          context: {
-            pendingFields: pendingUpdatesRef.current ? Object.keys(pendingUpdatesRef.current) : []
-          },
-          category: LogCategory.LIFECYCLE
-        });
-        
-        // Set up debounce timeout to process pending updates
-        if (debounceTimeoutRef.current) {
-          clearTimeout(debounceTimeoutRef.current);
-        }
-        
-        debounceTimeoutRef.current = setTimeout(() => {
-          processPendingUpdates();
-        }, MIN_OPERATION_INTERVAL);
-        
-        return false;
-      }
-      
-      // Set operation flags
-      updateInProgressRef.current = true;
-      
-      // Start timing the operation
-      operationStartTimeRef.current = Date.now();
-      logOperation('updateProfile started', { profileData });
-      
-      // Set up timeout warning
-      const timeoutWarning = setTimeout(() => {
-        logger.warn('Operation is taking longer than expected', {
-          context: {
-            operation: 'updateProfile',
-            elapsedTime: Date.now() - operationStartTimeRef.current,
-            profileData
-          },
-          category: LogCategory.PERFORMANCE
-        });
-      }, 5000); // 5 second timeout warning
-      
-      // Perform the update
-      const result = await updateProfileData(profileData);
-      
-      // Clear timeout warning
-      clearTimeout(timeoutWarning);
-      
-      // Log success
-      logOperation('updateProfile completed', { 
-        result,
-        profileData
-      });
-      
-      // Process any pending updates
-      if (pendingUpdatesRef.current) {
-        processPendingUpdates();
-      }
-      
-      return result;
-    } catch (error) {
-      // Log error with detailed context
-      logger.error('Error updating profile', {
-        context: {
-          error,
-          profileData,
-          elapsedTime: Date.now() - operationStartTimeRef.current
-        },
-        category: LogCategory.ERROR
-      });
-      
-      // Show error toast
-      showToast({
-        id: 'profile-operation-error',
-        title: 'Error updating profile',
-        description: error instanceof Error ? error.message : 'Failed to update profile',
-        status: 'error',
-      });
-      
-      throw error; // Re-throw error after handling
-    } finally {
-      // Reset operation flags reliably
-      updateInProgressRef.current = false;
-      logger.debug('Reset updateInProgressRef in updateProfile finally block', { category: LogCategory.LIFECYCLE });
-    }
-  }, [canPerformOperation, logOperation, processPendingUpdates, showToast, updateProfileData]);
-  
   // Batch update multiple profile fields in a single operation
   const batchUpdateProfile = useCallback(async (profileData: Partial<UserProfile>) => {
     // Check if we can perform the operation
@@ -291,10 +194,20 @@ export function useProfileOperations() {
         processPendingUpdates();
       }, MIN_OPERATION_INTERVAL);
       
-      return false;
+      // Don't return false immediately for queued operations
+      // Instead, show a "queued" toast and return true
+      showToast({
+        id: 'profile-save-queued',
+        title: "Saving Profile",
+        description: "Your profile changes are being processed...",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      return true; // Return true since we've queued the operation
     }
     
-    // Set operation flags
+    // Mark operation as started
     updateInProgressRef.current = true;
       
     try {
@@ -341,12 +254,99 @@ export function useProfileOperations() {
       handleError(error);
       throw error; // Re-throw error after handling
     } finally {
-       // Reset operation flags reliably
+       // Mark operation as finished
        updateInProgressRef.current = false;
        logger.debug('Reset updateInProgressRef in batchUpdateProfile finally block', { category: LogCategory.LIFECYCLE });
     }
   }, [canPerformOperation, handleError, logOperation, processPendingUpdates, showToast, updateProfileData]);
   
+  // Update profile with timeout handling and error management
+  const updateProfile = useCallback(async (profileData: Partial<UserProfile>) => {
+    try {
+      // Check if we can perform the operation
+      if (!canPerformOperation()) {
+        // Queue the update for later
+        pendingUpdatesRef.current = {
+          ...pendingUpdatesRef.current,
+          ...profileData
+        };
+        
+        logger.debug('Operation queued for later processing', {
+          context: {
+            pendingFields: pendingUpdatesRef.current ? Object.keys(pendingUpdatesRef.current) : []
+          },
+          category: LogCategory.LIFECYCLE
+        });
+        
+        // Set up debounce timeout to process pending updates
+        if (debounceTimeoutRef.current) {
+          clearTimeout(debounceTimeoutRef.current);
+        }
+        
+        debounceTimeoutRef.current = setTimeout(() => {
+          processPendingUpdates();
+        }, MIN_OPERATION_INTERVAL);
+        
+        // Don't return false immediately for queued operations
+        // Instead, show a "queued" toast and return true
+        showToast({
+          id: 'profile-save-queued',
+          title: "Saving Profile",
+          description: "Your profile changes are being processed...",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+        return true; // Return true since we've queued the operation
+      }
+      
+      // Mark operation as started
+      updateInProgressRef.current = true;
+      operationStartTimeRef.current = Date.now();
+      logOperation('Starting profile update', { fields: Object.keys(profileData) });
+
+      // Call the underlying update function (batchUpdateProfile handles calling updateProfileData from useProfileData)
+      const success = await batchUpdateProfile(profileData);
+
+      if (success) {
+        logOperation('Profile update completed', { success: true });
+        showToast({
+          id: 'profile-save-success',
+          title: "Profile Saved",
+          description: "Your profile has been updated successfully.",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+        return true;
+      } else {
+        logOperation('Profile update failed', { success: false });
+        showToast({
+          id: 'profile-save-failed',
+          title: "Save Failed",
+          description: "Could not save your profile. Please try again.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        return false;
+      }
+    } catch (error) {
+      handleError(error);
+      logOperation('Profile update failed with error', { error: (error as Error).message });
+      return false;
+    } finally {
+      // Mark operation as finished
+      updateInProgressRef.current = false;
+      operationStartTimeRef.current = 0;
+      
+      // If there are pending updates, process them immediately
+      if (pendingUpdatesRef.current) {
+        processPendingUpdates();
+      }
+    }
+  }, [canPerformOperation, batchUpdateProfile, showToast, logOperation, handleError, processPendingUpdates]);
+
   // Function to handle retry loading
   const handleRetryLoading = useCallback(() => {
     // Skip if an operation is in progress

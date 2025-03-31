@@ -62,33 +62,36 @@ export type FormSectionValidator = (data: ProfileFormData) => ValidationResult;
  * @returns Partial user profile data
  */
 export function formDataToUserProfile(formData: ProfileFormData, isEditMode = false): Partial<UserProfile> {
-  // Create a base profile object
+  // Create a complete profile object with ALL fields from the form
+  // This ensures nothing is lost during the conversion
   const profile: Partial<UserProfile> = {
+    // Always include these fields regardless of edit mode
+    name: `${formData.firstName} ${formData.lastName}`.trim(),
+    email: formData.email,
+    institution: formData.institution,
+    department: formData.department,
+    position: formData.position,
     researchInterests: formData.researchInterests || [],
     role: formData.role || '',
-    wantsToBeEditor: formData.wantsToBeEditor || false
+    
+    // Include optional fields if they exist
+    twitter: formData.twitter || undefined,
+    linkedin: formData.linkedin || undefined,
+    personalWebsite: formData.personalWebsite || undefined,
+    orcidId: formData.orcidId || undefined,
+    wantsToBeEditor: formData.wantsToBeEditor || false,
+    
+    // Always set profileComplete flag to ensure it's saved
+    profileComplete: true,
+    isComplete: true
   };
 
-  // Only include these fields if not in edit mode
-  // This prevents these fields from being updated when editing a profile
-  if (!isEditMode) {
-    profile.name = `${formData.firstName} ${formData.lastName}`.trim();
-    profile.email = formData.email;
-    profile.institution = formData.institution;
-    profile.department = formData.department;
-    profile.profileComplete = true;
-  }
-
-  // Always include optional fields
-  if (formData.twitter) profile.twitter = formData.twitter;
-  if (formData.linkedin) profile.linkedin = formData.linkedin;
-  if (formData.personalWebsite) profile.personalWebsite = formData.personalWebsite;
-  if (formData.orcidId) profile.orcidId = formData.orcidId;
-
-  // Include position only if it's provided and not in edit mode
-  if (formData.position && !isEditMode) {
-    profile.position = formData.position;
-  }
+  // Remove undefined fields to avoid overwriting with undefined
+  Object.keys(profile).forEach(key => {
+    if (profile[key as keyof typeof profile] === undefined) {
+      delete profile[key as keyof typeof profile];
+    }
+  });
 
   // Verify email domain for prestigious universities
   if (!isEditMode && formData.institution && formData.email) {
