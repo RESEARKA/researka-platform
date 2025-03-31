@@ -11,7 +11,6 @@ import {
   Button,
   HStack,
   useColorModeValue,
-  Link as ChakraLink,
   Spinner,
   Center,
 } from '@chakra-ui/react';
@@ -281,11 +280,9 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
             >
               <CardHeader pb={0}>
                 <Link href={`/reviews/${review.id}`} passHref>
-                  <ChakraLink _hover={{ textDecoration: 'none' }}>
-                    <ResponsiveText variant="h3" mb={2}>
-                      {review.title || `Review of ${review.articleTitle || 'Article'}`}
-                    </ResponsiveText>
-                  </ChakraLink>
+                  <ResponsiveText variant="h3" mb={2} _hover={{ textDecoration: 'underline', cursor: 'pointer' }}>
+                    {review.title || `Review of ${review.articleTitle || 'Article'}`}
+                  </ResponsiveText>
                 </Link>
                 <Text fontSize="sm" color="gray.500" mb={2}>
                   Review of: {review.articleTitle || 'Untitled Article'}
@@ -319,7 +316,6 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({
                   
                   <Link href={`/articles/${review.articleId}`} passHref>
                     <Button
-                      as={ChakraLink}
                       size="sm"
                       rightIcon={<FiExternalLink />}
                       variant="outline"

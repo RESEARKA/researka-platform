@@ -1,55 +1,28 @@
-import React, { useState, useRef, lazy, Suspense, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Container,
   Flex,
   Text,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  SimpleGrid,
-  Card,
-  CardHeader,
-  CardBody,
-  CardFooter,
-  Avatar,
-  Badge,
-  Stat,
-  StatLabel,
-  StatNumber,
   VStack,
-  Divider,
-  useColorModeValue,
-  ButtonGroup,
-  IconButton,
   Spinner,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription,
   Center,
-  useToast,
   Button,
-  Heading,
 } from '@chakra-ui/react';
-import { FiEdit, FiFileText, FiStar, FiSettings, FiBookmark, FiChevronLeft, FiChevronRight, FiRefreshCw, FiUser, FiX } from 'react-icons/fi';
+import { FiRefreshCw } from 'react-icons/fi';
 import Head from 'next/head';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Layout from '../components/Layout';
-import ResponsiveText from '../components/ResponsiveText';
-import { useArticles, Article, ArticlesResponse } from '../hooks/useArticles';
-import { useReviews, Review, ReviewsResponse, SortOption, FilterOptions } from '../hooks/useReviews';
-import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
-import RecommendedArticles from '../components/RecommendedArticles';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 import useAppToast from '../hooks/useAppToast';
 import useClient from '../hooks/useClient';
 import { useProfileData, UserProfile } from '../hooks/useProfileData';
-import { getConsistentInitialState, isClientSide } from '../utils/hydrationHelpers';
+import { getUserAccessLevel, UserAccessLevel } from '../utils/accessLevels';
 
 // Dynamically import Firebase-dependent components with SSR disabled
 const ClientOnlyProfile = dynamic(
@@ -62,142 +35,6 @@ const ProfileCompletionForm = dynamic(
   () => import('../components/ProfileCompletionForm'),
   { ssr: false, loading: () => <Center py={10}><Spinner size="xl" /></Center> }
 );
-
-// Dynamically import components that aren't needed for initial render
-const MobileNav = dynamic(() => import('../components/MobileNav'), {
-  ssr: true,
-  loading: () => (
-    <Box height="60px" width="100%" bg="white" borderBottom="1px" borderColor="gray.200">
-      <Center height="100%">
-        <Spinner size="sm" color="blue.500" />
-      </Center>
-    </Box>
-  )
-});
-
-// Dynamically import Firebase-dependent components with SSR disabled
-const FirebaseClientOnly = dynamic(
-  () => import('../components/FirebaseClientOnly'),
-  { ssr: false, loading: () => <Center py={10}><Spinner size="xl" /></Center> }
-);
-
-const ArticlesPanel = dynamic(
-  () => import('../components/profile/ArticlesPanel'),
-  { ssr: false, loading: () => <Center py={10}><Spinner size="xl" /></Center> }
-);
-
-const ReviewsPanel = dynamic(
-  () => import('../components/profile/ReviewsPanel'),
-  { ssr: false, loading: () => <Center py={10}><Spinner size="xl" /></Center> }
-);
-
-interface PaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
-
-// Empty state component
-const EmptyState: React.FC<{ type: string }> = ({ type }) => (
-  <Card p={6} textAlign="center">
-    <VStack spacing={4}>
-      <FiBookmark size={40} color="gray" />
-      <ResponsiveText variant="h3">No {type} Found</ResponsiveText>
-      <ResponsiveText variant="body-sm" color="gray.500">You don't have any {type.toLowerCase()} yet.</ResponsiveText>
-      {type === "Articles" && (
-        <Button
-          as={Link}
-          href="/submit"
-          colorScheme="blue" 
-          leftIcon={<FiFileText />}
-        >
-          Submit an Article
-        </Button>
-      )}
-    </VStack>
-  </Card>
-);
-
-// Error state component
-const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
-  <Alert
-    status="error"
-    variant="subtle"
-    flexDirection="column"
-    alignItems="center"
-    justifyContent="center"
-    textAlign="center"
-    height="200px"
-    borderRadius="lg"
-  >
-    <AlertIcon boxSize="40px" mr={0} />
-    <AlertTitle mt={4} mb={1} fontSize="lg">
-      Something went wrong
-    </AlertTitle>
-    <AlertDescription maxWidth="sm">
-      {message}
-    </AlertDescription>
-    <Button
-      mt={4} 
-      leftIcon={<FiRefreshCw />} 
-      colorScheme="red" 
-      onClick={onRetry}
-    >
-      Try Again
-    </Button>
-  </Alert>
-);
-
-// Pagination component
-const PaginationControl: React.FC<PaginationProps> = ({ currentPage, totalPages, onPageChange }) => {
-  const pages = [];
-  for (let i = 1; i <= totalPages; i++) {
-    pages.push(i);
-  }
-  
-  return (
-    <Flex justify="center" mt={4} alignItems="center">
-      <ButtonGroup isAttached variant="outline" size="sm">
-        <IconButton 
-          aria-label="Previous page" 
-          icon={<FiChevronLeft />} 
-          isDisabled={currentPage === 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          sx={{
-            // Increase touch target size on mobile
-            '@media (max-width: 768px)': {
-              minHeight: '40px',
-              minWidth: '40px',
-            }
-          }}
-        />
-        {pages.map(page => (
-          <Button
-            key={page}
-            colorScheme={currentPage === page ? "blue" : "gray"}
-            variant={currentPage === page ? "solid" : "outline"}
-            onClick={() => onPageChange(page)}
-          >
-            {page}
-          </Button>
-        ))}
-        <IconButton 
-          aria-label="Next page" 
-          icon={<FiChevronRight />} 
-          isDisabled={currentPage === totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
-          sx={{
-            // Increase touch target size on mobile
-            '@media (max-width: 768px)': {
-              minHeight: '40px',
-              minWidth: '40px',
-            }
-          }}
-        />
-      </ButtonGroup>
-    </Flex>
-  );
-};
 
 const ProfilePage: React.FC = () => {
   const { currentUser, authIsInitialized } = useAuth();
@@ -215,22 +52,20 @@ const ProfilePage: React.FC = () => {
     profile, 
     isLoading, 
     error, 
-    isProfileComplete, 
     updateProfile, 
     retryLoading,
     isLoadingData
   } = useProfileData();
   
+  // Use the improved access level logic
+  const accessLevel = getUserAccessLevel(profile);
+  const isProfileComplete = accessLevel !== UserAccessLevel.BASIC;
+  
   // State to track if a profile update toast has been shown in this session
-  const [profileToastShown, setProfileToastShown] = useState(
-    getConsistentInitialState({
-      complete: false,
-      update: false
-    }, {
-      complete: false,
-      update: false
-    })
-  );
+  const [profileToastShown, setProfileToastShown] = useState({
+    complete: false,
+    update: false
+  });
   
   // Function to save profile edits - using the hook's updateProfile function
   const handleSaveProfile = async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
@@ -272,7 +107,7 @@ const ProfilePage: React.FC = () => {
       
       if (success) {
         // Batch state updates to prevent multiple re-renders
-        setProfileToastShown(prev => ({...prev, update: true}));
+        setProfileToastShown(prevState => ({...prevState, update: true}));
         
         // Clear any existing timeout
         if (profileUpdateTimeout.current) {
@@ -299,59 +134,72 @@ const ProfilePage: React.FC = () => {
         
         return true;
       } else {
+        // Reset flags on error
+        isUpdatingProfile.current = false;
+        if (isLoadingData) {
+          isLoadingData.current = false;
+        }
+        
         showToast({
-          id: 'profile-save-error',
+          id: 'profile-update-error',
           title: "Error",
           description: "Failed to update profile. Please try again.",
           status: "error",
-          duration: 3000,
+          duration: 5000,
         });
         
         return false;
       }
     } catch (error) {
-      console.error('Error saving profile:', error);
+      // Reset flags on error
+      isUpdatingProfile.current = false;
+      if (isLoadingData) {
+        isLoadingData.current = false;
+      }
+      
+      console.error('Error updating profile:', error);
+      
       showToast({
-        id: 'profile-save-error',
+        id: 'profile-update-error',
         title: "Error",
-        description: "Failed to update profile. Please try again.",
+        description: "An unexpected error occurred while updating your profile",
         status: "error",
-        duration: 3000,
+        duration: 5000,
       });
       
       return false;
-    } finally {
-      // If there's no timeout active, reset the flags immediately
-      if (!profileUpdateTimeout.current) {
-        isUpdatingProfile.current = false;
-        if (isLoadingData) {
-          isLoadingData.current = false;
-        }
-      }
     }
   };
   
-  // Add an effect to prevent duplicate data loading during profile updates
+  // Effect to check profile completeness and show a toast if needed
   useEffect(() => {
-    // Skip if not initialized or no user
-    if (!authIsInitialized || !currentUser) {
-      return;
-    }
+    // Skip on server-side rendering
+    if (!isClient) return;
     
-    // Skip on initial mount since useProfileData will load data
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
+    // Skip if we're still loading or there's no profile
+    if (isLoading || !profile) return;
     
-    // Skip if we're currently updating the profile
-    if (isUpdatingProfile.current) {
-      console.log('Profile: Skipping loadData during update');
-      return;
-    }
+    // Skip if we've already shown the toast in this session
+    if (profileToastShown.complete) return;
+    
+    // Skip if the profile is already complete
+    if (isProfileComplete) return;
+    
+    // Show a toast if the profile is incomplete
+    showToast({
+      id: 'profile-incomplete',
+      title: "Complete your profile",
+      description: "Please complete your profile to access all features",
+      status: "info",
+      duration: 5000,
+      isClosable: true,
+    });
+    
+    // Mark the toast as shown
+    setProfileToastShown(prevState => ({...prevState, complete: true}));
     
     // The actual data loading is handled by the useProfileData hook
-  }, [authIsInitialized, currentUser]);
+  }, [isClient, isLoading, profile, isProfileComplete, profileToastShown.complete, showToast]);
   
   // Clean up any timeouts on unmount
   useEffect(() => {
@@ -362,12 +210,12 @@ const ProfilePage: React.FC = () => {
     };
   }, []);
 
-  // Show a loading state during SSR
-  if (!isClientSide()) {
+  // Show a loading state during SSR or when loading
+  if (!isClient || isLoading) {
     return (
       <Layout>
         <Head>
-          <title>Profile | Researka</title>
+          <title>Profile | DecentraJournal</title>
         </Head>
         <Container maxW="container.xl" py={8}>
           <Center py={10}>
@@ -386,7 +234,7 @@ const ProfilePage: React.FC = () => {
     return (
       <Layout>
         <Head>
-          <title>Profile | Researka</title>
+          <title>Profile | DecentraJournal</title>
         </Head>
         <Container maxW="container.xl" py={8}>
           <Alert
@@ -423,7 +271,7 @@ const ProfilePage: React.FC = () => {
   return (
     <Layout>
       <Head>
-        <title>Profile | Researka</title>
+        <title>Profile | DecentraJournal</title>
       </Head>
       
       <Container maxW="container.xl" py={8}>

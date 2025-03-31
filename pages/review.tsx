@@ -24,11 +24,13 @@ import {
   Tooltip,
   IconButton,
   useToast,
+  Spinner,
 } from '@chakra-ui/react';
 import { FiSearch, FiFilter, FiStar, FiCalendar, FiBookmark } from 'react-icons/fi';
 import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
+import { getUserAccessLevel, UserAccessLevel } from '../utils/accessLevels';
 
 // Define interface for review articles
 interface ReviewArticle {
@@ -66,7 +68,7 @@ const ReviewPage: React.FC = () => {
 
   // Track if profile has been checked
   const [profileChecked, setProfileChecked] = React.useState(false);
-  const [isProfileComplete, setIsProfileComplete] = React.useState(false);
+  const [accessLevel, setAccessLevel] = React.useState<UserAccessLevel>(UserAccessLevel.BASIC);
 
   // Function to load articles from Firebase
   const loadArticlesFromFirebase = async () => {
@@ -129,7 +131,7 @@ const ReviewPage: React.FC = () => {
     }
   };
 
-  // Check if user is logged in and profile is complete - consolidated all profile checks here
+  // Check if user is logged in and has sufficient access level
   React.useEffect(() => {
     // Track retry attempts
     const maxRetries = 3;
@@ -142,17 +144,15 @@ const ReviewPage: React.FC = () => {
           console.log(`Review: Checking user profile... (Attempt ${retryCount + 1}/${maxRetries + 1})`);
           const profile = await getUserProfile();
           
-          // Check if profile is complete using both flags for redundancy
-          // This ensures we catch the profile status regardless of which flag is set
-          const profileComplete = profile && 
-            (profile.profileComplete === true || profile.isComplete === true);
+          // Use the improved access level logic
+          const userAccessLevel = getUserAccessLevel(profile);
           
-          // Set the profile status
-          setIsProfileComplete(profileComplete);
+          // Set the access level
+          setAccessLevel(userAccessLevel);
           setProfileChecked(true);
           
-          if (!profileComplete) {
-            console.log('Review: Profile is not complete');
+          if (userAccessLevel === UserAccessLevel.BASIC) {
+            console.log('Review: User has only BASIC access level');
             
             // If we haven't reached max retries, try again after a delay
             // This helps with potential database update delays
@@ -167,12 +167,12 @@ const ReviewPage: React.FC = () => {
               return;
             }
             
-            console.log('Review: Profile is not complete after retries, showing toast and redirecting');
+            console.log('Review: User still has only BASIC access after retries, showing toast and redirecting');
             if (!toast.isActive('profile-completion-warning')) {
               toast({
                 id: 'profile-completion-warning',
                 title: 'Complete your profile',
-                description: 'Please complete your profile to submit articles for review',
+                description: 'Please complete your name and role in your profile to access the review page',
                 status: 'warning',
                 duration: 5000,
                 isClosable: true,
@@ -182,8 +182,8 @@ const ReviewPage: React.FC = () => {
             // Redirect to profile page
             router.push('/profile');
           } else {
-            console.log('Review: Profile is complete, proceeding to review page');
-            // Only load articles if profile is complete
+            console.log(`Review: User has ${userAccessLevel} access, proceeding to review page`);
+            // Only load articles if user has sufficient access
             loadArticlesFromFirebase();
           }
         } catch (error) {
@@ -246,14 +246,13 @@ const ReviewPage: React.FC = () => {
     };
   }, [router.isReady, toast, currentUser, getUserProfile, router, profileChecked]);
 
-  // Load articles when the page loads and profile is complete
+  // Load articles when the page loads and user has sufficient access
   React.useEffect(() => {
-    // Only load articles if the user is logged in, router is ready, profile is complete, and articles haven't been loaded yet
-    if (router.isReady && currentUser && profileChecked && isProfileComplete && !articlesLoaded) {
-      console.log('Review: Auto-loading articles on page load after profile check');
+    // Only load articles if the user is logged in, router is ready, profile is checked, and user has sufficient access
+    if (router.isReady && currentUser && profileChecked && accessLevel !== UserAccessLevel.BASIC && !articlesLoaded) {
       loadArticlesFromFirebase();
     }
-  }, [router.isReady, currentUser, profileChecked, isProfileComplete, articlesLoaded]);
+  }, [router.isReady, currentUser, profileChecked, accessLevel, articlesLoaded]);
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -305,179 +304,199 @@ const ReviewPage: React.FC = () => {
               </Text>
             </Box>
             
-            {/* Search and Filter Section */}
-            <Flex 
-              direction={{ base: 'column', md: 'row' }} 
-              gap={4}
-              bg={bgColor}
-              p={6}
-              borderRadius="lg"
-              boxShadow="sm"
-              borderWidth="1px"
-              borderColor={borderColor}
-            >
-              <InputGroup flex="2">
-                <InputLeftElement pointerEvents="none">
-                  <FiSearch color="gray.300" />
-                </InputLeftElement>
-                <Input 
-                  placeholder="Search by title, author, or keywords" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </InputGroup>
-              
-              <Select 
-                placeholder="Filter by category" 
-                flex="1"
-                icon={<FiFilter />}
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                <option value="all">All Categories</option>
-                <option value="blockchain">Blockchain</option>
-                <option value="academic publishing">Academic Publishing</option>
-                <option value="research funding">Research Funding</option>
-                <option value="bibliometrics">Bibliometrics</option>
-              </Select>
-              
-              <Select 
-                placeholder="Sort by" 
-                flex="1"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="date">Most Recent</option>
-                <option value="compensation">Highest Compensation</option>
-              </Select>
-            </Flex>
-            
-            {/* Articles Grid */}
-            {loading ? (
-              <Box 
-                textAlign="center" 
-                py={10} 
-                bg={bgColor}
-                borderRadius="lg"
-                boxShadow="sm"
-                borderWidth="1px"
-                borderColor={borderColor}
-              >
-                <Text fontSize="lg">Loading articles...</Text>
-              </Box>
-            ) : error ? (
-              <Box 
-                textAlign="center" 
-                py={10} 
-                bg={bgColor}
-                borderRadius="lg"
-                boxShadow="sm"
-                borderWidth="1px"
-                borderColor={borderColor}
-              >
-                <Text fontSize="lg">{error}</Text>
-              </Box>
-            ) : filteredArticles.length > 0 ? (
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-                {filteredArticles.map(article => (
-                  <Card 
-                    key={article.id} 
+            {/* Show loading or profile completion message if needed */}
+            {!profileChecked ? (
+              <VStack spacing={4} py={10}>
+                <Text>Checking your profile...</Text>
+                <Spinner />
+              </VStack>
+            ) : accessLevel === UserAccessLevel.BASIC ? (
+              <VStack spacing={4} py={10}>
+                <Text>Please complete your profile to access the review page.</Text>
+                <Button 
+                  colorScheme="blue" 
+                  onClick={() => router.push('/profile')}
+                >
+                  Go to Profile
+                </Button>
+              </VStack>
+            ) : (
+              <>
+                {/* Search and Filter Section */}
+                <Flex 
+                  direction={{ base: 'column', md: 'row' }} 
+                  gap={4}
+                  bg={bgColor}
+                  p={6}
+                  borderRadius="lg"
+                  boxShadow="sm"
+                  borderWidth="1px"
+                  borderColor={borderColor}
+                >
+                  <InputGroup flex="2">
+                    <InputLeftElement pointerEvents="none">
+                      <FiSearch color="gray.300" />
+                    </InputLeftElement>
+                    <Input 
+                      placeholder="Search by title, author, or keywords" 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </InputGroup>
+                  
+                  <Select 
+                    placeholder="Filter by category" 
+                    flex="1"
+                    icon={<FiFilter />}
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="blockchain">Blockchain</option>
+                    <option value="academic publishing">Academic Publishing</option>
+                    <option value="research funding">Research Funding</option>
+                    <option value="bibliometrics">Bibliometrics</option>
+                  </Select>
+                  
+                  <Select 
+                    placeholder="Sort by" 
+                    flex="1"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                  >
+                    <option value="date">Most Recent</option>
+                    <option value="compensation">Highest Compensation</option>
+                  </Select>
+                </Flex>
+                
+                {/* Articles Grid */}
+                {loading ? (
+                  <Box 
+                    textAlign="center" 
+                    py={10} 
                     bg={bgColor}
                     borderRadius="lg"
                     boxShadow="sm"
                     borderWidth="1px"
                     borderColor={borderColor}
-                    transition="transform 0.2s, box-shadow 0.2s"
-                    _hover={{ transform: 'translateY(-4px)', boxShadow: 'md' }}
                   >
-                    <CardHeader pb={0}>
-                      <Flex justify="space-between" align="start">
-                        <Heading size="md" noOfLines={2}>{article.title}</Heading>
-                        <Tooltip label="Save for later">
-                          <IconButton
-                            aria-label="Save article"
-                            icon={<FiBookmark />}
-                            variant="ghost"
-                            size="sm"
-                          />
-                        </Tooltip>
-                      </Flex>
-                    </CardHeader>
-                    
-                    <CardBody>
-                      <Text noOfLines={3} fontSize="sm" color="gray.600">
-                        {article.abstract}
-                      </Text>
-                      
-                      <Flex mt={4} gap={2} flexWrap="wrap">
-                        {article.keywords.map((keyword, index) => (
-                          <Tag key={index} size="sm" colorScheme="green" variant="subtle">
-                            {keyword}
-                          </Tag>
-                        ))}
-                      </Flex>
-                      
-                      <Divider my={4} />
-                      
-                      <Flex align="center" mt={2}>
-                        <Avatar size="xs" name={article.author} mr={2} />
-                        <Text fontSize="sm">{article.author}</Text>
-                      </Flex>
-                      
-                      <Flex mt={3} gap={4} fontSize="xs" color="gray.500">
-                        <Flex align="center">
-                          <FiCalendar size={12} style={{ marginRight: '4px' }} />
-                          <Text>{article.date}</Text>
-                        </Flex>
-                      </Flex>
-                    </CardBody>
-                    
-                    <CardFooter pt={0}>
-                      <VStack spacing={2} align="stretch" width="100%">
-                        <Flex justify="space-between" align="center">
-                          <Badge colorScheme="green">{article.compensation}</Badge>
-                          <Badge colorScheme="blue">{article.category}</Badge>
-                        </Flex>
+                    <Text fontSize="lg">Loading articles...</Text>
+                  </Box>
+                ) : error ? (
+                  <Box 
+                    textAlign="center" 
+                    py={10} 
+                    bg={bgColor}
+                    borderRadius="lg"
+                    boxShadow="sm"
+                    borderWidth="1px"
+                    borderColor={borderColor}
+                  >
+                    <Text fontSize="lg">{error}</Text>
+                  </Box>
+                ) : filteredArticles.length > 0 ? (
+                  <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
+                    {filteredArticles.map(article => (
+                      <Card 
+                        key={article.id} 
+                        bg={bgColor}
+                        borderRadius="lg"
+                        boxShadow="sm"
+                        borderWidth="1px"
+                        borderColor={borderColor}
+                        transition="transform 0.2s, box-shadow 0.2s"
+                        _hover={{ transform: 'translateY(-4px)', boxShadow: 'md' }}
+                      >
+                        <CardHeader pb={0}>
+                          <Flex justify="space-between" align="start">
+                            <Heading size="md" noOfLines={2}>{article.title}</Heading>
+                            <Tooltip label="Save for later">
+                              <IconButton
+                                aria-label="Save article"
+                                icon={<FiBookmark />}
+                                variant="ghost"
+                                size="sm"
+                              />
+                            </Tooltip>
+                          </Flex>
+                        </CardHeader>
                         
-                        <Button 
-                          colorScheme="green" 
-                          leftIcon={<FiStar />} 
-                          size="sm" 
-                          width="100%"
-                          onClick={() => {
-                            console.log(`Navigating to article review page: /review/${article.id}`);
-                            router.push(`/review/${article.id}`);
-                          }}
-                        >
-                          Review This Article
-                        </Button>
-                      </VStack>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </SimpleGrid>
-            ) : (
-              <Box 
-                textAlign="center" 
-                py={10} 
-                bg={bgColor}
-                borderRadius="lg"
-                boxShadow="sm"
-                borderWidth="1px"
-                borderColor={borderColor}
-              >
-                <Text fontSize="lg">No articles match your search criteria.</Text>
-                <Button 
-                  mt={4} 
-                  colorScheme="green" 
-                  onClick={() => {
-                    setSearchQuery('');
-                    setCategoryFilter('all');
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              </Box>
+                        <CardBody>
+                          <Text noOfLines={3} fontSize="sm" color="gray.600">
+                            {article.abstract}
+                          </Text>
+                          
+                          <Flex mt={4} gap={2} flexWrap="wrap">
+                            {article.keywords.map((keyword, index) => (
+                              <Tag key={index} size="sm" colorScheme="green" variant="subtle">
+                                {keyword}
+                              </Tag>
+                            ))}
+                          </Flex>
+                          
+                          <Divider my={4} />
+                          
+                          <Flex align="center" mt={2}>
+                            <Avatar size="xs" name={article.author} mr={2} />
+                            <Text fontSize="sm">{article.author}</Text>
+                          </Flex>
+                          
+                          <Flex mt={3} gap={4} fontSize="xs" color="gray.500">
+                            <Flex align="center">
+                              <FiCalendar size={12} style={{ marginRight: '4px' }} />
+                              <Text>{article.date}</Text>
+                            </Flex>
+                          </Flex>
+                        </CardBody>
+                        
+                        <CardFooter pt={0}>
+                          <VStack spacing={2} align="stretch" width="100%">
+                            <Flex justify="space-between" align="center">
+                              <Badge colorScheme="green">{article.compensation}</Badge>
+                              <Badge colorScheme="blue">{article.category}</Badge>
+                            </Flex>
+                            
+                            <Button 
+                              colorScheme="green" 
+                              leftIcon={<FiStar />} 
+                              size="sm" 
+                              width="100%"
+                              onClick={() => {
+                                console.log(`Navigating to article review page: /review/${article.id}`);
+                                router.push(`/review/${article.id}`);
+                              }}
+                            >
+                              Review This Article
+                            </Button>
+                          </VStack>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </SimpleGrid>
+                ) : (
+                  <Box 
+                    textAlign="center" 
+                    py={10} 
+                    bg={bgColor}
+                    borderRadius="lg"
+                    boxShadow="sm"
+                    borderWidth="1px"
+                    borderColor={borderColor}
+                  >
+                    <Text fontSize="lg">No articles match your search criteria.</Text>
+                    <Button 
+                      mt={4} 
+                      colorScheme="green" 
+                      onClick={() => {
+                        setSearchQuery('');
+                        setCategoryFilter('all');
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  </Box>
+                )}
+              </>
             )}
           </VStack>
         </Container>

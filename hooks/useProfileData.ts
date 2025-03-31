@@ -102,7 +102,7 @@ export function useProfileData() {
     
     const isComplete = requiredFields.every(field => {
       const value = profileData[field];
-      return value !== undefined && value !== null && value !== '';
+      return typeof value === 'string' && value.trim().length > 0;
     });
     
     logger.debug('Profile completion check result', {
