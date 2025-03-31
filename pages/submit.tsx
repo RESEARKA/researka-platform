@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
-  Grid,
-  GridItem,
   Flex,
   Heading,
   Text,
@@ -13,341 +11,162 @@ import {
   FormLabel,
   Input,
   Textarea,
-  Select,
-  FormHelperText,
-  useSteps,
-  Stepper,
-  Step,
-  StepIndicator,
-  StepStatus,
-  StepIcon,
-  StepNumber,
-  StepTitle,
-  StepDescription,
-  StepSeparator,
   useToast,
   Divider,
-  useColorModeValue,
   Badge,
   Checkbox,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Progress,
+  FormHelperText,
+  Select,
 } from '@chakra-ui/react';
-import { FiUpload, FiArrowRight, FiArrowLeft, FiCheck } from 'react-icons/fi';
-import Layout from '../components/Layout';
-import { FiFileText, FiChevronDown } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Head from 'next/head';
-import Link from 'next/link';
+import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { useRouter } from 'next/router';
+import { useProfileData, UserProfile } from '../hooks/useProfileData';
+import { submitArticle } from '../services/articleService';
+import { getUserAccessLevel, UserAccessLevel } from '../utils/accessLevels';
+import { createLogger, LogCategory } from '../utils/logger';
 
-// Define the steps for the submission process
-const steps = [
-  { title: 'Basic Info', description: 'Article details' },
-  { title: 'Authors', description: 'Author information' },
-  { title: 'Content', description: 'Manuscript content' },
-  { title: 'Metadata', description: 'Additional information' },
-  { title: 'Review', description: 'Check your submission' },
-];
+const logger = createLogger('SubmitPage');
 
 const SubmitPage: React.FC = () => {
-  const { activeStep, setActiveStep } = useSteps({
-    index: 0,
-    count: steps.length,
-  });
-  
   const toast = useToast();
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const router = useRouter();
-  const { currentUser, getUserProfile, updateUserData } = useAuth();
-  
-  // Basic information state
+  const { currentUser, authIsInitialized } = useAuth();
+  const { profile, loadingState: profileLoadingState, isProfileComplete } = useProfileData();
+
+  const [currentStep, setCurrentStep] = useState(1);
   const [title, setTitle] = useState('');
   const [abstract, setAbstract] = useState('');
+  const [keywords, setKeywords] = useState<string[]>([]);
   const [category, setCategory] = useState('');
-  const [keywords, setKeywords] = useState('');
-  
-  // Author details state
-  const [orcidId, setOrcidId] = useState('');
-  const [isCorrespondingAuthor, setIsCorrespondingAuthor] = useState(true);
-  const [coAuthors, setCoAuthors] = useState<Array<{name: string, affiliation: string, email: string, orcid: string}>>([]);
-  
-  // Manuscript content state
-  const [introduction, setIntroduction] = useState('');
-  const [methods, setMethods] = useState('');
-  const [results, setResults] = useState('');
-  const [discussion, setDiscussion] = useState('');
-  const [references, setReferences] = useState('');
-  const [supplementaryMaterials, setSupplementaryMaterials] = useState<File[]>([]);
-  
-  // Additional metadata state
-  const [funding, setFunding] = useState('');
-  const [ethicalApprovals, setEthicalApprovals] = useState('');
-  const [dataAvailability, setDataAvailability] = useState('');
-  const [conflictsOfInterest, setConflictsOfInterest] = useState('');
-  const [license, setLicense] = useState('CC BY');
-  
-  // Form state
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [authorDeclarations, setAuthorDeclarations] = useState({
-    isOriginal: false,
-    allAuthorsApproved: false,
-    agreeToTerms: false
-  });
-  
-  // Check if user is logged in and profile is complete
+  const [license, setLicense] = useState('CC BY 4.0');
+  const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [userAccess, setUserAccess] = useState(UserAccessLevel.BASIC);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  const totalSteps = 4;
+  const progress = (currentStep / totalSteps) * 100;
+
   useEffect(() => {
-    const checkAuth = async () => {
-      if (!currentUser) {
-        // Redirect to homepage if not logged in
-        router.push('/');
-        return;
-      }
-      
-      try {
-        // Get user profile from Firestore
-        const profile = await getUserProfile();
-        
-        // If profile exists, set it
-        if (profile) {
-          setUserProfile(profile);
-          
-          // Check if profile is complete
-          if (!profile.profileComplete) {
-            console.log('Submit: Profile is not complete, redirecting to profile page');
-            toast({
-              title: 'Complete your profile',
-              description: 'Please complete your profile to submit articles',
-              status: 'warning',
-              duration: 5000,
-              isClosable: true,
-            });
-            
-            // Redirect to profile page to complete profile
-            router.push('/profile');
-          } else {
-            console.log('Submit: Profile is complete, proceeding to submit page');
-          }
-        } else {
-          console.log('Submit: No profile found, creating default profile');
-          // If no profile exists, create a default one
-          const defaultProfile = {
-            name: currentUser.displayName || '',
-            email: currentUser.email || '',
-            role: 'Researcher',
-            institution: '',
-            department: '',
-            position: '',
-            researchInterests: [],
-            articles: 0,
-            reviews: 0,
-            reputation: 0,
-            profileComplete: false,
-            createdAt: new Date().toISOString()
-          };
-          
-          // Update user profile in Firestore
-          const updateSuccess = await updateUserData(defaultProfile);
-          setUserProfile(defaultProfile);
-          
-          // Show warning if update failed
-          if (!updateSuccess) {
-            if (!toast.isActive('profile-update-error')) {
-              toast({
-                id: 'profile-update-error',
-                title: 'Warning',
-                description: 'Could not save profile to database. Changes may not persist.',
-                status: 'warning',
-                duration: 5000,
-                isClosable: true,
-                position: 'top-right'
-              });
-            }
-          }
-          
-          // Redirect to profile page to complete profile
-          router.push('/profile');
-        }
-      } catch (error) {
-        console.error('Error checking user profile:', error);
-        // Only show toast once to avoid multiple popups
-        if (!toast.isActive('profile-error')) {
-          toast({
-            id: 'profile-error',
-            title: 'Error',
-            description: 'Failed to load user profile',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-            position: 'top-right'
-          });
-        }
-      }
-    };
-    
-    // Only run if currentUser is available and after a short delay
-    // to ensure Firebase auth is fully initialized
-    if (currentUser) {
-      const timer = setTimeout(() => {
-        checkAuth();
-      }, 500);
-      
-      return () => clearTimeout(timer);
+    logger.debug('Checking profile status', {
+      context: { userId: currentUser?.uid, profileLoadingState, isProfileComplete, hasProfile: !!profile },
+      category: LogCategory.AUTH,
+    });
+
+    if (!authIsInitialized || profileLoadingState === 'loading' || profileLoadingState === 'initializing') {
+      logger.debug('Profile check deferred: Auth or profile still loading', {
+        context: { authIsInitialized, profileLoadingState },
+        category: LogCategory.LIFECYCLE,
+      });
+      setIsLoadingProfile(true);
+      return;
     }
-  }, [currentUser, getUserProfile, updateUserData, router, toast]);
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    switch (name) {
-      case 'title':
-        setTitle(value);
-        break;
-      case 'abstract':
-        setAbstract(value);
-        break;
-      case 'category':
-        setCategory(value);
-        break;
-      case 'keywords':
-        setKeywords(value);
-        break;
-      case 'orcidId':
-        setOrcidId(value);
-        break;
-      case 'isCorrespondingAuthor':
-        setIsCorrespondingAuthor(value === 'true');
-        break;
-      case 'introduction':
-        setIntroduction(value);
-        break;
-      case 'methods':
-        setMethods(value);
-        break;
-      case 'results':
-        setResults(value);
-        break;
-      case 'discussion':
-        setDiscussion(value);
-        break;
-      case 'references':
-        setReferences(value);
-        break;
-      case 'funding':
-        setFunding(value);
-        break;
-      case 'ethicalApprovals':
-        setEthicalApprovals(value);
-        break;
-      case 'dataAvailability':
-        setDataAvailability(value);
-        break;
-      case 'conflictsOfInterest':
-        setConflictsOfInterest(value);
-        break;
-      case 'license':
-        setLicense(value);
-        break;
-      default:
-        break;
-    }
-  };
-  
-  const handleNext = () => {
-    setActiveStep(activeStep + 1);
-  };
-  
-  const handlePrevious = () => {
-    setActiveStep(activeStep - 1);
-  };
-  
-  const handleSubmit = async () => {
-    console.log('Starting article submission process with Firebase');
-    
-    // Check if user is authenticated
+
+    setIsLoadingProfile(false);
+
     if (!currentUser) {
-      console.error('Submit: User not authenticated');
+      logger.warn('Profile check skipped: No authenticated user.', { category: LogCategory.AUTH });
+      setUserAccess(UserAccessLevel.BASIC);
+      return;
+    }
+
+    if (profileLoadingState === 'error' || !profile) {
+      logger.error('Profile check failed: Error loading profile or profile is null', {
+        context: { profileLoadingState, hasProfile: !!profile },
+        category: LogCategory.ERROR,
+      });
+      if (profileLoadingState === 'error') {
+        toast({
+          title: 'Profile Error',
+          description: 'Could not load your profile data. Please try again later.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+      setUserAccess(UserAccessLevel.BASIC);
+      return;
+    }
+
+    const access = getUserAccessLevel(profile as UserProfile);
+    setUserAccess(access);
+
+    logger.info('Profile check complete', {
+      context: { userId: currentUser.uid, accessLevel: UserAccessLevel[access], isComplete: isProfileComplete },
+      category: LogCategory.AUTH,
+    });
+
+    if (access === UserAccessLevel.BASIC) {
       toast({
-        title: 'Authentication Error',
-        description: 'You must be logged in to submit an article. Please log in and try again.',
-        status: 'error',
+        title: 'Profile Incomplete',
+        description: 'Please complete your profile fully before submitting an article.',
+        status: 'warning',
         duration: 5000,
         isClosable: true,
       });
-      router.push('/');
-      return;
     }
-    
-    setIsSubmitting(true);
-    
+  }, [currentUser, profile, profileLoadingState, isProfileComplete, authIsInitialized, toast]);
+
+  const nextStep = () => {
+    setCurrentStep(currentStep + 1);
+    logger.debug(`Moving to step ${currentStep + 1}`, { category: LogCategory.UI });
+  };
+
+  const prevStep = () => {
+    setCurrentStep(currentStep - 1);
+    logger.debug(`Moving back to step ${currentStep - 1}`, { category: LogCategory.UI });
+  };
+
+  const handleSubmit = async () => {
     try {
-      // Create article object
       const newArticle = {
         title,
         abstract,
+        keywords,
         category,
-        keywords: keywords.split(',').map(k => k.trim()),
-        author: userProfile?.name || currentUser?.displayName || 'Anonymous',
+        authors: [
+          {
+            name: profile?.name || currentUser?.displayName || 'N/A',
+            email: currentUser?.email || 'N/A',
+            affiliation: profile?.institution || 'N/A',
+            isCorresponding: true,
+          },
+        ],
+        userId: currentUser?.uid,
+        author: profile?.name || currentUser?.displayName || 'Anonymous Author',
         date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-        compensation: '50 RKA TOKENS',
-        status: 'pending_review',
-        // Include full article content
-        content: `# ${title}
-
-## Abstract
-${abstract}
-
-## Introduction
-${introduction}
-
-## Methods
-${methods}
-
-## Results
-${results}
-
-## Discussion
-${discussion}
-
-## References
-${references}
-
-## Funding
-${funding}
-
-## Ethical Approvals
-${ethicalApprovals}
-
-## Data Availability
-${dataAvailability}
-
-## Conflicts of Interest
-${conflictsOfInterest}
-
-## License
-${license}`,
-        // Store individual sections for easier access
-        introduction: introduction,
-        methods: methods,
-        results: results,
-        discussion: discussion,
-        references: references,
-        funding: funding,
-        ethicalApprovals: ethicalApprovals,
-        dataAvailability: dataAvailability,
-        conflictsOfInterest: conflictsOfInterest,
-        license: license
+        compensation: 'Pending',
+        status: 'pending',
+        views: 0,
+        content: 'Placeholder content - upload/editor needed',
+        introduction: '',
+        methods: '',
+        results: '',
+        discussion: '',
+        references: '',
+        funding: '',
+        ethicalApprovals: '',
+        dataAvailability: '',
+        conflicts: '',
+        license: license || 'CC BY 4.0',
       };
-      
-      console.log('Created new article object:', newArticle);
-      
-      // Import the article service
-      const { submitArticle } = await import('../services/articleService');
-      
-      // Save to Firebase
+
+      logger.info('Submitting article', {
+        context: { article: newArticle },
+        category: LogCategory.DATA,
+      });
+
       const savedArticle = await submitArticle(newArticle);
-      console.log('Article saved to Firebase:', savedArticle);
-      
-      // Show success message
+      logger.info('Article saved to Firebase', {
+        context: { articleId: savedArticle.id },
+        category: LogCategory.DATA,
+      });
+
       toast({
         title: 'Article Submitted',
         description: 'Your article has been submitted successfully and is pending review.',
@@ -355,13 +174,10 @@ ${license}`,
         duration: 5000,
         isClosable: true,
       });
-      
-      // Redirect to review page
-      router.push('/review');
+
+      setSubmissionComplete(true);
     } catch (error) {
       console.error('Error submitting article:', error);
-      
-      // Show error message
       toast({
         title: 'Submission Error',
         description: 'There was an error submitting your article. Please try again.',
@@ -369,508 +185,315 @@ ${license}`,
         duration: 5000,
         isClosable: true,
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
-  
+
+  if (submissionComplete) {
+    return (
+      <Layout title="Submission Successful" description="Your article has been submitted.">
+        <Container maxW="container.md" py={10}>
+          <VStack spacing={6} align="center">
+            <Alert
+              status="success"
+              variant="subtle"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              textAlign="center"
+              borderRadius="md"
+              p={6}
+            >
+              <AlertIcon boxSize="40px" mr={0} />
+              <AlertTitle mt={4} mb={1} fontSize="lg">
+                Submission Successful!
+              </AlertTitle>
+              <AlertDescription maxWidth="sm">
+                Your article "{title}" has been successfully submitted for review.
+              </AlertDescription>
+            </Alert>
+
+            <Button onClick={() => window.location.href = '/dashboard'} colorScheme="blue">
+              Go to Dashboard
+            </Button>
+          </VStack>
+        </Container>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title="Submit Your Article | Researka" description="Submit your research article to Researka" activePage="submit">
-      <Box py={6} bg={bgColor}>
-        <Container maxW="container.lg">
-          <VStack spacing={8}>
-            <Heading as="h1" size="xl">Submit Your Article</Heading>
-            <Text color="gray.600" textAlign="center" maxW="container.md">
-              Share your research with the academic community. All submissions undergo peer review before publication.
-            </Text>
-            
-            <Box w="100%" py={4}>
-              <Stepper index={activeStep} colorScheme="green">
-                {steps.map((step, index) => (
-                  <Step key={index}>
-                    <StepIndicator>
-                      <StepStatus
-                        complete={<StepIcon />}
-                        incomplete={<StepNumber />}
-                        active={<StepNumber />}
-                      />
-                    </StepIndicator>
-                    
-                    <Box flexShrink={0}>
-                      <StepTitle>{step.title}</StepTitle>
-                      <StepDescription>{step.description}</StepDescription>
-                    </Box>
-                    
-                    <StepSeparator />
-                  </Step>
-                ))}
-              </Stepper>
-            </Box>
-            
-            <Box 
-              w="100%" 
-              bg={bgColor} 
-              p={8} 
-              borderRadius="lg" 
-              boxShadow="sm"
-              borderWidth="1px"
-              borderColor={borderColor}
+      <Head>
+        <title>Submit Article | Researka</title>
+      </Head>
+
+      {isLoadingProfile ? (
+        <Container maxW="container.xl" py={10}>
+          <VStack spacing={4}>
+            <Text>Checking your profile...</Text>
+          </VStack>
+        </Container>
+      ) : userAccess === UserAccessLevel.BASIC ? (
+        <Container maxW="container.xl" py={10}>
+          <VStack spacing={4}>
+            <Text>Please complete your profile fully to submit articles.</Text>
+            <Button
+              colorScheme="blue"
+              onClick={() => window.location.href = '/profile'}
             >
-              {activeStep === 0 && (
-                <VStack spacing={6} align="stretch">
-                  <Heading size="md">Basic Information</Heading>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="article-title">Article Title</FormLabel>
-                    <Input 
-                      id="article-title"
-                      name="title" 
-                      value={title} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter the title of your article"
-                    />
-                  </FormControl>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="article-abstract">Abstract</FormLabel>
-                    <Textarea 
-                      id="article-abstract"
-                      name="abstract" 
-                      value={abstract} 
-                      onChange={handleInputChange} 
-                      placeholder="Provide a brief summary of your article"
-                      rows={5}
-                    />
-                    <FormHelperText>Maximum 300 words</FormHelperText>
-                  </FormControl>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="category-select">Category</FormLabel>
-                    <Select 
-                      id="category-select"
-                      name="category" 
-                      value={category} 
-                      onChange={handleInputChange} 
-                      placeholder="Select category"
-                      aria-label="Select article category"
-                    >
-                      <option value="blockchain">Blockchain & Cryptocurrency</option>
-                      <option value="ai">Artificial Intelligence</option>
-                      <option value="computer-science">Computer Science</option>
-                      <option value="economics">Economics</option>
-                      <option value="medicine">Medicine & Healthcare</option>
-                      <option value="physics">Physics</option>
-                      <option value="biology">Biology</option>
-                      <option value="social-science">Social Sciences</option>
-                      <option value="other">Other</option>
-                    </Select>
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="article-keywords">Keywords</FormLabel>
-                    <Input 
-                      id="article-keywords"
-                      name="keywords" 
-                      value={keywords} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter keywords separated by commas"
-                    />
-                    <FormHelperText>e.g., blockchain, academic publishing, decentralization</FormHelperText>
-                  </FormControl>
-                </VStack>
-              )}
-              
-              {activeStep === 1 && (
-                <VStack spacing={6} align="stretch">
-                  <Heading size="md">Authors</Heading>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="orcid-id">ORCID ID</FormLabel>
-                    <Input 
-                      id="orcid-id"
-                      name="orcidId" 
-                      value={orcidId} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter your ORCID ID"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="is-corresponding-author">Corresponding Author</FormLabel>
-                    <Select 
-                      id="is-corresponding-author"
-                      name="isCorrespondingAuthor" 
-                      value={isCorrespondingAuthor ? 'true' : 'false'} 
-                      onChange={handleInputChange} 
-                      placeholder="Select"
-                      aria-label="Select corresponding author"
-                    >
-                      <option value="true">Yes</option>
-                      <option value="false">No</option>
-                    </Select>
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="co-authors">Co-Authors</FormLabel>
-                    <Textarea 
-                      id="co-authors"
-                      name="coAuthors" 
-                      value={JSON.stringify(coAuthors)} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter co-authors in JSON format"
-                      rows={5}
-                    />
-                    <FormHelperText>{`Example: [{"name": "John Doe", "affiliation": "University of Example", "email": "john@example.com", "orcid": "1234-5678-9012-3456"}]`}</FormHelperText>
-                  </FormControl>
-                </VStack>
-              )}
-              
-              {activeStep === 2 && (
-                <VStack spacing={6} align="stretch">
-                  <Heading size="md">Manuscript Content</Heading>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="introduction">Introduction</FormLabel>
-                    <Textarea 
-                      id="introduction"
-                      name="introduction" 
-                      value={introduction} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter the introduction of your article"
-                      rows={5}
-                    />
-                  </FormControl>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="methods">Methods</FormLabel>
-                    <Textarea 
-                      id="methods"
-                      name="methods" 
-                      value={methods} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter the methods of your article"
-                      rows={5}
-                    />
-                  </FormControl>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="results">Results</FormLabel>
-                    <Textarea 
-                      id="results"
-                      name="results" 
-                      value={results} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter the results of your article"
-                      rows={5}
-                    />
-                  </FormControl>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="discussion">Discussion</FormLabel>
-                    <Textarea 
-                      id="discussion"
-                      name="discussion" 
-                      value={discussion} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter the discussion of your article"
-                      rows={5}
-                    />
-                  </FormControl>
-                  
-                  <FormControl isRequired>
-                    <FormLabel htmlFor="references">References</FormLabel>
-                    <Textarea 
-                      id="references"
-                      name="references" 
-                      value={references} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter the references of your article"
-                      rows={5}
-                    />
-                  </FormControl>
-                </VStack>
-              )}
-              
-              {activeStep === 3 && (
-                <VStack spacing={6} align="stretch">
-                  <Heading size="md">Metadata</Heading>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="funding">Funding</FormLabel>
-                    <Input 
-                      id="funding"
-                      name="funding" 
-                      value={funding} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter funding information"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="ethical-approvals">Ethical Approvals</FormLabel>
-                    <Input 
-                      id="ethical-approvals"
-                      name="ethicalApprovals" 
-                      value={ethicalApprovals} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter ethical approvals"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="data-availability">Data Availability</FormLabel>
-                    <Input 
-                      id="data-availability"
-                      name="dataAvailability" 
-                      value={dataAvailability} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter data availability"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="conflicts-of-interest">Conflicts of Interest</FormLabel>
-                    <Input 
-                      id="conflicts-of-interest"
-                      name="conflictsOfInterest" 
-                      value={conflictsOfInterest} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter conflicts of interest"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel htmlFor="license">License</FormLabel>
-                    <Select 
-                      id="license"
-                      name="license" 
-                      value={license} 
-                      onChange={handleInputChange} 
-                      placeholder="Select license"
-                      aria-label="Select license"
-                    >
-                      <option value="CC BY">CC BY</option>
-                      <option value="CC BY-SA">CC BY-SA</option>
-                      <option value="CC BY-NC">CC BY-NC</option>
-                      <option value="CC BY-NC-SA">CC BY-NC-SA</option>
-                    </Select>
-                  </FormControl>
-                </VStack>
-              )}
-              
-              {activeStep === 4 && (
-                <VStack spacing={6} align="stretch">
-                  <Heading size="md">Review Your Submission</Heading>
-                  
-                  <Box p={4} bg="gray.50" borderRadius="md">
-                    <VStack align="stretch" spacing={4}>
-                      <Flex justify="space-between">
-                        <Text fontWeight="bold">Title:</Text>
-                        <Text>{title || 'Not provided'}</Text>
-                      </Flex>
-                      
-                      <Flex justify="space-between">
-                        <Text fontWeight="bold">Category:</Text>
-                        <Badge colorScheme="green">{category || 'Not selected'}</Badge>
-                      </Flex>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Abstract:</Text>
-                      <Text>{abstract || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Keywords:</Text>
-                      <Text>{keywords || 'None'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">ORCID ID:</Text>
-                      <Text>{orcidId || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Corresponding Author:</Text>
-                      <Text>{isCorrespondingAuthor ? 'Yes' : 'No'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Co-Authors:</Text>
-                      <Text>{JSON.stringify(coAuthors) || 'None'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Introduction:</Text>
-                      <Text noOfLines={3}>{introduction || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Methods:</Text>
-                      <Text noOfLines={3}>{methods || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Results:</Text>
-                      <Text noOfLines={3}>{results || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Discussion:</Text>
-                      <Text noOfLines={3}>{discussion || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">References:</Text>
-                      <Text noOfLines={3}>{references || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Funding:</Text>
-                      <Text>{funding || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Ethical Approvals:</Text>
-                      <Text>{ethicalApprovals || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Data Availability:</Text>
-                      <Text>{dataAvailability || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">Conflicts of Interest:</Text>
-                      <Text>{conflictsOfInterest || 'Not provided'}</Text>
-                      
-                      <Divider />
-                      
-                      <Text fontWeight="bold">License:</Text>
-                      <Text>{license}</Text>
-                    </VStack>
-                  </Box>
-                  
-                  <Divider my={4} />
-                  
-                  <Heading size="sm" mb={4}>Author Declarations</Heading>
-                  
-                  <VStack align="start" spacing={3}>
+              Go to Profile
+            </Button>
+          </VStack>
+        </Container>
+      ) : (
+        <Box py={6}>
+          <Container maxW="container.lg">
+            <VStack spacing={8}>
+              <Heading as="h1" size="xl">Submit Your Article</Heading>
+              <Text color="gray.600" textAlign="center" maxW="container.md">
+                Share your research with the academic community. All submissions undergo peer review before publication.
+              </Text>
+
+              <Box w="100%" py={4}>
+                <Flex justify="space-between" align="center">
+                  <Text>Step {currentStep} of {totalSteps}</Text>
+                  <Progress value={progress} size="xs" colorScheme="green" />
+                </Flex>
+              </Box>
+
+              <Box w="100%" bg="white" borderRadius="md" boxShadow="md" p={6}>
+                {currentStep === 1 && (
+                  <VStack spacing={6} align="stretch">
+                    <Heading size="md">Basic Information</Heading>
                     <FormControl isRequired>
-                      <Flex>
-                        <Checkbox 
-                          id="is-original" 
-                          isChecked={authorDeclarations.isOriginal}
-                          onChange={(e) => setAuthorDeclarations({...authorDeclarations, isOriginal: e.target.checked})}
-                          mr={2}
-                        />
-                        <FormLabel htmlFor="is-original" mb={0}>
-                          This work is original and not under review elsewhere.
-                        </FormLabel>
-                      </Flex>
+                      <FormLabel>Article Title</FormLabel>
+                      <Input
+                        name="title"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="Enter the full title of your article"
+                      />
                     </FormControl>
-                    
+
                     <FormControl isRequired>
-                      <Flex>
-                        <Checkbox 
-                          id="all-authors-approved" 
-                          isChecked={authorDeclarations.allAuthorsApproved}
-                          onChange={(e) => setAuthorDeclarations({...authorDeclarations, allAuthorsApproved: e.target.checked})}
-                          mr={2}
-                        />
-                        <FormLabel htmlFor="all-authors-approved" mb={0}>
-                          All authors have approved the final manuscript.
-                        </FormLabel>
-                      </Flex>
+                      <FormLabel>Abstract</FormLabel>
+                      <Textarea
+                        name="abstract"
+                        value={abstract}
+                        onChange={(e) => setAbstract(e.target.value)}
+                        placeholder="Provide a concise summary of your research"
+                        rows={6}
+                      />
+                      <FormHelperText>Limit to 250-300 words</FormHelperText>
                     </FormControl>
-                    
+
                     <FormControl isRequired>
-                      <Flex>
-                        <Checkbox 
-                          id="agree-to-terms" 
-                          isChecked={authorDeclarations.agreeToTerms}
-                          onChange={(e) => setAuthorDeclarations({...authorDeclarations, agreeToTerms: e.target.checked})}
-                          mr={2}
-                        />
-                        <FormLabel htmlFor="agree-to-terms" mb={0}>
-                          I agree to the platform's terms and policies.
-                        </FormLabel>
-                      </Flex>
+                      <FormLabel>Keywords</FormLabel>
+                      <Input
+                        name="keywords"
+                        value={keywords.join(', ')}
+                        onChange={(e) => setKeywords(e.target.value.split(',').map(k => k.trim()).filter(k => k))}
+                        placeholder="Enter keywords separated by commas"
+                      />
+                      <FormHelperText>5-8 keywords that describe your research</FormHelperText>
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel>Category</FormLabel>
+                      <Select
+                        name="category"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        placeholder="Select a category"
+                      >
+                        <option value="computer-science">Computer Science</option>
+                        <option value="biology">Biology</option>
+                        <option value="physics">Physics</option>
+                        <option value="chemistry">Chemistry</option>
+                        <option value="mathematics">Mathematics</option>
+                        <option value="medicine">Medicine</option>
+                        <option value="psychology">Psychology</option>
+                        <option value="economics">Economics</option>
+                        <option value="social-sciences">Social Sciences</option>
+                        <option value="humanities">Humanities</option>
+                        <option value="engineering">Engineering</option>
+                        <option value="environmental-science">Environmental Science</option>
+                        <option value="other">Other</option>
+                      </Select>
                     </FormControl>
                   </VStack>
-                  
-                  <Box 
-                    p={6} 
-                    bg="green.50" 
-                    borderRadius="md" 
-                    borderWidth="1px" 
-                    borderColor="green.200"
-                    width="100%"
-                    mt={6}
-                  >
-                    <VStack spacing={4}>
-                      <FiCheck size={48} color="var(--chakra-colors-green-500)" />
-                      <Text fontWeight="medium" textAlign="center">
-                        Your article is ready for submission. Once submitted, it will enter our peer review process.
-                      </Text>
-                      <Text fontSize="sm" color="gray.600" textAlign="center">
-                        You will be notified of any updates or when reviews are completed.
-                      </Text>
-                    </VStack>
-                  </Box>
-                  
-                  <Flex justify="center" mt={6}>
-                    <Button 
-                      colorScheme="green" 
-                      size="lg" 
-                      leftIcon={<FiUpload />}
+                )}
+
+                {currentStep === 2 && (
+                  <VStack spacing={6} align="stretch">
+                    <Heading size="md">Authors</Heading>
+                    <Text>Author information will be pulled from your profile</Text>
+                  </VStack>
+                )}
+
+                {currentStep === 3 && (
+                  <VStack spacing={6} align="stretch">
+                    <Heading size="md">Content</Heading>
+
+                    <FormControl isRequired>
+                      <FormLabel>Introduction</FormLabel>
+                      <Textarea
+                        name="introduction"
+                        value=""
+                        onChange={() => {}}
+                        placeholder="Provide background information and state the purpose of your research"
+                        rows={6}
+                      />
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel>Methods</FormLabel>
+                      <Textarea
+                        name="methods"
+                        value=""
+                        onChange={() => {}}
+                        placeholder="Describe the methodology used in your research"
+                        rows={6}
+                      />
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>Results</FormLabel>
+                      <Textarea
+                        name="results"
+                        value=""
+                        onChange={() => {}}
+                        placeholder="Present the findings of your research"
+                        rows={6}
+                      />
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>Discussion</FormLabel>
+                      <Textarea
+                        name="discussion"
+                        value=""
+                        onChange={() => {}}
+                        placeholder="Interpret your results and discuss their implications"
+                        rows={6}
+                      />
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>References</FormLabel>
+                      <Textarea
+                        name="references"
+                        value=""
+                        onChange={() => {}}
+                        placeholder="List all references cited in your article"
+                        rows={6}
+                      />
+                      <FormHelperText>Use a consistent citation style (e.g., APA, MLA)</FormHelperText>
+                    </FormControl>
+                  </VStack>
+                )}
+
+                {currentStep === 4 && (
+                  <VStack spacing={6} align="stretch">
+                    <Heading size="md">Review Your Submission</Heading>
+                    <Text>Please review your article details before submitting.</Text>
+
+                    <Box p={4} borderWidth={1} borderRadius="md" bg="gray.50">
+                      <VStack align="stretch" spacing={4}>
+                        <Heading size="sm">Title</Heading>
+                        <Text>{title || 'Not provided'}</Text>
+
+                        <Divider />
+
+                        <Heading size="sm" mt={2}>Abstract</Heading>
+                        <Text>{abstract || 'Not provided'}</Text>
+
+                        <Divider />
+
+                        <Heading size="sm" mt={2}>Keywords</Heading>
+                        <Flex wrap="wrap" gap={2}>
+                          {keywords.map((keyword, index) => (
+                            keyword && (
+                              <Badge key={index} colorScheme="green" py={1} px={2} borderRadius="full">
+                                {keyword}
+                              </Badge>
+                            )
+                          ))}
+                        </Flex>
+
+                        <Divider />
+
+                        <Heading size="sm" mt={2}>Category</Heading>
+                        <Text>{category || 'Not selected'}</Text>
+
+                        <Divider />
+
+                        <Heading size="sm" mt={2}>License</Heading>
+                        <Select
+                            name="license"
+                            value={license}
+                            onChange={(e) => setLicense(e.target.value)}
+                            size="sm"
+                          >
+                            <option value="CC BY 4.0">Creative Commons Attribution (CC BY 4.0)</option>
+                            <option value="CC BY-SA 4.0">Creative Commons Attribution-ShareAlike (CC BY-SA 4.0)</option>
+                            <option value="CC BY-NC 4.0">Creative Commons Attribution-NonCommercial (CC BY-NC 4.0)</option>
+                            <option value="CC BY-NC-SA 4.0">Creative Commons Attribution-NonCommercial-ShareAlike (CC BY-NC-SA 4.0)</option>
+                        </Select>
+
+                        <Divider />
+
+                        <Checkbox isChecked={true} isReadOnly>
+                          I confirm that this submission is original and has not been published elsewhere
+                        </Checkbox>
+
+                        <Checkbox isChecked={true} isReadOnly mt={2}>
+                          I agree to the terms and conditions of submission
+                        </Checkbox>
+                      </VStack>
+                    </Box>
+
+                    <Button
+                      colorScheme="green"
+                      size="lg"
                       onClick={handleSubmit}
-                      isDisabled={!authorDeclarations.isOriginal || !authorDeclarations.allAuthorsApproved || !authorDeclarations.agreeToTerms}
+                      isLoading={false}
+                      loadingText="Submitting"
+                      w="full"
                     >
                       Submit Article
                     </Button>
-                  </Flex>
-                </VStack>
-              )}
-              
+                  </VStack>
+                )}
+              </Box>
+
               <Flex justify="space-between" mt={8}>
-                <Button 
-                  leftIcon={<FiArrowLeft />} 
-                  onClick={handlePrevious}
-                  isDisabled={activeStep === 0}
-                  variant="ghost"
-                >
-                  Previous
-                </Button>
-                
-                {activeStep < 4 ? (
-                  <Button 
-                    rightIcon={<FiArrowRight />} 
-                    onClick={handleNext}
+                {currentStep > 1 ? (
+                  <Button
+                    leftIcon={<FiChevronLeft />}
+                    onClick={prevStep}
+                    variant="outline"
+                  >
+                    Previous
+                  </Button>
+                ) : (
+                  <Box />
+                )}
+
+                {currentStep < totalSteps ? (
+                  <Button
+                    rightIcon={<FiChevronRight />}
+                    onClick={nextStep}
                     colorScheme="green"
                   >
                     Next
                   </Button>
                 ) : null}
               </Flex>
-            </Box>
-          </VStack>
-        </Container>
-      </Box>
-      
-      {/* Footer */}
-      <Box py={6} bg="white" borderTop="1px" borderColor="gray.200">
-        <Container maxW="container.xl">
-          <Flex justify="center" align="center" direction="column">
-            <Text fontSize="sm" color="gray.500">
-              &copy; {new Date().getFullYear()} Researka Platform. All rights reserved.
-            </Text>
-            <Text fontSize="xs" color="gray.400" mt={1}>
-              A decentralized academic publishing solution built on zkSync
-            </Text>
-          </Flex>
-        </Container>
-      </Box>
+            </VStack>
+          </Container>
+        </Box>
+      )}
     </Layout>
   );
 };
