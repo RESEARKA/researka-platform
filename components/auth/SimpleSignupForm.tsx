@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Button,
@@ -10,8 +10,15 @@ import {
   Heading,
   Text,
   useToast,
-  Select
+  Select,
+  List,
+  ListItem,
+  InputGroup,
+  InputRightElement,
+  IconButton,
+  useOutsideClick
 } from '@chakra-ui/react';
+import { ChevronDownIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { saveUserProfile } from '../../services/profileService';
 import { createLogger, LogCategory } from '../../utils/logger';
@@ -31,6 +38,60 @@ const ACADEMIC_ROLES = [
   'Researcher',
   'Author',
   'Other'
+];
+
+// Top universities for autocomplete
+const UNIVERSITIES = [
+  'Harvard University',
+  'Stanford University',
+  'Massachusetts Institute of Technology (MIT)',
+  'University of Cambridge',
+  'University of Oxford',
+  'California Institute of Technology (Caltech)',
+  'Princeton University',
+  'Yale University',
+  'Columbia University',
+  'University of Chicago',
+  'Imperial College London',
+  'ETH Zurich',
+  'Johns Hopkins University',
+  'University of California, Berkeley',
+  'University of Michigan',
+  'Cornell University',
+  'University of California, Los Angeles (UCLA)',
+  'University of California, San Diego (UCSD)',
+  'University of Toronto',
+  'University of Washington'
+];
+
+// Research interests for autocomplete
+const RESEARCH_INTERESTS = [
+  'Artificial Intelligence',
+  'Machine Learning',
+  'Natural Language Processing',
+  'Computer Vision',
+  'Robotics',
+  'Quantum Computing',
+  'Cybersecurity',
+  'Bioinformatics',
+  'Climate Science',
+  'Neuroscience',
+  'Genomics',
+  'Data Science',
+  'Blockchain',
+  'Cryptography',
+  'Renewable Energy',
+  'Cancer Research',
+  'Immunology',
+  'Psychology',
+  'Sociology',
+  'Materials Science',
+  'Nanotechnology',
+  'Astrophysics',
+  'Sustainable Development',
+  'Economics',
+  'Finance',
+  'Political Science'
 ];
 
 /**
@@ -59,11 +120,31 @@ function SimpleSignupForm({
     name: existingProfile?.name || currentUser?.displayName || '',
     role: existingProfile?.role || '',
     institution: existingProfile?.institution || '', 
-    bio: existingProfile?.bio || '',
-    interests: existingProfile?.interests || '',
+    researchInterests: existingProfile?.researchInterests || '',
     email: existingProfile?.email || currentUser?.email || '',
   });
   
+  // Autocomplete state
+  const [institutionResults, setInstitutionResults] = useState<string[]>([]);
+  const [interestsResults, setInterestsResults] = useState<string[]>([]);
+  const [showInstitutionDropdown, setShowInstitutionDropdown] = useState(false);
+  const [showInterestsDropdown, setShowInterestsDropdown] = useState(false);
+
+  // References for click outside detection
+  const institutionRef = useRef<HTMLDivElement>(null);
+  const interestsRef = useRef<HTMLDivElement>(null);
+
+  // Handle outside clicks to close dropdowns
+  useOutsideClick({
+    ref: institutionRef,
+    handler: () => setShowInstitutionDropdown(false),
+  });
+
+  useOutsideClick({
+    ref: interestsRef,
+    handler: () => setShowInterestsDropdown(false),
+  });
+
   // Form submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -73,6 +154,28 @@ function SimpleSignupForm({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Handle autocomplete for institution
+    if (name === 'institution' && value) {
+      const filteredInstitutions = UNIVERSITIES.filter(univ => 
+        univ.toLowerCase().includes(value.toLowerCase())
+      );
+      setInstitutionResults(filteredInstitutions);
+      setShowInstitutionDropdown(filteredInstitutions.length > 0);
+    } else if (name === 'institution') {
+      setShowInstitutionDropdown(false);
+    }
+
+    // Handle autocomplete for research interests
+    if (name === 'researchInterests' && value) {
+      const filteredInterests = RESEARCH_INTERESTS.filter(interest => 
+        interest.toLowerCase().includes(value.toLowerCase())
+      );
+      setInterestsResults(filteredInterests);
+      setShowInterestsDropdown(filteredInterests.length > 0);
+    } else if (name === 'researchInterests') {
+      setShowInterestsDropdown(false);
+    }
     
     // Clear error for this field when user changes it
     if (errors[name]) {
@@ -84,6 +187,16 @@ function SimpleSignupForm({
     }
   };
   
+  // Handle autocomplete selection
+  const handleAutocompleteSelect = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'institution') {
+      setShowInstitutionDropdown(false);
+    } else if (field === 'researchInterests') {
+      setShowInterestsDropdown(false);
+    }
+  };
+
   // Validate form data
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -140,7 +253,7 @@ function SimpleSignupForm({
         name: formData.name.trim(),
         role: formData.role,
         institution: formData.institution,
-        bio: formData.bio,
+        researchInterests: formData.researchInterests,
         email: formData.email,
       });
       
@@ -239,32 +352,110 @@ function SimpleSignupForm({
           
           <FormControl>
             <FormLabel>Institution</FormLabel>
-            <Input
-              name="institution"
-              value={formData.institution}
-              onChange={handleChange}
-              placeholder="Enter your institution"
-            />
+            <Box position="relative" ref={institutionRef}>
+              <InputGroup>
+                <Input
+                  name="institution"
+                  value={formData.institution}
+                  onChange={handleChange}
+                  placeholder="Start typing your university name..."
+                  onClick={() => setShowInstitutionDropdown(true)}
+                />
+                <InputRightElement>
+                  <IconButton
+                    aria-label="Show universities"
+                    icon={<ChevronDownIcon />}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowInstitutionDropdown(!showInstitutionDropdown)}
+                  />
+                </InputRightElement>
+              </InputGroup>
+              {showInstitutionDropdown && (
+                <List
+                  position="absolute"
+                  zIndex={10}
+                  width="100%"
+                  bg="white"
+                  boxShadow="md"
+                  borderRadius="md"
+                  mt={1}
+                  maxH="200px"
+                  overflowY="auto"
+                >
+                  {institutionResults.length > 0 ? (
+                    institutionResults.map((university, idx) => (
+                      <ListItem
+                        key={idx}
+                        px={4}
+                        py={2}
+                        cursor="pointer"
+                        _hover={{ bg: "blue.50" }}
+                        onClick={() => handleAutocompleteSelect('institution', university)}
+                      >
+                        {university}
+                      </ListItem>
+                    ))
+                  ) : (
+                    <ListItem px={4} py={2}>No matching universities</ListItem>
+                  )}
+                </List>
+              )}
+            </Box>
           </FormControl>
           
           <FormControl>
-            <FormLabel>Bio</FormLabel>
-            <Input
-              name="bio"
-              value={formData.bio}
-              onChange={handleChange}
-              placeholder="Enter a short bio"
-            />
-          </FormControl>
-          
-          <FormControl>
-            <FormLabel>Interests</FormLabel>
-            <Input
-              name="interests"
-              value={formData.interests}
-              onChange={handleChange}
-              placeholder="Enter your interests"
-            />
+            <FormLabel>Research Interests</FormLabel>
+            <Box position="relative" ref={interestsRef}>
+              <InputGroup>
+                <Input
+                  name="researchInterests"
+                  value={formData.researchInterests}
+                  onChange={handleChange}
+                  placeholder="Start typing your research interests..."
+                  onClick={() => setShowInterestsDropdown(true)}
+                />
+                <InputRightElement>
+                  <IconButton
+                    aria-label="Show interests"
+                    icon={<ChevronDownIcon />}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowInterestsDropdown(!showInterestsDropdown)}
+                  />
+                </InputRightElement>
+              </InputGroup>
+              {showInterestsDropdown && (
+                <List
+                  position="absolute"
+                  zIndex={10}
+                  width="100%"
+                  bg="white"
+                  boxShadow="md"
+                  borderRadius="md"
+                  mt={1}
+                  maxH="200px"
+                  overflowY="auto"
+                >
+                  {interestsResults.length > 0 ? (
+                    interestsResults.map((interest, idx) => (
+                      <ListItem
+                        key={idx}
+                        px={4}
+                        py={2}
+                        cursor="pointer"
+                        _hover={{ bg: "blue.50" }}
+                        onClick={() => handleAutocompleteSelect('researchInterests', interest)}
+                      >
+                        {interest}
+                      </ListItem>
+                    ))
+                  ) : (
+                    <ListItem px={4} py={2}>No matching interests</ListItem>
+                  )}
+                </List>
+              )}
+            </Box>
           </FormControl>
           
           <FormControl isDisabled>
