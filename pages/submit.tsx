@@ -48,6 +48,11 @@ const SubmitPage: React.FC = () => {
   const [submissionComplete, setSubmissionComplete] = useState(false);
   const [userAccess, setUserAccess] = useState(UserAccessLevel.BASIC);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [introduction, setIntroduction] = useState('');
+  const [methods, setMethods] = useState('');
+  const [results, setResults] = useState('');
+  const [discussion, setDiscussion] = useState('');
+  const [references, setReferences] = useState('');
 
   const totalSteps = 4;
   const progress = (currentStep / totalSteps) * 100;
@@ -97,18 +102,27 @@ const SubmitPage: React.FC = () => {
     setUserAccess(access);
 
     logger.info('Profile check complete', {
-      context: { userId: currentUser.uid, accessLevel: UserAccessLevel[access], isComplete: isProfileComplete },
+      context: { userId: currentUser.uid, accessLevel: access, isComplete: isProfileComplete },
       category: LogCategory.AUTH,
     });
 
     if (access === UserAccessLevel.BASIC) {
+      logger.warn('User lacks required profile completion for submission', {
+        context: { userAccessLevel: access, profileComplete: isProfileComplete },
+        category: LogCategory.AUTH,
+      });
+      
+      // Redirect to the simplified profile completion page
       toast({
-        title: 'Profile Incomplete',
-        description: 'Please complete your profile fully before submitting an article.',
+        title: 'Complete your profile',
+        description: 'Please complete your profile to access article submission',
         status: 'warning',
         duration: 5000,
         isClosable: true,
       });
+      
+      // Navigate to the simplified profile page with return URL
+      window.location.href = `/simple-profile?returnUrl=${encodeURIComponent('/submit')}`;
     }
   }, [currentUser, profile, profileLoadingState, isProfileComplete, authIsInitialized, toast]);
 
@@ -144,11 +158,11 @@ const SubmitPage: React.FC = () => {
         status: 'pending',
         views: 0,
         content: 'Placeholder content - upload/editor needed',
-        introduction: '',
-        methods: '',
-        results: '',
-        discussion: '',
-        references: '',
+        introduction: introduction,
+        methods: methods,
+        results: results,
+        discussion: discussion,
+        references: references,
         funding: '',
         ethicalApprovals: '',
         dataAvailability: '',
@@ -339,8 +353,8 @@ const SubmitPage: React.FC = () => {
                       <FormLabel>Introduction</FormLabel>
                       <Textarea
                         name="introduction"
-                        value=""
-                        onChange={() => {}}
+                        value={introduction}
+                        onChange={(e) => setIntroduction(e.target.value)}
                         placeholder="Provide background information and state the purpose of your research"
                         rows={6}
                       />
@@ -350,8 +364,8 @@ const SubmitPage: React.FC = () => {
                       <FormLabel>Methods</FormLabel>
                       <Textarea
                         name="methods"
-                        value=""
-                        onChange={() => {}}
+                        value={methods}
+                        onChange={(e) => setMethods(e.target.value)}
                         placeholder="Describe the methodology used in your research"
                         rows={6}
                       />
@@ -361,8 +375,8 @@ const SubmitPage: React.FC = () => {
                       <FormLabel>Results</FormLabel>
                       <Textarea
                         name="results"
-                        value=""
-                        onChange={() => {}}
+                        value={results}
+                        onChange={(e) => setResults(e.target.value)}
                         placeholder="Present the findings of your research"
                         rows={6}
                       />
@@ -372,8 +386,8 @@ const SubmitPage: React.FC = () => {
                       <FormLabel>Discussion</FormLabel>
                       <Textarea
                         name="discussion"
-                        value=""
-                        onChange={() => {}}
+                        value={discussion}
+                        onChange={(e) => setDiscussion(e.target.value)}
                         placeholder="Interpret your results and discuss their implications"
                         rows={6}
                       />
@@ -383,8 +397,8 @@ const SubmitPage: React.FC = () => {
                       <FormLabel>References</FormLabel>
                       <Textarea
                         name="references"
-                        value=""
-                        onChange={() => {}}
+                        value={references}
+                        onChange={(e) => setReferences(e.target.value)}
                         placeholder="List all references cited in your article"
                         rows={6}
                       />
