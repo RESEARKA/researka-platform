@@ -70,6 +70,12 @@ function NavLinks({
             label="REVIEWS" 
             isActive={activePageLower === 'review'} 
           />
+          
+          <NavItem 
+            href="/gemini-review-demo" 
+            label="AI REVIEW DEMO" 
+            isActive={activePageLower === 'gemini-review-demo'} 
+          />
         </>
       )}
     </Flex>

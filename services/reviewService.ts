@@ -17,10 +17,18 @@ export interface Review {
   reviewerId: string;
   reviewerName: string;
   score: number;
+  scores?: {
+    originality: number;
+    methodology: number;
+    clarity: number;
+    significance: number;
+    technicalQuality: number;
+  };
   recommendation: 'accept' | 'minor_revisions' | 'major_revisions' | 'reject';
   content: string;
   date?: string;
   createdAt?: Timestamp;
+  aiAssisted?: boolean;
 }
 
 // Collection reference

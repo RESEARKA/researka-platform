@@ -6,7 +6,6 @@ import {
   Heading,
   Text,
   Button,
-  Flex,
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -14,7 +13,6 @@ import {
   Alert,
   AlertIcon,
   useToast,
-  useColorModeValue,
 } from '@chakra-ui/react';
 import { FiArrowLeft } from 'react-icons/fi';
 import Layout from '../../../components/Layout';
@@ -145,6 +143,9 @@ const SubmitReviewPage: React.FC = () => {
           <ReviewForm
             articleId={id as string}
             articleTitle={article.title}
+            articleAbstract={article.abstract || ''}
+            articleContent={article.content || ''}
+            articleCategory={article.category || 'general academic'}
             onSuccess={handleReviewSuccess}
             onCancel={handleCancel}
           />
