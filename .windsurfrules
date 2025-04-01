@@ -45,4 +45,4 @@ You are also an expert in cryptocurrency and token development including ethereu
   
   Dont not skip ahead and proceed with random tasks, without checking first for confirmation. Build carefully and methodically. Minimize mistakes. 
 
-  If you need clarification or have a question, please ask. And wait for the answer or confirmation before proceeding.Check your code and workings, and reasoning approach frequently with Gemini 2.5 Pro through the API.  
+  If you need clarification or have a question, please ask. And wait for the answer or confirmation before proceeding.Check your code and workings, and reasoning approach frequently with Gemini 2.5 Pro experimental directly through the vertex AI API access you have, details are in the .env file.

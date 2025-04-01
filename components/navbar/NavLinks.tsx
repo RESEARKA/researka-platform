@@ -3,10 +3,6 @@ import { Flex } from '@chakra-ui/react';
 import NavItem from './NavItem';
 import NavDropdown from './NavDropdown';
 import { NavLinksProps } from './types';
-import { createLogger, LogCategory } from '../../utils/logger';
-
-// Create a logger instance for this component
-const logger = createLogger('NavLinks');
 
 /**
  * NavLinks component
@@ -69,12 +65,6 @@ function NavLinks({
             href="/review" 
             label="REVIEWS" 
             isActive={activePageLower === 'review'} 
-          />
-          
-          <NavItem 
-            href="/gemini-review-demo" 
-            label="AI REVIEW DEMO" 
-            isActive={activePageLower === 'gemini-review-demo'} 
           />
         </>
       )}
