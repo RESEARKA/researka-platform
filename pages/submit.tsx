@@ -22,6 +22,7 @@ import {
   Progress,
   FormHelperText,
   Select,
+  FormErrorMessage,
 } from '@chakra-ui/react';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Head from 'next/head';
@@ -33,6 +34,37 @@ import { getUserAccessLevel, UserAccessLevel } from '../utils/accessLevels';
 import { createLogger, LogCategory } from '../utils/logger';
 
 const logger = createLogger('SubmitPage');
+
+// Utility function to count words in a text string
+const countWords = (text: string): number => {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+};
+
+// Validation functions for word count limits
+const validateWordCount = (text: string, min: number, max: number): { valid: boolean; message?: string; count: number } => {
+  const count = countWords(text);
+  if (count < min) {
+    return { valid: false, message: `Too short (${count} words). Minimum ${min} words required.`, count };
+  }
+  if (count > max) {
+    return { valid: false, message: `Too long (${count} words). Maximum ${max} words allowed.`, count };
+  }
+  return { valid: true, count };
+};
+
+// Validation function for references
+const validateReferences = (text: string): { valid: boolean; message?: string; count: number } => {
+  // Simple reference count based on line breaks
+  const count = text.split('\n').filter(line => line.trim().length > 0).length;
+  
+  if (count < 6) {
+    return { valid: false, message: `At least 6 references required. Currently: ${count}`, count };
+  }
+  if (count > 40) {
+    return { valid: false, message: `Maximum 40 references allowed. Currently: ${count}`, count };
+  }
+  return { valid: true, count };
+};
 
 const SubmitPage: React.FC = () => {
   const toast = useToast();
@@ -53,6 +85,18 @@ const SubmitPage: React.FC = () => {
   const [results, setResults] = useState('');
   const [discussion, setDiscussion] = useState('');
   const [references, setReferences] = useState('');
+  
+  // Add validation state
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [wordCounts, setWordCounts] = useState<Record<string, number>>({
+    abstract: 0,
+    introduction: 0,
+    methods: 0,
+    results: 0,
+    discussion: 0,
+    references: 0
+  });
 
   const totalSteps = 4;
   const progress = (currentStep / totalSteps) * 100;
@@ -126,18 +170,146 @@ const SubmitPage: React.FC = () => {
     }
   }, [currentUser, profile, profileLoadingState, isProfileComplete, authIsInitialized, toast]);
 
-  const nextStep = () => {
-    setCurrentStep(currentStep + 1);
-    logger.debug(`Moving to step ${currentStep + 1}`, { category: LogCategory.UI });
+  // Add validation for the current step
+  const validateStep = (step: number): boolean => {
+    let isValid = true;
+    const newErrors: Record<string, string> = {};
+    const newTouched: Record<string, boolean> = {};
+    
+    switch(step) {
+      case 1:
+        // Validate title, abstract, keywords
+        if (!title.trim()) {
+          newErrors.title = 'Title is required';
+          newTouched.title = true;
+          isValid = false;
+        }
+        
+        const abstractValidation = validateWordCount(abstract, 150, 500);
+        if (!abstractValidation.valid) {
+          newErrors.abstract = abstractValidation.message || '';
+          newTouched.abstract = true;
+          isValid = false;
+        }
+        setWordCounts(prev => ({ ...prev, abstract: abstractValidation.count }));
+        
+        if (keywords.length < 3) {
+          newErrors.keywords = 'At least 3 keywords are required';
+          newTouched.keywords = true;
+          isValid = false;
+        }
+        
+        if (!category) {
+          newErrors.category = 'Please select a category';
+          newTouched.category = true;
+          isValid = false;
+        }
+        break;
+        
+      case 3:
+        // Validate introduction, methods, results, discussion, references
+        const introValidation = validateWordCount(introduction, 500, 2000);
+        if (!introValidation.valid) {
+          newErrors.introduction = introValidation.message || '';
+          newTouched.introduction = true;
+          isValid = false;
+        }
+        setWordCounts(prev => ({ ...prev, introduction: introValidation.count }));
+        
+        // Combine methods, results, and discussion for main body word count (2,000-15,000)
+        const mainBody = `${methods} ${results} ${discussion}`;
+        const mainBodyValidation = validateWordCount(mainBody, 2000, 15000);
+        if (!mainBodyValidation.valid) {
+          newErrors.mainBody = mainBodyValidation.message || '';
+          newTouched.mainBody = true;
+          isValid = false;
+        }
+        
+        // Individual section validations for word counts
+        const methodsValidation = validateWordCount(methods, 0, 5000);
+        setWordCounts(prev => ({ ...prev, methods: methodsValidation.count }));
+        
+        const resultsValidation = validateWordCount(results, 0, 5000);
+        setWordCounts(prev => ({ ...prev, results: resultsValidation.count }));
+        
+        const discussionValidation = validateWordCount(discussion, 300, 2000);
+        if (!discussionValidation.valid) {
+          newErrors.discussion = discussionValidation.message || '';
+          newTouched.discussion = true;
+          isValid = false;
+        }
+        setWordCounts(prev => ({ ...prev, discussion: discussionValidation.count }));
+        
+        // Validate references
+        const referencesValidation = validateReferences(references);
+        if (!referencesValidation.valid) {
+          newErrors.references = referencesValidation.message || '';
+          newTouched.references = true;
+          isValid = false;
+        }
+        setWordCounts(prev => ({ ...prev, references: referencesValidation.count }));
+        break;
+    }
+    
+    setErrors(newErrors);
+    setTouched(prev => ({ ...prev, ...newTouched }));
+    return isValid;
+  };
+  
+  // Update navigation functions to include validation
+  const handleNextStep = () => {
+    // Validate current step before proceeding
+    if (validateStep(currentStep)) {
+      if (currentStep < totalSteps) {
+        setCurrentStep(currentStep + 1);
+        window.scrollTo(0, 0);
+      }
+    } else {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors before proceeding.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
-  const prevStep = () => {
-    setCurrentStep(currentStep - 1);
-    logger.debug(`Moving back to step ${currentStep - 1}`, { category: LogCategory.UI });
+  const handlePrevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+      window.scrollTo(0, 0);
+    }
   };
 
   const handleSubmit = async () => {
     try {
+      logger.debug('Submitting article', { category: LogCategory.UI });
+      
+      // Validate all sections before submission
+      const isStep1Valid = validateStep(1);
+      const isStep3Valid = validateStep(3);
+      
+      if (!isStep1Valid || !isStep3Valid) {
+        toast({
+          title: 'Validation Error',
+          description: 'Please fix the errors in your submission before proceeding.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        // Navigate to the step with errors
+        if (!isStep1Valid) {
+          setCurrentStep(1);
+        } else if (!isStep3Valid) {
+          setCurrentStep(3);
+        }
+        
+        return;
+      }
+      
+      // Submission payload
       const newArticle = {
         title,
         abstract,
@@ -287,18 +459,38 @@ const SubmitPage: React.FC = () => {
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Enter the full title of your article"
                       />
+                      {errors.title && touched.title && (
+                        <FormErrorMessage>{errors.title}</FormErrorMessage>
+                      )}
                     </FormControl>
 
                     <FormControl isRequired>
                       <FormLabel>Abstract</FormLabel>
                       <Textarea
-                        name="abstract"
                         value={abstract}
-                        onChange={(e) => setAbstract(e.target.value)}
+                        onChange={(e) => {
+                          setAbstract(e.target.value);
+                          const count = countWords(e.target.value);
+                          setWordCounts(prev => ({ ...prev, abstract: count }));
+                          // Mark as touched when user interacts
+                          setTouched(prev => ({ ...prev, abstract: true }));
+                          // Validate on change
+                          const validation = validateWordCount(e.target.value, 150, 500);
+                          if (!validation.valid) {
+                            setErrors(prev => ({ ...prev, abstract: validation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, abstract: '' }));
+                          }
+                        }}
                         placeholder="Provide a concise summary of your research"
                         rows={6}
                       />
-                      <FormHelperText>Limit to 250-300 words</FormHelperText>
+                      {errors.abstract && touched.abstract && (
+                        <FormErrorMessage>{errors.abstract}</FormErrorMessage>
+                      )}
+                      <FormHelperText>
+                        {wordCounts.abstract} words | Required: 150-500 words
+                      </FormHelperText>
                     </FormControl>
 
                     <FormControl isRequired>
@@ -309,6 +501,9 @@ const SubmitPage: React.FC = () => {
                         onChange={(e) => setKeywords(e.target.value.split(',').map(k => k.trim()).filter(k => k))}
                         placeholder="Enter keywords separated by commas"
                       />
+                      {errors.keywords && touched.keywords && (
+                        <FormErrorMessage>{errors.keywords}</FormErrorMessage>
+                      )}
                       <FormHelperText>5-8 keywords that describe your research</FormHelperText>
                     </FormControl>
 
@@ -334,6 +529,9 @@ const SubmitPage: React.FC = () => {
                         <option value="environmental-science">Environmental Science</option>
                         <option value="other">Other</option>
                       </Select>
+                      {errors.category && touched.category && (
+                        <FormErrorMessage>{errors.category}</FormErrorMessage>
+                      )}
                     </FormControl>
                   </VStack>
                 )}
@@ -352,57 +550,162 @@ const SubmitPage: React.FC = () => {
                     <FormControl isRequired>
                       <FormLabel>Introduction</FormLabel>
                       <Textarea
-                        name="introduction"
                         value={introduction}
-                        onChange={(e) => setIntroduction(e.target.value)}
+                        onChange={(e) => {
+                          setIntroduction(e.target.value);
+                          const count = countWords(e.target.value);
+                          setWordCounts(prev => ({ ...prev, introduction: count }));
+                          // Mark as touched when user interacts
+                          setTouched(prev => ({ ...prev, introduction: true }));
+                          // Validate on change
+                          const validation = validateWordCount(e.target.value, 500, 2000);
+                          if (!validation.valid) {
+                            setErrors(prev => ({ ...prev, introduction: validation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, introduction: '' }));
+                          }
+                        }}
                         placeholder="Provide background information and state the purpose of your research"
                         rows={6}
                       />
+                      {errors.introduction && touched.introduction && (
+                        <FormErrorMessage>{errors.introduction}</FormErrorMessage>
+                      )}
+                      <FormHelperText>
+                        {wordCounts.introduction} words | Required: 500-2,000 words
+                      </FormHelperText>
                     </FormControl>
 
                     <FormControl isRequired>
                       <FormLabel>Methods</FormLabel>
                       <Textarea
-                        name="methods"
                         value={methods}
-                        onChange={(e) => setMethods(e.target.value)}
-                        placeholder="Describe the methodology used in your research"
+                        onChange={(e) => {
+                          setMethods(e.target.value);
+                          const count = countWords(e.target.value);
+                          setWordCounts(prev => ({ ...prev, methods: count }));
+                          
+                          // Validate main body on change
+                          const mainBody = `${e.target.value} ${results} ${discussion}`;
+                          const mainBodyValidation = validateWordCount(mainBody, 2000, 15000);
+                          if (!mainBodyValidation.valid) {
+                            setErrors(prev => ({ ...prev, mainBody: mainBodyValidation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, mainBody: '' }));
+                          }
+                        }}
+                        placeholder="Describe your research methodology"
                         rows={6}
                       />
+                      {errors.mainBody && (
+                        <Alert status="error" mt={4} mb={4}>
+                          <AlertIcon />
+                          <Box>
+                            <AlertTitle>Main Body Word Count Error</AlertTitle>
+                            <AlertDescription>
+                              {errors.mainBody} The main body (Methods, Results, and Discussion combined) must be between 2,000 and 15,000 words.
+                            </AlertDescription>
+                          </Box>
+                        </Alert>
+                      )}
+                      <FormHelperText>
+                        {wordCounts.methods} words | Part of main body (2,000-15,000 words total)
+                      </FormHelperText>
                     </FormControl>
 
-                    <FormControl>
+                    <FormControl isRequired>
                       <FormLabel>Results</FormLabel>
                       <Textarea
-                        name="results"
                         value={results}
-                        onChange={(e) => setResults(e.target.value)}
-                        placeholder="Present the findings of your research"
+                        onChange={(e) => {
+                          setResults(e.target.value);
+                          const count = countWords(e.target.value);
+                          setWordCounts(prev => ({ ...prev, results: count }));
+                          
+                          // Validate main body on change
+                          const mainBody = `${methods} ${e.target.value} ${discussion}`;
+                          const mainBodyValidation = validateWordCount(mainBody, 2000, 15000);
+                          if (!mainBodyValidation.valid) {
+                            setErrors(prev => ({ ...prev, mainBody: mainBodyValidation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, mainBody: '' }));
+                          }
+                        }}
+                        placeholder="Present your findings"
                         rows={6}
                       />
+                      <FormHelperText>
+                        {wordCounts.results} words | Part of main body (2,000-15,000 words total)
+                      </FormHelperText>
                     </FormControl>
 
-                    <FormControl>
+                    <FormControl isRequired>
                       <FormLabel>Discussion</FormLabel>
                       <Textarea
-                        name="discussion"
                         value={discussion}
-                        onChange={(e) => setDiscussion(e.target.value)}
+                        onChange={(e) => {
+                          setDiscussion(e.target.value);
+                          const count = countWords(e.target.value);
+                          setWordCounts(prev => ({ ...prev, discussion: count }));
+                          // Mark as touched when user interacts
+                          setTouched(prev => ({ ...prev, discussion: true }));
+                          
+                          // Validate discussion
+                          const validation = validateWordCount(e.target.value, 300, 2000);
+                          if (!validation.valid) {
+                            setErrors(prev => ({ ...prev, discussion: validation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, discussion: '' }));
+                          }
+                          
+                          // Validate main body on change
+                          const mainBody = `${methods} ${results} ${e.target.value}`;
+                          const mainBodyValidation = validateWordCount(mainBody, 2000, 15000);
+                          if (!mainBodyValidation.valid) {
+                            setErrors(prev => ({ ...prev, mainBody: mainBodyValidation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, mainBody: '' }));
+                          }
+                        }}
                         placeholder="Interpret your results and discuss their implications"
                         rows={6}
                       />
+                      {errors.discussion && touched.discussion && (
+                        <FormErrorMessage>{errors.discussion}</FormErrorMessage>
+                      )}
+                      <FormHelperText>
+                        {wordCounts.discussion} words | Required: 300-2,000 words
+                      </FormHelperText>
                     </FormControl>
 
                     <FormControl>
                       <FormLabel>References</FormLabel>
                       <Textarea
-                        name="references"
                         value={references}
-                        onChange={(e) => setReferences(e.target.value)}
+                        onChange={(e) => {
+                          setReferences(e.target.value);
+                          // Count references (one per line)
+                          const count = e.target.value.split('\n').filter(line => line.trim().length > 0).length;
+                          setWordCounts(prev => ({ ...prev, references: count }));
+                          // Mark as touched when user interacts
+                          setTouched(prev => ({ ...prev, references: true }));
+                          // Validate on change
+                          const validation = validateReferences(e.target.value);
+                          if (!validation.valid) {
+                            setErrors(prev => ({ ...prev, references: validation.message || '' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, references: '' }));
+                          }
+                        }}
                         placeholder="List all references cited in your article"
                         rows={6}
                       />
-                      <FormHelperText>Use a consistent citation style (e.g., APA, MLA)</FormHelperText>
+                      {errors.references && touched.references && (
+                        <FormErrorMessage>{errors.references}</FormErrorMessage>
+                      )}
+                      <FormHelperText>
+                        {wordCounts.references} references | Required: 6-40 references (one per line)
+                      </FormHelperText>
                     </FormControl>
                   </VStack>
                 )}
@@ -485,7 +788,7 @@ const SubmitPage: React.FC = () => {
                 {currentStep > 1 ? (
                   <Button
                     leftIcon={<FiChevronLeft />}
-                    onClick={prevStep}
+                    onClick={handlePrevStep}
                     variant="outline"
                   >
                     Previous
@@ -497,7 +800,7 @@ const SubmitPage: React.FC = () => {
                 {currentStep < totalSteps ? (
                   <Button
                     rightIcon={<FiChevronRight />}
-                    onClick={nextStep}
+                    onClick={handleNextStep}
                     colorScheme="green"
                   >
                     Next
