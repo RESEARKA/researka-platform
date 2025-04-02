@@ -9,8 +9,25 @@ export interface Article {
   content?: string;
   category?: string;
   author?: string;
+  authorId?: string;
   dateSubmitted?: string;
+  date?: string;
+  compensation?: string;
   status?: 'pending' | 'under_review' | 'accepted' | 'rejected';
+  createdAt?: any; // Firestore Timestamp
+  views?: number;
+  keywords?: string[];
+  // Additional fields for structured content
+  introduction?: string;
+  methods?: string;
+  results?: string;
+  discussion?: string;
+  references?: string;
+  funding?: string;
+  ethicalApprovals?: string;
+  dataAvailability?: string;
+  conflicts?: string;
+  license?: string;
 }
 
 export interface Review {
@@ -35,4 +52,5 @@ export interface ReviewSuggestion {
   category: string;
   content: string;
   priority: 'high' | 'medium' | 'low';
+  articleId?: string; // Optional article ID to associate the suggestion with a specific article
 }

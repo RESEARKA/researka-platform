@@ -138,6 +138,31 @@ export default function DeepSeekReviewAssistant({
         article.id
       );
       
+      // Check if this is test content
+      const isTestContent = articleSuggestions.some(suggestion => {
+        const content = suggestion.content.toLowerCase();
+        return (
+          content.includes('test content') ||
+          content.includes('placeholder content') ||
+          content.includes('unacceptable') && (
+            content.includes('placeholder text') ||
+            content.includes('test') ||
+            content.includes('not a real article')
+          )
+        );
+      });
+      
+      // If test content is detected, add a specific suggestion indicating this
+      if (isTestContent && !articleSuggestions.some(s => s.category === 'Test Content')) {
+        articleSuggestions.unshift({
+          id: `test-content-${Date.now()}`,
+          category: 'Test Content',
+          content: 'This appears to be test or placeholder content that does not meet minimum academic standards. All ratings have been set to 1 (Unacceptable).',
+          priority: 'high',
+          articleId: article.id
+        });
+      }
+      
       // Update state with the suggestions
       setSuggestions(articleSuggestions);
       setAnalysisComplete(true);

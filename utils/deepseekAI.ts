@@ -345,6 +345,22 @@ IMPORTANT:
             logger.debug('Test content detected', {
               category: LogCategory.SYSTEM
             });
+            
+            // For test content, return a structured response with all ratings set to 1 (Unacceptable)
+            return {
+              ...response,
+              text: JSON.stringify({
+                isTestContent: true,
+                scores: {
+                  originality: { score: 1, justification: "Test content detected", improvement: "Replace with actual content" },
+                  methodology: { score: 1, justification: "Test content detected", improvement: "Replace with actual content" },
+                  clarity: { score: 1, justification: "Test content detected", improvement: "Replace with actual content" },
+                  significance: { score: 1, justification: "Test content detected", improvement: "Replace with actual content" },
+                  technicalQuality: { score: 1, justification: "Test content detected", improvement: "Replace with actual content" }
+                },
+                overallAssessment: "This appears to be test or placeholder content that does not meet minimum academic standards."
+              })
+            };
           } else if (jsonResponse.scores) {
             // Validate and normalize scores to ensure they're within 1-5 range
             const categories = ['originality', 'methodology', 'clarity', 'significance', 'technicalQuality'];
