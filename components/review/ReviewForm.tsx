@@ -248,19 +248,22 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
                 />
               </Box>
             )}
-             {isAIAnalysisComplete && suggestions.length === 0 && (
-               <Text color="green.600">AI analysis complete. No major issues found.</Text>
+            {isAIAnalysisComplete && suggestions.length === 0 && (
+              <Text color="green.600">AI analysis complete. No major issues found.</Text>
             )}
-            <DeepSeekReviewAssistant 
-              article={article} 
-              onSuggestionsGenerated={handleSuggestionsGenerated} 
-              onAnalysisStateChange={handleAnalysisStateChange}
-              autoAnalyze={!isAIAnalysisComplete && !isAIAnalyzing}
-              onError={(errorMsg) => {
-                  console.error("AI Analysis Error:", errorMsg);
-                  toast({ title: 'AI Analysis Failed', description: errorMsg, status: 'error', duration: 5000, isClosable: true });
-              }}
-            />
+            {/* Only show the DeepSeekReviewAssistant when analysis is not complete */}
+            {!isAIAnalysisComplete && (
+              <DeepSeekReviewAssistant 
+                article={article} 
+                onSuggestionsGenerated={handleSuggestionsGenerated} 
+                onAnalysisStateChange={handleAnalysisStateChange}
+                autoAnalyze={!isAIAnalysisComplete && !isAIAnalyzing}
+                onError={(errorMsg) => {
+                    console.error("AI Analysis Error:", errorMsg);
+                    toast({ title: 'AI Analysis Failed', description: errorMsg, status: 'error', duration: 5000, isClosable: true });
+                }}
+              />
+            )}
           </CardBody>
         </Card>
 
