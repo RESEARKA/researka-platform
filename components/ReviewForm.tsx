@@ -19,16 +19,12 @@ import {
   Tooltip,
   useColorModeValue,
   Text,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
   Divider,
-  Switch,
-  HStack,
+  Alert,
+  AlertIcon,
+  AlertDescription,
 } from '@chakra-ui/react';
-import { FiSend, FiStar } from 'react-icons/fi';
+import { FiSend, FiStar, FiInfo } from 'react-icons/fi';
 import { submitReview, logUserReviews } from '../services/reviewService';
 import { useAuth } from '../contexts/AuthContext';
 import dynamic from 'next/dynamic';
@@ -36,6 +32,12 @@ import dynamic from 'next/dynamic';
 // Dynamic import for the DeepSeekReviewAssistant to avoid SSR issues
 const DynamicDeepSeekReviewAssistant = dynamic(
   () => import('./review/DeepSeekReviewAssistant'),
+  { ssr: false }
+);
+
+// Dynamic import for the AISummary component
+const DynamicAISummary = dynamic(
+  () => import('./review/AISummary').then(mod => mod.AISummary),
   { ssr: false }
 );
 
@@ -58,6 +60,15 @@ interface ReviewScores {
   technicalQuality: number;
   overall: number;
 }
+
+// Define review criteria with descriptions
+const REVIEW_CRITERIA = [
+  { id: 'originality', label: 'Originality/Novelty', description: 'Evaluate the originality of ideas, concepts, or approaches' },
+  { id: 'methodology', label: 'Methodology/Rigor', description: 'Assess the soundness of research methods and analytical rigor' },
+  { id: 'clarity', label: 'Clarity/Presentation', description: 'Rate the clarity of writing, organization, and presentation' },
+  { id: 'significance', label: 'Significance/Impact', description: 'Evaluate the potential impact and significance of the work' },
+  { id: 'technicalQuality', label: 'References', description: 'Assess the quality and relevance of citations and references' }
+];
 
 function ReviewForm({ 
   articleId, 
@@ -88,16 +99,107 @@ function ReviewForm({
     technicalQuality: false,
     overall: false
   });
-  const [useAI, setUseAI] = useState(true);
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [aiScores, setAiScores] = useState<Record<string, number> | null>(null);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(true);
+  const [aiError, setAiError] = useState<string | null>(null);
+  
   const { currentUser, getUserProfile } = useAuth();
   const toast = useToast();
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
+  // Generate AI ratings based on suggestions
+  const generateAIRatings = (suggestions: any[]): Record<string, number> => {
+    // Default base rating
+    const baseRating = 3;
+    
+    // Generate ratings for each criterion based on suggestion categories
+    const ratings: Record<string, number> = {};
+    
+    // Set default ratings
+    REVIEW_CRITERIA.forEach(criterion => {
+      ratings[criterion.id] = baseRating;
+    });
+    
+    // Adjust ratings based on suggestions
+    suggestions.forEach(suggestion => {
+      if (suggestion.category && ratings[suggestion.category]) {
+        // Adjust rating based on priority
+        if (suggestion.priority === 'high') {
+          ratings[suggestion.category] = Math.max(1, ratings[suggestion.category] - 1);
+        } else if (suggestion.priority === 'medium') {
+          ratings[suggestion.category] = Math.max(1, ratings[suggestion.category] - 0.5);
+        }
+      }
+    });
+    
+    // Round ratings to nearest 0.5
+    Object.keys(ratings).forEach(key => {
+      ratings[key] = Math.round(ratings[key] * 2) / 2;
+    });
+    
+    return ratings;
+  };
+
+  // Handle AI suggestions
+  const handleSuggestionsGenerated = (suggestions: any[]) => {
+    setAiSuggestions(suggestions);
+    setIsAiAnalyzing(false);
+    
+    // Generate AI ratings
+    const ratings = generateAIRatings(suggestions);
+    setAiScores(ratings);
+    
+    // Pre-fill the form with AI-generated ratings
+    setScores(prev => {
+      const newScores = { ...prev };
+      
+      // Update each category with AI rating
+      Object.keys(ratings).forEach(category => {
+        if (category in newScores) {
+          newScores[category as keyof ReviewScores] = ratings[category];
+        }
+      });
+      
+      // Calculate overall score
+      const { overall, ...categoryScores } = newScores;
+      const sum = Object.values(categoryScores).reduce((a, b) => a + b, 0);
+      const avg = sum / Object.values(categoryScores).length;
+      
+      return { ...newScores, overall: parseFloat(avg.toFixed(1)) };
+    });
+  };
+
+  // Handle AI analysis error
+  const handleAiError = (error: string) => {
+    setAiError(error);
+    setIsAiAnalyzing(false);
+  };
+
   // Update a specific score category
   const updateScore = (category: keyof ReviewScores, value: number) => {
+    // Check if the value is within allowed range of AI score
+    if (aiScores && category in aiScores) {
+      const aiValue = aiScores[category];
+      const minAllowed = Math.max(1, aiValue - 1);
+      const maxAllowed = Math.min(5, aiValue + 1);
+      
+      if (value < minAllowed || value > maxAllowed) {
+        toast({
+          title: 'Rating adjustment limited',
+          description: `You can only adjust the AI-suggested rating by +/- 1 point`,
+          status: 'warning',
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        // Set to the closest allowed value
+        value = value < minAllowed ? minAllowed : maxAllowed;
+      }
+    }
+    
     setScores(prev => {
       const newScores = { ...prev, [category]: value };
       
@@ -115,38 +217,7 @@ function ReviewForm({
     setShowTooltip(prev => ({ ...prev, [category]: isVisible }));
   };
 
-  // Handle AI suggestions
-  const handleSuggestionsGenerated = (suggestions: any[]) => {
-    setAiSuggestions(suggestions);
-    
-    // If there are suggestions, create a summary to add to the review content
-    if (suggestions.length > 0) {
-      const summaryPoints = suggestions
-        .filter(s => s.severity === 'critical' || s.severity === 'warning')
-        .map(s => `- ${s.title}`);
-      
-      if (summaryPoints.length > 0) {
-        const aiSummary = `
-## AI-Assisted Review Suggestions
-
-The following points were identified by the AI assistant:
-
-${summaryPoints.join('\n')}
-
-*Note: These suggestions were generated by DeepSeek-V3-0324 AI and should be verified by the reviewer.*
-`;
-        
-        // Only append if content doesn't already have the AI summary
-        if (!content.includes('AI-Assisted Review Suggestions')) {
-          setContent(prev => {
-            const newContent = prev.trim() ? `${prev}\n\n${aiSummary}` : aiSummary;
-            return newContent;
-          });
-        }
-      }
-    }
-  };
-
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -194,7 +265,7 @@ ${summaryPoints.join('\n')}
         },
         recommendation,
         content,
-        aiAssisted: useAI && aiSuggestions.length > 0,
+        aiAssisted: aiSuggestions.length > 0,
       };
       
       console.log('ReviewForm: Submitting review', reviewData);
@@ -250,60 +321,84 @@ ${summaryPoints.join('\n')}
     category: keyof ReviewScores, 
     label: string, 
     description: string
-  ) => (
-    <FormControl id={`score-${category}`} mb={4}>
-      <FormLabel>{label}</FormLabel>
-      <Flex>
-        <Box flex="1" pr={8}>
-          <Slider
-            id={`${category}-slider`}
-            min={1}
-            max={5}
-            step={0.1}
-            value={scores[category]}
-            onChange={(val) => updateScore(category, val)}
-            onMouseEnter={() => toggleTooltip(category, true)}
-            onMouseLeave={() => toggleTooltip(category, false)}
-          >
-            <SliderMark value={1} mt={2} ml={-2.5} fontSize="sm">
-              1
-            </SliderMark>
-            <SliderMark value={2} mt={2} ml={-2.5} fontSize="sm">
-              2
-            </SliderMark>
-            <SliderMark value={3} mt={2} ml={-2.5} fontSize="sm">
-              3
-            </SliderMark>
-            <SliderMark value={4} mt={2} ml={-2.5} fontSize="sm">
-              4
-            </SliderMark>
-            <SliderMark value={5} mt={2} ml={-2.5} fontSize="sm">
-              5
-            </SliderMark>
-            <SliderTrack>
-              <SliderFilledTrack bg="purple.500" />
-            </SliderTrack>
+  ) => {
+    // Determine if this rating has an AI suggestion
+    const hasAiSuggestion = aiScores && category in aiScores;
+    const aiValue = hasAiSuggestion ? aiScores[category] : null;
+    
+    return (
+      <FormControl id={`score-${category}`} mb={4}>
+        <FormLabel>
+          {label}
+          {hasAiSuggestion && (
             <Tooltip
-              hasArrow
-              bg="purple.500"
-              color="white"
+              label={`AI suggested rating: ${aiValue}. You can adjust by +/- 1 point.`}
               placement="top"
-              isOpen={showTooltip[category]}
-              label={`${scores[category].toFixed(1)}`}
+              hasArrow
             >
-              <SliderThumb boxSize={6}>
-                <Box color="purple.500" as={FiStar} />
-              </SliderThumb>
+              <Box as="span" ml={2} color="purple.500">
+                <FiInfo />
+              </Box>
             </Tooltip>
-          </Slider>
-        </Box>
-        <Text fontWeight="bold" fontSize="xl">
-          {scores[category].toFixed(1)}
-        </Text>
-      </Flex>
-      <FormHelperText>{description}</FormHelperText>
-    </FormControl>
-  );
+          )}
+        </FormLabel>
+        <Flex>
+          <Box flex="1" pr={8}>
+            <Slider
+              id={`${category}-slider`}
+              min={1}
+              max={5}
+              step={0.5}
+              value={scores[category]}
+              onChange={(val) => updateScore(category, val)}
+              onMouseEnter={() => toggleTooltip(category, true)}
+              onMouseLeave={() => toggleTooltip(category, false)}
+            >
+              <SliderMark value={1} mt={2} ml={-2.5} fontSize="sm">
+                1
+              </SliderMark>
+              <SliderMark value={2} mt={2} ml={-2.5} fontSize="sm">
+                2
+              </SliderMark>
+              <SliderMark value={3} mt={2} ml={-2.5} fontSize="sm">
+                3
+              </SliderMark>
+              <SliderMark value={4} mt={2} ml={-2.5} fontSize="sm">
+                4
+              </SliderMark>
+              <SliderMark value={5} mt={2} ml={-2.5} fontSize="sm">
+                5
+              </SliderMark>
+              <SliderTrack>
+                <SliderFilledTrack bg="purple.500" />
+              </SliderTrack>
+              <Tooltip
+                hasArrow
+                bg="purple.500"
+                color="white"
+                placement="top"
+                isOpen={showTooltip[category]}
+                label={`${scores[category].toFixed(1)}`}
+              >
+                <SliderThumb boxSize={6}>
+                  <Box color="purple.500" as={FiStar} />
+                </SliderThumb>
+              </Tooltip>
+            </Slider>
+          </Box>
+          <Text fontWeight="bold" fontSize="xl">
+            {scores[category].toFixed(1)}
+            {hasAiSuggestion && aiValue === scores[category] && (
+              <Text as="span" fontSize="sm" ml={1} color="purple.500">
+                (AI)
+              </Text>
+            )}
+          </Text>
+        </Flex>
+        <FormHelperText>{description}</FormHelperText>
+      </FormControl>
+    );
+  };
 
   return (
     <Box
@@ -321,175 +416,183 @@ ${summaryPoints.join('\n')}
           Submit Review for "{articleTitle}"
         </Heading>
         
-        <HStack>
-          <Text>AI-Assisted Review</Text>
-          <Switch 
-            isChecked={useAI} 
-            onChange={(e) => setUseAI(e.target.checked)}
-            colorScheme="purple"
-          />
-        </HStack>
-        
-        <Tabs variant="enclosed" colorScheme="purple" isLazy>
-          <TabList>
-            <Tab>Review Form</Tab>
-            {useAI && <Tab>AI Suggestions</Tab>}
-          </TabList>
+        {/* AI Analysis Section */}
+        <Box 
+          p={4} 
+          bg={useColorModeValue('purple.50', 'purple.900')} 
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor={useColorModeValue('purple.200', 'purple.700')}
+        >
+          <Heading as="h4" size="sm" mb={4}>
+            AI Analysis
+          </Heading>
           
-          <TabPanels>
-            <TabPanel px={0}>
-              <VStack spacing={6} align="stretch">
-                <Box>
-                  <Heading as="h4" size="sm" mb={4}>
-                    Review Scores
-                  </Heading>
-                  
-                  {renderScoreSlider(
-                    'originality', 
-                    'Originality/Novelty', 
-                    'Evaluate the originality of ideas, concepts, or approaches'
-                  )}
-                  
-                  {renderScoreSlider(
-                    'methodology', 
-                    'Methodology/Rigor', 
-                    'Assess the soundness of research methods and analytical rigor'
-                  )}
-                  
-                  {renderScoreSlider(
-                    'clarity', 
-                    'Clarity/Presentation', 
-                    'Rate the clarity of writing, organization, and presentation'
-                  )}
-                  
-                  {renderScoreSlider(
-                    'significance', 
-                    'Significance/Impact', 
-                    'Evaluate the potential impact and significance of the work'
-                  )}
-                  
-                  {renderScoreSlider(
-                    'technicalQuality', 
-                    'Technical Quality', 
-                    'Assess the quality of technical implementation, code, or algorithms'
-                  )}
-                  
-                  <Divider my={4} />
-                  
-                  <FormControl id="overall-score">
-                    <FormLabel fontWeight="bold">Overall Score (Auto-calculated)</FormLabel>
-                    <Flex>
-                      <Box flex="1" pr={8}>
-                        <Slider
-                          id="overall-slider"
-                          min={1}
-                          max={5}
-                          step={0.1}
-                          value={scores.overall}
-                          isReadOnly
-                        >
-                          <SliderMark value={1} mt={2} ml={-2.5} fontSize="sm">
-                            1
-                          </SliderMark>
-                          <SliderMark value={2} mt={2} ml={-2.5} fontSize="sm">
-                            2
-                          </SliderMark>
-                          <SliderMark value={3} mt={2} ml={-2.5} fontSize="sm">
-                            3
-                          </SliderMark>
-                          <SliderMark value={4} mt={2} ml={-2.5} fontSize="sm">
-                            4
-                          </SliderMark>
-                          <SliderMark value={5} mt={2} ml={-2.5} fontSize="sm">
-                            5
-                          </SliderMark>
-                          <SliderTrack>
-                            <SliderFilledTrack bg="purple.500" />
-                          </SliderTrack>
-                          <SliderThumb boxSize={6}>
-                            <Box color="purple.500" as={FiStar} />
-                          </SliderThumb>
-                        </Slider>
-                      </Box>
-                      <Text fontWeight="bold" fontSize="xl">
-                        {scores.overall.toFixed(1)}
-                      </Text>
-                    </Flex>
-                    <FormHelperText>Average of all category scores</FormHelperText>
-                  </FormControl>
-                </Box>
-                
-                <FormControl id="recommendation" isRequired>
-                  <FormLabel>Recommendation</FormLabel>
-                  <Select
-                    value={recommendation}
-                    onChange={(e) => setRecommendation(e.target.value as any)}
-                  >
-                    <option value="accept">Accept (No Revisions Needed)</option>
-                    <option value="minor_revisions">Accept with Minor Revisions</option>
-                    <option value="major_revisions">Major Revisions Required</option>
-                    <option value="reject">Reject</option>
-                  </Select>
-                  <FormHelperText>Your recommendation for this article</FormHelperText>
-                </FormControl>
-                
-                <FormControl id="review-content" isRequired>
-                  <FormLabel>Review Content</FormLabel>
-                  <Textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Provide detailed feedback on the article..."
-                    size="lg"
-                    rows={10}
+          {isAiAnalyzing ? (
+            <Box textAlign="center" py={4}>
+              <Text mb={2}>Analyzing article with AI...</Text>
+              <Text fontSize="sm" color="gray.500">
+                This may take a few moments. The AI is reviewing the article and generating suggestions.
+              </Text>
+            </Box>
+          ) : aiError ? (
+            <Alert status="error" borderRadius="md">
+              <AlertIcon />
+              <AlertDescription>{aiError}</AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {aiSuggestions.length > 0 ? (
+                <>
+                  <DynamicAISummary 
+                    suggestions={aiSuggestions} 
+                    isLoading={false} 
+                    error={null}
                   />
-                  <FormHelperText>
-                    Include specific feedback, suggestions for improvement, and justification for your scores
-                  </FormHelperText>
-                </FormControl>
-                
-                <Flex justify="space-between">
-                  {onCancel && (
-                    <Button 
-                      onClick={onCancel}
-                      colorScheme="gray"
-                      isDisabled={isSubmitting}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                  <Button 
-                    type="submit"
-                    colorScheme="purple"
-                    isLoading={isSubmitting}
-                    loadingText="Submitting..."
-                    rightIcon={<FiSend />}
-                    ml="auto"
-                  >
-                    Submit Review
-                  </Button>
-                </Flex>
-              </VStack>
-            </TabPanel>
+                  
+                  <Alert status="info" mt={4} borderRadius="md">
+                    <AlertIcon />
+                    <AlertDescription>
+                      AI has analyzed this article and pre-filled the review form with suggested ratings.
+                      You can adjust each rating by +/- 1 point from the AI suggestion.
+                    </AlertDescription>
+                  </Alert>
+                </>
+              ) : (
+                <Text>No AI suggestions available. Please proceed with your review.</Text>
+              )}
+            </>
+          )}
+        </Box>
+        
+        <Divider />
+        
+        {/* Review Form Section */}
+        <VStack spacing={6} align="stretch">
+          <Box>
+            <Heading as="h4" size="sm" mb={4}>
+              Review Scores
+            </Heading>
             
-            {useAI && (
-              <TabPanel px={0}>
-                {useAI && (
-                  <DynamicDeepSeekReviewAssistant
-                    article={{
-                      id: articleId,
-                      title: articleTitle,
-                      abstract: articleAbstract,
-                      content: articleContent,
-                      category: articleCategory,
-                    }}
-                    onSuggestionsGenerated={handleSuggestionsGenerated}
-                    autoAnalyze={true}
-                  />
-                )}
-              </TabPanel>
+            {REVIEW_CRITERIA.map(criterion => (
+              renderScoreSlider(
+                criterion.id as keyof ReviewScores,
+                criterion.label,
+                criterion.description
+              )
+            ))}
+            
+            <Divider my={4} />
+            
+            <FormControl id="overall-score">
+              <FormLabel fontWeight="bold">Overall Score (Auto-calculated)</FormLabel>
+              <Flex>
+                <Box flex="1" pr={8}>
+                  <Slider
+                    id="overall-slider"
+                    min={1}
+                    max={5}
+                    step={0.1}
+                    value={scores.overall}
+                    isReadOnly
+                  >
+                    <SliderMark value={1} mt={2} ml={-2.5} fontSize="sm">
+                      1
+                    </SliderMark>
+                    <SliderMark value={2} mt={2} ml={-2.5} fontSize="sm">
+                      2
+                    </SliderMark>
+                    <SliderMark value={3} mt={2} ml={-2.5} fontSize="sm">
+                      3
+                    </SliderMark>
+                    <SliderMark value={4} mt={2} ml={-2.5} fontSize="sm">
+                      4
+                    </SliderMark>
+                    <SliderMark value={5} mt={2} ml={-2.5} fontSize="sm">
+                      5
+                    </SliderMark>
+                    <SliderTrack>
+                      <SliderFilledTrack bg="purple.500" />
+                    </SliderTrack>
+                    <SliderThumb boxSize={6}>
+                      <Box color="purple.500" as={FiStar} />
+                    </SliderThumb>
+                  </Slider>
+                </Box>
+                <Text fontWeight="bold" fontSize="xl">
+                  {scores.overall.toFixed(1)}
+                </Text>
+              </Flex>
+              <FormHelperText>Average of all category scores</FormHelperText>
+            </FormControl>
+          </Box>
+          
+          <FormControl id="recommendation" isRequired>
+            <FormLabel>Recommendation</FormLabel>
+            <Select
+              value={recommendation}
+              onChange={(e) => setRecommendation(e.target.value as any)}
+            >
+              <option value="accept">Accept (No Revisions Needed)</option>
+              <option value="minor_revisions">Accept with Minor Revisions</option>
+              <option value="major_revisions">Major Revisions Required</option>
+              <option value="reject">Reject</option>
+            </Select>
+            <FormHelperText>Your recommendation for this article</FormHelperText>
+          </FormControl>
+          
+          <FormControl id="review-content" isRequired>
+            <FormLabel>Review Content</FormLabel>
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Provide detailed feedback on the article..."
+              size="lg"
+              rows={10}
+            />
+            <FormHelperText>
+              Include specific feedback, suggestions for improvement, and justification for your scores
+            </FormHelperText>
+          </FormControl>
+          
+          <Flex justify="space-between">
+            {onCancel && (
+              <Button 
+                onClick={onCancel}
+                colorScheme="gray"
+                isDisabled={isSubmitting}
+              >
+                Cancel
+              </Button>
             )}
-          </TabPanels>
-        </Tabs>
+            <Button 
+              type="submit"
+              colorScheme="purple"
+              isLoading={isSubmitting}
+              loadingText="Submitting..."
+              rightIcon={<FiSend />}
+              ml="auto"
+            >
+              Submit Review
+            </Button>
+          </Flex>
+        </VStack>
+        
+        {/* Hidden DeepSeekReviewAssistant to perform the analysis */}
+        <Box display="none">
+          <DynamicDeepSeekReviewAssistant
+            article={{
+              id: articleId,
+              title: articleTitle,
+              abstract: articleAbstract,
+              content: articleContent,
+              category: articleCategory,
+            }}
+            onSuggestionsGenerated={handleSuggestionsGenerated}
+            onError={handleAiError}
+            autoAnalyze={true}
+          />
+        </Box>
       </VStack>
     </Box>
   );
