@@ -186,12 +186,12 @@ const SubmitPage: React.FC = () => {
         }
         
         const abstractValidation = validateWordCount(abstract, 150, 500);
+        setWordCounts(prev => ({ ...prev, abstract: abstractValidation.count }));
         if (!abstractValidation.valid) {
           newErrors.abstract = abstractValidation.message || '';
           newTouched.abstract = true;
           isValid = false;
         }
-        setWordCounts(prev => ({ ...prev, abstract: abstractValidation.count }));
         
         if (keywords.length < 3) {
           newErrors.keywords = 'At least 3 keywords are required';
@@ -259,10 +259,22 @@ const SubmitPage: React.FC = () => {
   // Update navigation functions to include validation
   const handleNextStep = () => {
     // Validate current step before proceeding
-    if (validateStep(currentStep)) {
+    logger.debug(`Validating step ${currentStep}`, { category: LogCategory.UI });
+    
+    const isValid = validateStep(currentStep);
+    logger.debug(`Step ${currentStep} validation result: ${isValid}`, { 
+      category: LogCategory.UI,
+      context: {
+        errors: JSON.stringify(errors),
+        wordCounts: JSON.stringify(wordCounts)
+      }
+    });
+    
+    if (isValid) {
       if (currentStep < totalSteps) {
         setCurrentStep(currentStep + 1);
         window.scrollTo(0, 0);
+        logger.debug(`Moving to step ${currentStep + 1}`, { category: LogCategory.UI });
       }
     } else {
       toast({
@@ -479,6 +491,7 @@ const SubmitPage: React.FC = () => {
                           if (!validation.valid) {
                             setErrors(prev => ({ ...prev, abstract: validation.message || '' }));
                           } else {
+                            // Clear error if validation passes
                             setErrors(prev => ({ ...prev, abstract: '' }));
                           }
                         }}
