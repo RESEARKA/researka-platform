@@ -67,8 +67,8 @@ const ArticleContent: React.FC<ArticleContentProps> = ({ article, isLoading }) =
       <Text fontSize="lg" fontWeight="bold" mb={4}>
         Full Paper
       </Text>
-      {/* Debug information */}
-      {process.env.NODE_ENV !== 'production' && (
+      {/* Debug information - only visible when explicitly enabled */}
+      {process.env.NEXT_PUBLIC_SHOW_DEBUG === 'true' && (
         <Box p={2} mb={4} bg="gray.100" borderRadius="md" fontSize="sm">
           <Text fontWeight="bold">Debug Info:</Text>
           <Text>Content present: {article.content ? 'Yes' : 'No'}</Text>
