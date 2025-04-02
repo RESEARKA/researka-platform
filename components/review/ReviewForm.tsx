@@ -244,6 +244,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
                   aiRatings={aiRatings}
                   isLoading={false}
                   error={null}
+                  key={`ai-summary-${suggestions.length}`}
                 />
               </Box>
             )}
