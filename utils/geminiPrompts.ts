@@ -61,10 +61,24 @@ If it's a real article, provide a constructive analysis focusing on:
 4. Appropriate use of academic language
 5. Suggestions for improvement
 
-Format your response with clear sections and specific, actionable recommendations. Be constructive and helpful, focusing on how the content could be strengthened.
+Additionally, provide numerical ratings on a scale of 1-5 for the following criteria:
+- Originality: How novel and innovative is the research
+- Methodology: How sound and appropriate are the methods
+- Clarity: How clear and well-structured is the writing
+- Significance: How important is the contribution to the field
+- References: How appropriate and comprehensive are the citations
+
+Use this rating scale:
+1 = Unacceptable - Fails to meet minimum standards (Reject)
+2 = Needs Substantial Revision - Major deficiencies (Major Revision)
+3 = Acceptable - Meets basic standards (Minor Revision)
+4 = Strong - Exceeds expectations (Accept with Minor Changes)
+5 = Exceptional - Outstanding quality (Accept as is)
 
 IMPORTANT: If the content is minimal, placeholder text, or appears to be a test submission, 
-clearly identify this as "TEST CONTENT" and explain that it needs substantial development before a meaningful review can be provided.
+clearly identify this as "TEST CONTENT" and explain that it needs substantial development before a meaningful review can be provided. In such cases, all ratings should be 1 (Unacceptable).
+
+Format your response with clear sections and specific, actionable recommendations. Be constructive and helpful, focusing on how the content could be strengthened.
 `,
     defaultParams: {
       field: 'general academic',

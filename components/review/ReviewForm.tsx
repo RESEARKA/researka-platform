@@ -77,8 +77,8 @@ const decisionLabels: Record<string, string> = {
   reject: 'Reject',
 };
 
-// Create a constant for default ratings
-const DEFAULT_RATINGS: Record<string, number> = {
+// Default ratings for a new review
+const DEFAULT_RATINGS = {
   originality: 3,
   methodology: 3,
   clarity: 3,
@@ -89,11 +89,11 @@ const DEFAULT_RATINGS: Record<string, number> = {
 // Helper function to get rating label based on value
 const getRatingLabel = (_criterionKey: string, value: number): string => {
   const labels = {
-    1: 'Poor',
-    2: 'Fair',
-    3: 'Good',
-    4: 'Very Good',
-    5: 'Excellent'
+    1: 'Unacceptable - Fails to meet minimum standards',
+    2: 'Needs Substantial Revision - Major deficiencies',
+    3: 'Acceptable - Meets basic standards',
+    4: 'Strong - Exceeds expectations',
+    5: 'Exceptional - Outstanding quality'
   };
   
   return labels[value as keyof typeof labels] || 'Unknown';

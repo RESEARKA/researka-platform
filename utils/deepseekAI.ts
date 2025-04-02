@@ -258,7 +258,7 @@ First, determine if this is a real academic article or just a test/placeholder w
 If it appears to be a test article with placeholder text (like "test", "123", "lorem ipsum", etc.), 
 respond with "TEST_CONTENT" and do not proceed with scoring.
 
-If it's a real article, carefully evaluate and score it on a scale of 1-5 (where 1 is poor and 5 is excellent) in each of these categories:
+If it's a real article, carefully evaluate and score it on a scale of 1-5 in each of these categories:
 
 1. Originality/Novelty: Evaluate the originality of ideas, concepts, or approaches
 2. Methodology/Rigor: Assess the soundness of research methods and analytical rigor
@@ -266,8 +266,18 @@ If it's a real article, carefully evaluate and score it on a scale of 1-5 (where
 4. Significance/Impact: Evaluate the potential impact and significance of the work
 5. Technical Quality: Assess the quality of technical implementation, code, or algorithms
 
+Use this rating scale:
+1 = Unacceptable - Fails to meet minimum standards (Reject)
+2 = Needs Substantial Revision - Major deficiencies (Major Revision)
+3 = Acceptable - Meets basic standards (Minor Revision)
+4 = Strong - Exceeds expectations (Accept with Minor Changes)
+5 = Exceptional - Outstanding quality (Accept as is)
+
+IMPORTANT: If the content is minimal, placeholder text, or appears to be a test submission, 
+set "isTestContent" to true and assign a score of 1 to all categories.
+
 For each category, provide:
-- A numerical score between 1.0 and 5.0 (can include decimal points, e.g., 3.5)
+- A numerical score between 1 and 5 (whole numbers only)
 - A brief justification (2-3 sentences) explaining the reasoning behind the score
 - A specific suggestion for improvement
 
@@ -276,27 +286,27 @@ Format your response in a structured JSON format as follows:
   "isTestContent": false,
   "scores": {
     "originality": {
-      "score": 4.2,
+      "score": 4,
       "justification": "The paper presents a novel approach to...",
       "improvement": "Could be strengthened by comparing with recent work in..."
     },
     "methodology": {
-      "score": 3.8,
+      "score": 3,
       "justification": "The methodology is generally sound with...",
       "improvement": "Consider adding validation tests for..."
     },
     "clarity": {
-      "score": 4.0,
+      "score": 4,
       "justification": "The paper is well-written and organized...",
       "improvement": "The introduction could be more concise by..."
     },
     "significance": {
-      "score": 3.5,
+      "score": 3,
       "justification": "The work addresses an important problem in...",
       "improvement": "Explicitly discuss potential applications in..."
     },
     "technicalQuality": {
-      "score": 3.9,
+      "score": 3,
       "justification": "The implementation demonstrates good technical understanding...",
       "improvement": "Consider optimizing the algorithm for..."
     }
@@ -310,7 +320,7 @@ If the content is test content, respond with:
 }
 
 IMPORTANT: 
-1. Ensure all scores are between 1.0 and 5.0, and avoid extreme scores (0 or 5) unless truly warranted.
+1. Ensure all scores are between 1 and 5, and avoid extreme scores (0 or 5) unless truly warranted.
 2. Provide your response as pure JSON without any markdown formatting or code blocks.
 3. Do not include any text before or after the JSON object.
 `;

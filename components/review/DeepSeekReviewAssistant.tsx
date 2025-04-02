@@ -282,11 +282,22 @@ function parseArticleAnalysis(analysisText: string, articleId: string): ReviewSu
 function determinePriority(text: string): 'high' | 'medium' | 'low' {
   const lowerText = text.toLowerCase();
   
+  // Check for test content or placeholder text
+  if (
+    lowerText.includes('test content') ||
+    lowerText.includes('placeholder') ||
+    lowerText.includes('unacceptable') ||
+    lowerText.includes('fails to meet minimum standards')
+  ) {
+    return 'high';
+  }
+  
   if (
     lowerText.includes('critical') || 
     lowerText.includes('serious') || 
     lowerText.includes('major issue') ||
-    lowerText.includes('significant problem')
+    lowerText.includes('significant problem') ||
+    lowerText.includes('needs substantial revision')
   ) {
     return 'high';
   }
@@ -295,7 +306,9 @@ function determinePriority(text: string): 'high' | 'medium' | 'low' {
     lowerText.includes('should') || 
     lowerText.includes('recommend') || 
     lowerText.includes('consider') ||
-    lowerText.includes('improve')
+    lowerText.includes('improve') ||
+    lowerText.includes('acceptable') ||
+    lowerText.includes('meets basic standards')
   ) {
     return 'medium';
   }
