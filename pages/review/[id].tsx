@@ -53,10 +53,26 @@ const ReviewArticlePage: React.FC = () => {
           
           if (firebaseArticle) {
             console.log(`ReviewArticlePage: Article loaded successfully: ${firebaseArticle.title}`);
+            console.log('Article data from Firebase:', JSON.stringify(firebaseArticle, null, 2));
+            console.log('Article content:', firebaseArticle.content);
             // Ensure the article has all required properties including keywords
             const articleWithDefaults = {
               ...firebaseArticle,
-              keywords: firebaseArticle.keywords || []
+              keywords: firebaseArticle.keywords || [],
+              // Add a fallback content field if it doesn't exist or is placeholder
+              content: (firebaseArticle.content && 
+                       firebaseArticle.content !== 'Placeholder content - upload/editor needed') ? 
+                       firebaseArticle.content : 
+                       // Try to create content from structured fields
+                       [
+                         firebaseArticle.introduction ? `# Introduction\n${firebaseArticle.introduction}\n\n` : '',
+                         firebaseArticle.methods ? `# Methods\n${firebaseArticle.methods}\n\n` : '',
+                         firebaseArticle.results ? `# Results\n${firebaseArticle.results}\n\n` : '',
+                         firebaseArticle.discussion ? `# Discussion\n${firebaseArticle.discussion}\n\n` : '',
+                         firebaseArticle.references ? `# References\n${firebaseArticle.references}\n\n` : ''
+                       ].filter(Boolean).join('') || 
+                       // Default fallback content for testing
+                       `# Sample Article Content\n\nThis is placeholder content for the article. In a real article, this would contain the full text of the research paper.\n\n## Section 1\n\nThe article would typically include multiple sections covering the research methodology, results, and discussion.\n\n## Section 2\n\nEach section would provide detailed information about different aspects of the research.`
             };
             setArticle(articleWithDefaults as Article);
             setError(null);

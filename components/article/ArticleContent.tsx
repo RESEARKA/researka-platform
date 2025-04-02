@@ -38,11 +38,14 @@ const ArticleContent: React.FC<ArticleContentProps> = ({ article, isLoading }) =
   // Handle missing article data
   if (!article) {
     return (
-      <Box p={4} bg="red.50" borderRadius="md">
+      <Box p={4} bg="red.50" borderRadius="md" role="alert">
         <Text color="red.500">Article content could not be loaded</Text>
       </Box>
     );
   }
+
+  // For debugging
+  console.log('ArticleContent rendering with data:', article);
 
   // Extract and process keywords from category if available
   const keywords = useMemo(() => 
@@ -50,12 +53,6 @@ const ArticleContent: React.FC<ArticleContentProps> = ({ article, isLoading }) =
       .map(k => k.trim())
       .filter(Boolean) || [], 
     [article.category]
-  );
-
-  // Process content lines for rendering
-  const contentLines = useMemo(() => 
-    article.content?.split('\n') || [], 
-    [article.content]
   );
 
   return (
@@ -70,6 +67,19 @@ const ArticleContent: React.FC<ArticleContentProps> = ({ article, isLoading }) =
       <Text fontSize="lg" fontWeight="bold" mb={4}>
         Full Paper
       </Text>
+      {/* Debug information */}
+      {process.env.NODE_ENV !== 'production' && (
+        <Box p={2} mb={4} bg="gray.100" borderRadius="md" fontSize="sm">
+          <Text fontWeight="bold">Debug Info:</Text>
+          <Text>Content present: {article.content ? 'Yes' : 'No'}</Text>
+          <Text>Content length: {article.content?.length || 0} chars</Text>
+          <Text>Content preview: {article.content?.substring(0, 50)}...</Text>
+          <Text>Has introduction: {article.introduction ? 'Yes' : 'No'}</Text>
+          <Text>Has methods: {article.methods ? 'Yes' : 'No'}</Text>
+          <Text>Has results: {article.results ? 'Yes' : 'No'}</Text>
+          <Text>Has discussion: {article.discussion ? 'Yes' : 'No'}</Text>
+        </Box>
+      )}
       <Box 
         sx={{
           'h1': { fontSize: '2xl', fontWeight: 'bold', my: 4 },
@@ -79,14 +89,51 @@ const ArticleContent: React.FC<ArticleContentProps> = ({ article, isLoading }) =
           'li': { my: 1 },
         }}
       >
-        {contentLines.length > 0 ? (
-          contentLines.map((line: string, index: number) => (
-            <Text key={`line-${index}`} whiteSpace="pre-wrap">
-              {line}
-            </Text>
-          ))
+        {article.content && article.content !== 'Placeholder content - upload/editor needed' ? (
+          <Text whiteSpace="pre-wrap">{article.content}</Text>
         ) : (
-          <Text>No content available for this article.</Text>
+          <Box>
+            {article.introduction && (
+              <>
+                <Text fontSize="md" fontWeight="bold" mt={4} mb={2}>Introduction</Text>
+                <Text mb={4}>{article.introduction}</Text>
+              </>
+            )}
+            
+            {article.methods && (
+              <>
+                <Text fontSize="md" fontWeight="bold" mt={4} mb={2}>Methods</Text>
+                <Text mb={4}>{article.methods}</Text>
+              </>
+            )}
+            
+            {article.results && (
+              <>
+                <Text fontSize="md" fontWeight="bold" mt={4} mb={2}>Results</Text>
+                <Text mb={4}>{article.results}</Text>
+              </>
+            )}
+            
+            {article.discussion && (
+              <>
+                <Text fontSize="md" fontWeight="bold" mt={4} mb={2}>Discussion</Text>
+                <Text mb={4}>{article.discussion}</Text>
+              </>
+            )}
+            
+            {article.references && (
+              <>
+                <Text fontSize="md" fontWeight="bold" mt={4} mb={2}>References</Text>
+                <Text mb={4}>{article.references}</Text>
+              </>
+            )}
+            
+            {!article.introduction && !article.methods && !article.results && 
+             !article.discussion && !article.references && 
+             (!article.content || article.content === 'Placeholder content - upload/editor needed') && (
+              <Text>No content available for this article.</Text>
+            )}
+          </Box>
         )}
       </Box>
       
