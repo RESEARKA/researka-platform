@@ -2,76 +2,75 @@ import React, { useCallback, useMemo, useEffect } from 'react';
 import {
   Box,
   Button,
-  Stack,
-  Text,
-  FormControl,
-  FormLabel,
-  Textarea,
-  Select,
-  Spinner,
   Card,
   CardBody,
-  Heading,
+  FormControl,
+  FormLabel,
   FormErrorMessage,
-  useToast,
+  Heading,
+  Icon,
+  Select,
+  Spinner,
+  Stack,
+  Text,
+  Textarea,
   Tooltip,
-  Icon
+  useToast,
 } from '@chakra-ui/react';
 import { FiInfo } from 'react-icons/fi';
-import { Review, Article } from '../../types/review'; 
 import { useReviewForm } from '../../hooks/useReviewForm';
-import { determineAIDecision } from '../../utils/reviewUtils'; 
+import { Review } from '../../types/review';
+import { AISummary } from './AISummary';
 import DeepSeekReviewAssistant from './DeepSeekReviewAssistant';
-import { AISummary } from './AISummary'; 
+import { determineAIDecision } from '../../utils/reviewUtils';
 
-// Interface for component props
+// Define the props for the component
 interface ReviewFormProps {
-  article: Article; 
-  initialReview?: Partial<Review>; 
-  onSubmit: (reviewData: Partial<Review>) => Promise<void>; 
+  article: {
+    id: string;
+    title: string;
+    abstract: string;
+    content?: string;
+    category?: string;
+  };
+  initialReview?: Partial<Review>;
+  onSubmit: (review: Partial<Review>) => Promise<void>;
 }
 
-// Define the structure for rating criteria
-interface RatingCriterion {
-  key: keyof Review['ratings']; 
-  label: string;
-  description: string;
-}
-
-// Update rating criteria to match the Review type
-const ratingCriteria: RatingCriterion[] = [
+// Rating criteria for the review form
+const ratingCriteria = [
   {
     key: 'originality',
-    label: 'Originality & Novelty',
-    description: 'How original is the work? Does it present novel ideas or approaches?',
+    label: 'Originality',
+    description: 'The novelty and uniqueness of the research',
   },
   {
     key: 'methodology',
-    label: 'Methodology & Rigor',
-    description: 'Is the methodology sound, rigorous, and appropriate for the research question?',
+    label: 'Methodology',
+    description: 'The soundness of the research methods',
   },
   {
     key: 'clarity',
-    label: 'Clarity & Presentation',
-    description: 'Is the paper well-written, clearly structured, and easy to understand?',
+    label: 'Clarity',
+    description: 'How well the article is written and structured',
   },
   {
     key: 'significance',
-    label: 'Significance & Impact',
-    description: 'What is the potential impact and significance of this research in its field?',
+    label: 'Significance',
+    description: 'The importance and impact of the research',
   },
   {
     key: 'references',
-    label: 'References & Citations',
-    description: 'Are the references appropriate, comprehensive, and correctly cited?',
+    label: 'References',
+    description: 'The quality and relevance of the cited works',
   },
 ];
 
-// Define decision labels with explicit type for keys
-const decisionLabels: Record<Review['decision'], string> = {
+// Decision labels for the review form
+const decisionLabels = {
+  accept: 'Accept',
   minor_revision: 'Minor Revision',
   major_revision: 'Major Revision',
-  accept: 'Accept',
   reject: 'Reject',
 };
 
@@ -99,21 +98,22 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
   initialReview,
   onSubmit 
 }) => {
-  // Extract all the necessary values and functions from the useReviewForm hook
+  // Use the custom hook to manage all form state and logic
   const {
     review,
     suggestions,
-    aiRatings,
+    aiRatings, 
     isAIAnalyzing,
+    setIsAIAnalyzing,
     isAIAnalysisComplete,
+    isFormLocked,
     isSubmitting,
-    setIsSubmitting,
+    setIsSubmitting, 
     errors,
     isEditing,
-    handleChange,
-    handleSuggestionsGenerated,
-    handleAnalyzeRequest,
-    handleAnalysisStateChange,
+    handleChange, 
+    handleSuggestionsGenerated, 
+    handleAnalyzeRequest, 
     validateForm,
   } = useReviewForm(initialReview);
 
@@ -236,16 +236,19 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
              {isAIAnalysisComplete && suggestions.length === 0 && (
                <Text color="green.600">AI analysis complete. No major issues found.</Text>
             )}
-            <DeepSeekReviewAssistant 
-              article={article} 
-              onSuggestionsGenerated={handleSuggestionsGenerated} 
-              onAnalysisStateChange={handleAnalysisStateChange}
-              autoAnalyze={!isAIAnalysisComplete && !isAIAnalyzing}
-              onError={(errorMsg) => {
-                  console.error("AI Analysis Error:", errorMsg);
-                  toast({ title: 'AI Analysis Failed', description: errorMsg, status: 'error', duration: 5000, isClosable: true });
-              }}
-            />
+            {/* Always render DeepSeekReviewAssistant when analyzing */} 
+            {isAIAnalyzing && (
+              <DeepSeekReviewAssistant 
+                article={article} 
+                onSuggestionsGenerated={handleSuggestionsGenerated} 
+                onAnalysisStateChange={(analyzing) => setIsAIAnalyzing(analyzing)}
+                autoAnalyze={true}
+                onError={(errorMsg) => {
+                    console.error("AI Analysis Error:", errorMsg);
+                    toast({ title: 'AI Analysis Failed', description: errorMsg, status: 'error', duration: 5000, isClosable: true });
+                }}
+              />
+            )}
           </CardBody>
         </Card>
 
@@ -275,6 +278,8 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
                           [ratingKey]: newRatingValue 
                       });
                     }}
+                    isDisabled={isFormLocked} 
+                    placeholder={`Select rating for ${criterion.label}`}
                 >
                     {[1, 2, 3, 4, 5].map(num => (
                         <option key={num} value={num}>
@@ -301,6 +306,8 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
           <Select
             value={review.decision || ''} 
             onChange={(e) => handleChange('decision', e.target.value as Review['decision'])}
+            isDisabled={isFormLocked} 
+            placeholder="Select decision"
           >
             {(Object.keys(decisionLabels) as Array<keyof typeof decisionLabels>).map((decisionKey) => (
               <option key={decisionKey} value={decisionKey}>
@@ -326,6 +333,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
             <Textarea
               value={review.comments || ''} 
               onChange={(e) => handleChange('comments', e.target.value)} 
+              isDisabled={isFormLocked} 
               placeholder="Provide constructive feedback for the author..."
             />
             {errors.comments && (
@@ -338,6 +346,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
             <Textarea
               value={review.privateComments || ''} 
               onChange={(e) => handleChange('privateComments', e.target.value)} 
+              isDisabled={isFormLocked} 
               placeholder="Private comments visible only to the editor..."
             />
             {/* No error message needed usually for private comments */}
@@ -348,6 +357,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
           colorScheme="blue"
           onClick={handleSubmit}
           isLoading={isSubmitting} 
+          isDisabled={isFormLocked || isSubmitting} 
         >
           {isEditing ? 'Update Review' : 'Submit Review'}
         </Button>

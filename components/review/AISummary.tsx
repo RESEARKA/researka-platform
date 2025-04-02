@@ -16,9 +16,11 @@ import {
   List,
   ListItem,
   ListIcon,
+  SimpleGrid,
+  Tag,
 } from '@chakra-ui/react';
 import { InfoIcon, WarningIcon, CheckCircleIcon } from '@chakra-ui/icons';
-import { ReviewSuggestion } from '../../types/review';
+import { ReviewSuggestion, Review } from '../../types/review';
 
 // Constants for configuration
 const MAX_SUMMARY_SUGGESTIONS = 2;
@@ -26,6 +28,7 @@ const MAX_ERROR_MESSAGE_LENGTH = 100;
 
 interface AISummaryProps {
   suggestions: ReviewSuggestion[];
+  aiRatings: Review['ratings'] | null;
   isLoading: boolean;
   error: Error | null;
 }
@@ -36,7 +39,7 @@ interface AISummaryProps {
  * Displays a condensed summary of AI-generated review suggestions
  * with an expandable section for detailed analysis.
  */
-export function AISummary({ suggestions, isLoading, error }: AISummaryProps) {
+export function AISummary({ suggestions, aiRatings, isLoading, error }: AISummaryProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Loading state
@@ -64,6 +67,26 @@ export function AISummary({ suggestions, isLoading, error }: AISummaryProps) {
     ? consolidateSuggestions(prioritySuggestions)
     : consolidateSuggestions(suggestions.slice(0, MAX_SUMMARY_SUGGESTIONS));
   
+  // Map decision to Chakra UI color scheme
+  const ratingColorMap: { [key: number]: string } = {
+    1: 'red',
+    2: 'orange',
+    3: 'yellow',
+    4: 'teal',
+    5: 'green',
+  };
+
+  // Map rating keys to user-friendly labels
+  const ratingLabelMap: Record<keyof Review['ratings'], string> = {
+    originality: 'Originality',
+    methodology: 'Methodology',
+    clarity: 'Clarity',
+    significance: 'Significance',
+    references: 'References',
+  };
+
+  const hasRatings = aiRatings && Object.keys(aiRatings).length > 0;
+
   return (
     <Box p={4} borderWidth="1px" borderRadius="md" bg="blue.50" mb={4}>
       <Box display="flex" alignItems="center" mb={2}>
@@ -74,6 +97,21 @@ export function AISummary({ suggestions, isLoading, error }: AISummaryProps) {
       </Box>
       
       <Text mb={3}>{cleanFormatting(summaryText)}</Text>
+      
+      {hasRatings ? (
+        <Box mb={4}>
+          <Text fontWeight="bold" mb={2}>AI Suggested Ratings:</Text>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={2}>
+            {Object.entries(aiRatings).map(([key, value]) => (
+              <Tag key={key} size="md" variant='subtle' colorScheme={ratingColorMap[value] || 'gray'} borderRadius='full'>
+                {ratingLabelMap[key as keyof Review['ratings']] || key}: {value}
+              </Tag>
+            ))}
+          </SimpleGrid>
+        </Box>
+      ) : (
+        <Text>AI ratings are not available.</Text>
+      )}
       
       <Accordion allowToggle>
         <AccordionItem border="none">

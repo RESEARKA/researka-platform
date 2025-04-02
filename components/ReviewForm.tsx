@@ -180,36 +180,18 @@ function ReviewForm({
 
   // Update a specific score category
   const updateScore = (category: keyof ReviewScores, value: number) => {
-    // Check if the value is within allowed range of AI score
-    if (aiScores && category in aiScores) {
-      const aiValue = aiScores[category];
-      const minAllowed = Math.max(1, aiValue - 1);
-      const maxAllowed = Math.min(5, aiValue + 1);
-      
-      if (value < minAllowed || value > maxAllowed) {
-        toast({
-          title: 'Rating adjustment limited',
-          description: `You can only adjust the AI-suggested rating by +/- 1 point`,
-          status: 'warning',
-          duration: 3000,
-          isClosable: true,
-        });
-        
-        // Set to the closest allowed value
-        value = value < minAllowed ? minAllowed : maxAllowed;
-      }
+    // Ensure value is within valid range (1-5)
+    if (value < 1) {
+      value = 1;
+    } else if (value > 5) {
+      value = 5;
     }
     
-    setScores(prev => {
-      const newScores = { ...prev, [category]: value };
-      
-      // Calculate overall score as average of all categories
-      const { overall, ...categoryScores } = newScores;
-      const sum = Object.values(categoryScores).reduce((a, b) => a + b, 0);
-      const avg = sum / Object.values(categoryScores).length;
-      
-      return { ...newScores, overall: parseFloat(avg.toFixed(1)) };
-    });
+    // Update the score
+    setScores(prev => ({
+      ...prev,
+      [category]: value
+    }));
   };
 
   // Toggle tooltip visibility for a specific slider
@@ -446,6 +428,13 @@ function ReviewForm({
                 <>
                   <DynamicAISummary 
                     suggestions={aiSuggestions} 
+                    aiRatings={aiScores ? {
+                      originality: aiScores.originality || 3,
+                      methodology: aiScores.methodology || 3,
+                      clarity: aiScores.clarity || 3,
+                      significance: aiScores.significance || 3,
+                      references: aiScores.technicalQuality || 3
+                    } : null}
                     isLoading={false} 
                     error={null}
                   />
@@ -453,8 +442,7 @@ function ReviewForm({
                   <Alert status="info" mt={4} borderRadius="md">
                     <AlertIcon />
                     <AlertDescription>
-                      AI has analyzed this article and pre-filled the review form with suggested ratings.
-                      You can adjust each rating by +/- 1 point from the AI suggestion.
+                      AI has analyzed this article with suggested feedback.
                     </AlertDescription>
                   </Alert>
                 </>
