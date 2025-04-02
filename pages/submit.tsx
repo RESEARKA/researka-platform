@@ -75,6 +75,7 @@ const SubmitPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [abstract, setAbstract] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordsInput, setKeywordsInput] = useState('');
   const [category, setCategory] = useState('');
   const [license, setLicense] = useState('CC BY 4.0');
   const [submissionComplete, setSubmissionComplete] = useState(false);
@@ -170,6 +171,10 @@ const SubmitPage: React.FC = () => {
     }
   }, [currentUser, profile, profileLoadingState, isProfileComplete, authIsInitialized, toast]);
 
+  // Constants for validation
+  const MIN_KEYWORDS = 3;
+  const MAX_KEYWORDS = 8;
+
   // Add validation for the current step
   const validateStep = (step: number): boolean => {
     let isValid = true;
@@ -193,8 +198,8 @@ const SubmitPage: React.FC = () => {
           isValid = false;
         }
         
-        if (keywords.length < 3) {
-          newErrors.keywords = 'At least 3 keywords are required';
+        if (keywords.length < MIN_KEYWORDS) {
+          newErrors.keywords = `At least ${MIN_KEYWORDS} keywords required. Currently: ${keywords.length}`;
           newTouched.keywords = true;
           isValid = false;
         }
@@ -265,8 +270,8 @@ const SubmitPage: React.FC = () => {
     logger.debug(`Step ${currentStep} validation result: ${isValid}`, { 
       category: LogCategory.UI,
       context: {
-        errors: JSON.stringify(errors),
-        wordCounts: JSON.stringify(wordCounts)
+        hasErrors: Object.values(errors).some(Boolean),
+        currentStep
       }
     });
     
@@ -277,11 +282,27 @@ const SubmitPage: React.FC = () => {
         logger.debug(`Moving to step ${currentStep + 1}`, { category: LogCategory.UI });
       }
     } else {
+      // Create a more specific error message based on the validation errors
+      const errorFields = [
+        { key: 'title', label: 'Title' },
+        { key: 'abstract', label: 'Abstract' },
+        { key: 'keywords', label: 'Keywords' },
+        { key: 'category', label: 'Category' },
+        { key: 'introduction', label: 'Introduction' },
+        { key: 'mainBody', label: 'Main Body' },
+        { key: 'discussion', label: 'Discussion' },
+        { key: 'references', label: 'References' }
+      ];
+      
+      const errorDescription = errorFields.reduce((msg, { key, label }) => {
+        return errors[key] ? `${msg}\n• ${label}: ${errors[key]}` : msg;
+      }, 'Please fix the following errors:');
+      
       toast({
         title: 'Validation Error',
-        description: 'Please fix the errors before proceeding.',
+        description: errorDescription,
         status: 'error',
-        duration: 5000,
+        duration: 7000,
         isClosable: true,
       });
     }
@@ -506,18 +527,50 @@ const SubmitPage: React.FC = () => {
                       </FormHelperText>
                     </FormControl>
 
-                    <FormControl isRequired>
+                    <FormControl isRequired isInvalid={!!errors.keywords && touched.keywords}>
                       <FormLabel>Keywords</FormLabel>
                       <Input
-                        name="keywords"
-                        value={keywords.join(', ')}
-                        onChange={(e) => setKeywords(e.target.value.split(',').map(k => k.trim()).filter(k => k))}
-                        placeholder="Enter keywords separated by commas"
+                        placeholder="Enter keywords separated by commas (e.g., rapamycin, aging, biology)"
+                        value={keywordsInput}
+                        onChange={(e) => {
+                          // Update the raw input value
+                          setKeywordsInput(e.target.value);
+                          
+                          // Process keywords from input
+                          const processedKeywords = e.target.value
+                            .split(',')
+                            .map(k => k.trim())
+                            .filter(Boolean);
+                          
+                          // Update the keywords state
+                          setKeywords(processedKeywords);
+                          
+                          // Mark as touched when user interacts
+                          setTouched(prev => ({ ...prev, keywords: true }));
+                          
+                          // Validate on change
+                          if (processedKeywords.length < MIN_KEYWORDS) {
+                            setErrors(prev => ({ 
+                              ...prev, 
+                              keywords: `At least ${MIN_KEYWORDS} keywords required. Currently: ${processedKeywords.length}` 
+                            }));
+                          } else if (processedKeywords.length > MAX_KEYWORDS) {
+                            setErrors(prev => ({ 
+                              ...prev, 
+                              keywords: `Maximum ${MAX_KEYWORDS} keywords allowed. Currently: ${processedKeywords.length}` 
+                            }));
+                          } else {
+                            setErrors(prev => ({ ...prev, keywords: '' }));
+                          }
+                        }}
+                        aria-describedby="keywords-help keywords-error"
                       />
                       {errors.keywords && touched.keywords && (
-                        <FormErrorMessage>{errors.keywords}</FormErrorMessage>
+                        <FormErrorMessage id="keywords-error">{errors.keywords}</FormErrorMessage>
                       )}
-                      <FormHelperText>5-8 keywords that describe your research</FormHelperText>
+                      <FormHelperText id="keywords-help">
+                        {keywords.length} keywords | Required: {MIN_KEYWORDS}-{MAX_KEYWORDS} keywords
+                      </FormHelperText>
                     </FormControl>
 
                     <FormControl isRequired>
