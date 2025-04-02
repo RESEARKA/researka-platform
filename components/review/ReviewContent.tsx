@@ -235,8 +235,8 @@ const ReviewContent: React.FC<ReviewContentProps> = ({
                           size="sm" 
                           width="100%"
                           onClick={() => {
-                            console.log(`Navigating to article review page: /articles/${article.id}/review`);
-                            router.push(`/articles/${article.id}/review`);
+                            console.log(`Navigating to article review page: /review/${article.id}`);
+                            router.push(`/review/${article.id}`);
                           }}
                         >
                           Review This Article

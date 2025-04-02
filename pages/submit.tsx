@@ -226,8 +226,8 @@ const SubmitPage: React.FC = () => {
               </AlertDescription>
             </Alert>
 
-            <Button onClick={() => window.location.href = '/dashboard'} colorScheme="blue">
-              Go to Dashboard
+            <Button onClick={() => window.location.href = '/'} colorScheme="blue">
+              Go to Homepage
             </Button>
           </VStack>
         </Container>

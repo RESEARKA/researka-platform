@@ -33,10 +33,10 @@ import useClient from '../hooks/useClient';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  redirectPath?: string; // Used for redirecting to /submit or /review pages, otherwise defaults to /profile
+  redirectPath?: string; // Used for redirecting after login, defaults to homepage
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/profile' }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath = '/' }) => {
   const isClient = useClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,6 +53,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       console.log('LoginModal received redirectPath:', redirectPath);
     }
   }, [redirectPath, isClient]);
+
+  // Normalize redirectPath to handle legacy dashboard redirects
+  const getRedirectPath = () => {
+    // Replace dashboard with homepage
+    return redirectPath === '/dashboard' ? '/' : redirectPath;
+  };
 
   const handleWalletLogin = async () => {
     setIsLoading(true);
@@ -74,7 +80,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         articles: 0,
         reviews: 0,
         reputation: 0,
-        profileComplete: redirectPath === '/submit' || redirectPath === '/review'
+        profileComplete: getRedirectPath() === '/submit' || getRedirectPath() === '/review'
       });
       
       toast({
@@ -89,9 +95,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       
       // Use Next.js router for redirection
       if (isClient) {
-        console.log('Redirecting to:', redirectPath);
+        console.log('Redirecting to:', getRedirectPath());
       }
-      router.push(redirectPath);
+      router.push(getRedirectPath());
     } catch (err) {
       console.error('Wallet login error:', err);
       setError('Failed to connect wallet. Please try again.');
@@ -128,9 +134,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
       
       // Use Next.js router for redirection
       if (isClient) {
-        console.log('Redirecting to:', redirectPath);
+        console.log('Redirecting to:', getRedirectPath());
       }
-      router.push(redirectPath);
+      router.push(getRedirectPath());
     } catch (err: any) {
       console.error('Email login error:', err);
       

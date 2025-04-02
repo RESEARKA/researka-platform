@@ -20,7 +20,6 @@ import {
 import { FiInfo } from 'react-icons/fi';
 import { Review, Article } from '../../types/review'; 
 import { useReviewForm } from '../../hooks/useReviewForm';
-import { determineAIDecision } from '../../utils/reviewUtils'; 
 import DeepSeekReviewAssistant from './DeepSeekReviewAssistant';
 import { AISummary } from './AISummary'; 
 
@@ -29,6 +28,8 @@ interface ReviewFormProps {
   article: Article; 
   initialReview?: Partial<Review>; 
   onSubmit: (reviewData: Partial<Review>) => Promise<void>; 
+  isLoading?: boolean;
+  errors?: Record<string, string>;
 }
 
 // Define the structure for rating criteria
@@ -68,11 +69,21 @@ const ratingCriteria: RatingCriterion[] = [
 ];
 
 // Define decision labels with explicit type for keys
-const decisionLabels: Record<Review['decision'], string> = {
+const decisionLabels: Record<string, string> = {
+  accept: 'Accept',
   minor_revision: 'Minor Revision',
   major_revision: 'Major Revision',
-  accept: 'Accept',
+  revise: 'Revision Required',
   reject: 'Reject',
+};
+
+// Create a constant for default ratings
+const DEFAULT_RATINGS: Record<string, number> = {
+  originality: 3,
+  methodology: 3,
+  clarity: 3,
+  significance: 3,
+  references: 3
 };
 
 // Helper function to get rating label based on value
@@ -97,7 +108,9 @@ const getRatingLabel = (_criterionKey: string, value: number): string => {
 export const ReviewForm: React.FC<ReviewFormProps> = ({
   article, 
   initialReview,
-  onSubmit 
+  onSubmit,
+  isLoading,
+  errors,
 }) => {
   // Extract all the necessary values and functions from the useReviewForm hook
   const {
@@ -108,7 +121,6 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
     isAIAnalysisComplete,
     isSubmitting,
     setIsSubmitting,
-    errors,
     isEditing,
     handleChange,
     handleSuggestionsGenerated,
@@ -170,28 +182,30 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
 
   // Calculate suggested decision based on aiRatings from hook
   const aiSuggestedDecision = useMemo(() => {
-      if (!aiRatings) return null;
-      try {
-          // Ensure aiRatings is not null and has valid structure before passing
-          const validRatings = Object.entries(aiRatings).reduce((acc, [key, value]) => {
-             if (typeof value === 'number') {
-               acc[key as keyof Review['ratings']] = value;
-             }
-             return acc;
-          }, {} as Review['ratings']);
-
-          // Check if we have enough valid ratings to make a decision
-          if(Object.keys(validRatings).length !== Object.keys(ratingCriteria).length) {
-              console.warn("Cannot determine AI decision: Incomplete AI ratings.");
-              return null;
-          }
-          
-          return determineAIDecision(validRatings);
-      } catch (error) {
-          console.error("Error determining AI decision for display:", error);
-          return null;
-      }
-  }, [aiRatings]);
+    if (!aiRatings) return null;
+    
+    try {
+      // Calculate average rating
+      const ratingValues = Object.values(aiRatings);
+      const avgRating = ratingValues.reduce((sum, val) => sum + val, 0) / ratingValues.length;
+      
+      // Determine decision based on average rating
+      if (avgRating >= 4) return 'accept';
+      if (avgRating >= 3) return 'revise';
+      return 'reject';
+    } catch (error) {
+      // Use toast for error feedback instead of silent console.error
+      console.error('Error calculating AI decision:', error);
+      toast({
+        title: 'AI Decision Error',
+        description: 'Failed to calculate AI suggested decision',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return null;
+    }
+  }, [aiRatings, toast]);
 
   // Effect to auto-start AI analysis for new reviews
   useEffect(() => {
@@ -252,51 +266,53 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
         {/* Ratings Section */}
         <Box p={4} borderWidth="1px" borderRadius="md">
           <Heading as="h3" size="md" mb={4}>Review Criteria Ratings</Heading>
-          {ratingCriteria.map((criterion) => {
-             const ratingKey = criterion.key;
-             const currentRating = review.ratings?.[ratingKey] ?? 3; 
-             const aiSuggestion = aiRatings?.[ratingKey];
-
-             return (
-                <FormControl key={ratingKey} mb={4} isInvalid={!!errors.ratings}>
-                <FormLabel>
-                    {criterion.label}
-                    <Tooltip label={criterion.description} placement="top" hasArrow>
-                    <Icon as={FiInfo} ml={2} color="gray.500" />
-                    </Tooltip>
-                </FormLabel>
-                <Select
-                    value={currentRating}
-                    onChange={(e) => {
-                      const newRatingValue = parseInt(e.target.value, 10);
-                      // Update the specific rating within the ratings object using hook's handler
-                      handleChange('ratings', { 
-                          ...(review.ratings || { originality: 3, methodology: 3, clarity: 3, significance: 3, references: 3 }), 
-                          [ratingKey]: newRatingValue 
-                      });
-                    }}
-                >
-                    {[1, 2, 3, 4, 5].map(num => (
-                        <option key={num} value={num}>
-                            {num} - {getRatingLabel('', num)}
-                        </option>
-                    ))}
-                </Select>
-                {aiSuggestion && (
-                    <Text fontSize="sm" color="blue.600" mt={1}>
-                        AI Suggested Rating: {aiSuggestion} 
-                    </Text>
-                )}
-                {errors.ratings && ratingKey === 'originality' && (
-                    <FormErrorMessage>{errors.ratings}</FormErrorMessage>
-                )}
-                </FormControl>
-             );
-          })}
+          {ratingCriteria.map((criterion) => (
+            <FormControl key={`criterion-${criterion.key}`} isRequired mb={4}>
+              <FormLabel 
+                htmlFor={`rating-${criterion.key}`}
+                display="flex" 
+                alignItems="center"
+              >
+                {criterion.label}
+                <Tooltip label={criterion.description} hasArrow placement="top">
+                  <Icon as={FiInfo} ml={2} color="gray.500" />
+                </Tooltip>
+              </FormLabel>
+              
+              <Select
+                id={`rating-${criterion.key}`}
+                value={review.ratings?.[criterion.key] || DEFAULT_RATINGS[criterion.key]}
+                onChange={(e) => {
+                  const newRatingValue = parseInt(e.target.value, 10);
+                  // Update the specific rating within the ratings object using hook's handler
+                  handleChange('ratings', { 
+                      ...(review.ratings || { originality: 3, methodology: 3, clarity: 3, significance: 3, references: 3 }), 
+                      [criterion.key]: newRatingValue 
+                  });
+                }}
+                isDisabled={isLoading}
+                data-testid={`rating-${criterion.key}`}
+              >
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={`${criterion.key}-rating-${value}`} value={value}>
+                    {value} - {getRatingLabel('', value)}
+                  </option>
+                ))}
+              </Select>
+              {aiRatings?.[criterion.key] && (
+                <Text fontSize="sm" color="blue.600" mt={1}>
+                  AI Suggested Rating: {aiRatings[criterion.key]} 
+                </Text>
+              )}
+              {errors?.ratings && criterion.key === 'originality' && (
+                <FormErrorMessage>{errors.ratings}</FormErrorMessage>
+              )}
+            </FormControl>
+          ))}
         </Box>
 
         {/* Decision Section */}
-        <FormControl mb={6} isInvalid={!!errors.decision}>
+        <FormControl mb={6} isInvalid={!!errors?.decision}>
           <FormLabel>Decision</FormLabel>
           <Select
             value={review.decision || ''} 
@@ -310,10 +326,14 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
           </Select>
           {aiSuggestedDecision && (
             <Text fontSize="sm" color="blue.600" mt={1}>
-              AI Suggested Decision: {decisionLabels[aiSuggestedDecision] || aiSuggestedDecision}
+              AI Suggested Decision: {
+                aiSuggestedDecision === 'revise' 
+                  ? decisionLabels.major_revision 
+                  : decisionLabels[aiSuggestedDecision as keyof typeof decisionLabels] || aiSuggestedDecision
+              }
             </Text>
           )}
-          {errors.decision && (
+          {errors?.decision && (
             <FormErrorMessage>{errors.decision}</FormErrorMessage>
           )}
         </FormControl>
@@ -321,33 +341,49 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
         {/* Comments Section */}
         <Box p={4} borderWidth="1px" borderRadius="md">
           <Heading as="h3" size="md" mb={4}>Review Comments</Heading>
-          <FormControl mb={4} isInvalid={!!errors.comments}>
-            <FormLabel>Comments for Author</FormLabel>
+          <FormControl isInvalid={!!errors?.comments} isRequired mb={6}>
+            <FormLabel htmlFor="comments-author">Comments for Author</FormLabel>
             <Textarea
+              id="comments-author"
+              aria-describedby={errors?.comments ? "comments-error" : undefined}
+              placeholder="Provide detailed feedback for the author..."
               value={review.comments || ''} 
               onChange={(e) => handleChange('comments', e.target.value)} 
-              placeholder="Provide constructive feedback for the author..."
+              isDisabled={isLoading}
+              minH="150px"
+              data-testid="comments-input"
             />
-            {errors.comments && (
-              <FormErrorMessage>{errors.comments}</FormErrorMessage>
+            {errors?.comments && (
+              <FormErrorMessage id="comments-error">
+                {errors.comments}
+              </FormErrorMessage>
             )}
           </FormControl>
           
-          <FormControl>
-            <FormLabel>Private Comments (Optional)</FormLabel>
+          <FormControl isInvalid={!!errors?.privateComments} mb={6}>
+            <FormLabel htmlFor="comments-editor">Comments for Editor (Optional)</FormLabel>
             <Textarea
+              id="comments-editor"
+              aria-describedby={errors?.privateComments ? "comments-editor-error" : undefined}
+              placeholder="Private comments for the editor only..."
               value={review.privateComments || ''} 
               onChange={(e) => handleChange('privateComments', e.target.value)} 
-              placeholder="Private comments visible only to the editor..."
+              isDisabled={isLoading}
+              minH="100px"
+              data-testid="comments-editor-input"
             />
-            {/* No error message needed usually for private comments */}
+            {errors?.privateComments && (
+              <FormErrorMessage id="comments-editor-error">
+                {errors.privateComments}
+              </FormErrorMessage>
+            )}
           </FormControl>
         </Box>
         
         <Button 
           colorScheme="blue"
           onClick={handleSubmit}
-          isLoading={isSubmitting} 
+          isLoading={isSubmitting || isLoading} 
         >
           {isEditing ? 'Update Review' : 'Submit Review'}
         </Button>
