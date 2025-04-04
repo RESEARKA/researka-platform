@@ -521,161 +521,247 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
     references: [] as string[]
   };
   
-  // Common section headers for academic papers
-  const sectionPatterns = {
-    introduction: [
-      /^introduction$/i,
-      /^1\.?\s*introduction$/i,
-      /^1\.?\s*background$/i,
-      /^background$/i,
-      /^overview$/i
-    ],
-    methods: [
-      /^methods$/i,
-      /^materials\s+and\s+methods$/i,
-      /^methodology$/i,
-      /^experimental\s+methods$/i,
-      /^2\.?\s*methods$/i,
-      /^2\.?\s*materials\s+and\s+methods$/i,
-      /^experimental$/i,
-      /^study\s+design$/i
-    ],
-    results: [
-      /^results$/i,
-      /^findings$/i,
-      /^3\.?\s*results$/i,
-      /^results\s+and\s+analysis$/i,
-      /^experimental\s+results$/i,
-      /^data\s+analysis$/i
-    ],
-    discussion: [
-      /^discussion$/i,
-      /^4\.?\s*discussion$/i,
-      /^discussion\s+and\s+conclusion$/i,
-      /^interpretation$/i,
-      /^implications$/i,
-      /^analysis$/i
-    ],
-    conclusion: [
-      /^conclusion$/i,
-      /^conclusions$/i,
-      /^5\.?\s*conclusion$/i,
-      /^final\s+remarks$/i,
-      /^summary$/i
-    ],
-    references: [
-      /^references$/i,
-      /^bibliography$/i,
-      /^works\s+cited$/i,
-      /^cited\s+works$/i,
-      /^literature\s+cited$/i
-    ]
+  // Simplified approach to extract sections based on clear section headers
+  let currentSection: string | null = null;
+  let sectionContent: string[] = [];
+  
+  // Map to track if we've found each section
+  const foundSections: Record<string, boolean> = {
+    introduction: false,
+    methods: false,
+    results: false,
+    discussion: false,
+    references: false
   };
   
-  // Find section boundaries
-  const sectionBoundaries: Record<string, { start: number; end: number }> = {};
-  let currentSection: string | null = null;
-  
-  // First pass: identify section boundaries
+  // Process each line to identify sections and their content
   for (let i = startIndex; i < lines.length; i++) {
     const line = lines[i].trim();
+    if (!line) continue; // Skip empty lines
     
-    // Skip empty lines
-    if (!line) continue;
+    // Check for section headers using simple pattern matching
+    const lowerLine = line.toLowerCase();
     
-    // Check if this line is a section header
-    let foundSection = false;
-    for (const [section, patterns] of Object.entries(sectionPatterns)) {
-      if (patterns.some(pattern => pattern.test(line))) {
-        // Found a new section
-        if (currentSection) {
-          sectionBoundaries[currentSection].end = i - 1;
-        }
-        
-        sectionBoundaries[section] = { start: i + 1, end: lines.length - 1 };
-        currentSection = section;
-        foundSection = true;
-        break;
+    // Introduction section patterns
+    if (lowerLine === 'introduction' || 
+        lowerLine.startsWith('1. introduction') || 
+        lowerLine.startsWith('1.introduction') ||
+        lowerLine.startsWith('i. introduction') ||
+        lowerLine === '1 introduction') {
+      
+      if (currentSection) {
+        // Save content of previous section
+        sections[currentSection] = sectionContent.join('\n');
       }
+      
+      currentSection = 'introduction';
+      foundSections.introduction = true;
+      sectionContent = [];
+      continue;
     }
     
-    // Also check for numbered sections like "1. Introduction"
-    if (!foundSection && line.match(/^\d+\.\s+.+$/i) && line.length < 50) {
-      const lowerLine = line.toLowerCase();
+    // Methods section patterns
+    if (lowerLine === 'methods' || 
+        lowerLine === 'materials and methods' ||
+        lowerLine.startsWith('2. ') && (lowerLine.includes('method') || lowerLine.includes('material')) ||
+        lowerLine.startsWith('ii. ') && (lowerLine.includes('method') || lowerLine.includes('material')) ||
+        lowerLine === '2 methods' ||
+        lowerLine === 'methodology') {
       
-      // Check if this numbered section contains a known section name
-      for (const [section, patterns] of Object.entries(sectionPatterns)) {
-        const sectionName = section.toLowerCase();
-        if (lowerLine.includes(sectionName)) {
+      if (currentSection) {
+        // Save content of previous section
+        sections[currentSection] = sectionContent.join('\n');
+      }
+      
+      currentSection = 'methods';
+      foundSections.methods = true;
+      sectionContent = [];
+      continue;
+    }
+    
+    // Results section patterns
+    if (lowerLine === 'results' || 
+        lowerLine.startsWith('3. results') || 
+        lowerLine.startsWith('3.results') ||
+        lowerLine.startsWith('iii. results') ||
+        lowerLine === '3 results' ||
+        lowerLine === 'findings') {
+      
+      if (currentSection) {
+        // Save content of previous section
+        sections[currentSection] = sectionContent.join('\n');
+      }
+      
+      currentSection = 'results';
+      foundSections.results = true;
+      sectionContent = [];
+      continue;
+    }
+    
+    // Discussion section patterns
+    if (lowerLine === 'discussion' || 
+        lowerLine.startsWith('4. discussion') || 
+        lowerLine.startsWith('4.discussion') ||
+        lowerLine.startsWith('iv. discussion') ||
+        lowerLine === '4 discussion' ||
+        lowerLine === 'interpretation' ||
+        lowerLine === 'discussion and conclusion') {
+      
+      if (currentSection) {
+        // Save content of previous section
+        sections[currentSection] = sectionContent.join('\n');
+      }
+      
+      currentSection = 'discussion';
+      foundSections.discussion = true;
+      sectionContent = [];
+      continue;
+    }
+    
+    // References section patterns
+    if (lowerLine === 'references' || 
+        lowerLine === 'bibliography' ||
+        lowerLine === 'works cited' ||
+        lowerLine.startsWith('references') ||
+        lowerLine === 'literature cited') {
+      
+      if (currentSection) {
+        // Save content of previous section
+        sections[currentSection] = sectionContent.join('\n');
+      }
+      
+      currentSection = 'references';
+      foundSections.references = true;
+      sectionContent = [];
+      continue;
+    }
+    
+    // Add line to current section content if we're in a section
+    if (currentSection) {
+      // For references, handle each reference as a separate item
+      if (currentSection === 'references') {
+        // Check if this is a new reference entry (often starts with number or bracket)
+        if (line.match(/^\[\d+\]/) || line.match(/^\d+\./) || 
+            line.match(/^[A-Z][a-z]+,/) || 
+            (sections.references.length > 0 && line.match(/^[A-Z]/))) {
+      
           if (currentSection) {
-            sectionBoundaries[currentSection].end = i - 1;
+            // Save content of previous section
+            sections[currentSection] = sectionContent.join('\n');
           }
           
-          sectionBoundaries[section] = { start: i + 1, end: lines.length - 1 };
-          currentSection = section;
-          break;
+          currentSection = 'references';
+          foundSections.references = true;
+          sectionContent = [];
+          sections.references.push(line);
+        } else if (sections.references.length > 0) {
+          // Append to the last reference if it's a continuation
+          sections.references[sections.references.length - 1] += ' ' + line;
         }
+      } else {
+        // For other sections, just add the line to the content
+        sectionContent.push(line);
       }
     }
   }
   
-  // Second pass: extract section content
-  for (const [section, boundaries] of Object.entries(sectionBoundaries)) {
-    if (section === 'references') {
-      // Handle references differently - extract as array of strings
-      const referenceLines: string[] = [];
-      for (let i = boundaries.start; i <= boundaries.end; i++) {
-        const line = lines[i].trim();
-        if (line) {
-          // Check if this is a new reference entry (often starts with number or bracket)
-          if (line.match(/^\[\d+\]/) || line.match(/^\d+\./) || line.match(/^[A-Z][a-z]+,/)) {
-            referenceLines.push(line);
-          } else if (referenceLines.length > 0) {
-            // Append to the last reference if it's a continuation
-            referenceLines[referenceLines.length - 1] += ' ' + line;
-          }
-        }
-      }
-      sections.references = referenceLines;
-    } else {
-      // Extract regular section content
-      const sectionLines: string[] = [];
-      for (let i = boundaries.start; i <= boundaries.end; i++) {
-        // Stop if we hit the next section header
-        if (i > boundaries.start) {
-          const line = lines[i].trim();
-          let isNextSectionHeader = false;
-          
-          for (const patterns of Object.values(sectionPatterns)) {
-            if (patterns.some(pattern => pattern.test(line))) {
-              isNextSectionHeader = true;
-              break;
-            }
-          }
-          
-          if (isNextSectionHeader) break;
-        }
-        
-        if (i < lines.length) {
-          const line = lines[i].trim();
-          if (line) sectionLines.push(line);
-        }
-      }
+  // Save the last section if there is one
+  if (currentSection && currentSection !== 'references') {
+    sections[currentSection] = sectionContent.join('\n');
+  }
+  
+  // If we didn't find any sections, try a more aggressive approach
+  if (!foundSections.introduction && !foundSections.methods && 
+      !foundSections.results && !foundSections.discussion) {
+    
+    // Try to find sections based on content patterns
+    let introStart = -1, methodsStart = -1, resultsStart = -1, discussionStart = -1, referencesStart = -1;
+    
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i].trim().toLowerCase();
       
-      sections[section] = sectionLines.join('\n');
+      if (line.includes('introduction') && introStart === -1) {
+        introStart = i;
+      } else if ((line.includes('method') || line.includes('materials')) && methodsStart === -1) {
+        methodsStart = i;
+      } else if (line.includes('result') && resultsStart === -1) {
+        resultsStart = i;
+      } else if (line.includes('discussion') && discussionStart === -1) {
+        discussionStart = i;
+      } else if (line.includes('reference') && referencesStart === -1) {
+        referencesStart = i;
+      }
     }
-  }
-  
-  // Combine conclusion with discussion if both exist
-  if (sections.conclusion && sections.discussion) {
-    sections.discussion += '\n\n' + sections.conclusion;
-    delete sections.conclusion;
-  } else if (sections.conclusion && !sections.discussion) {
-    sections.discussion = sections.conclusion;
-    delete sections.conclusion;
+    
+    // Extract sections based on found indices
+    if (introStart !== -1) {
+      const endIndex = methodsStart !== -1 ? methodsStart : 
+                       resultsStart !== -1 ? resultsStart : 
+                       discussionStart !== -1 ? discussionStart : 
+                       referencesStart !== -1 ? referencesStart : lines.length;
+      sections.introduction = lines.slice(introStart + 1, endIndex).join('\n');
+    }
+    
+    if (methodsStart !== -1) {
+      const endIndex = resultsStart !== -1 ? resultsStart : 
+                       discussionStart !== -1 ? discussionStart : 
+                       referencesStart !== -1 ? referencesStart : lines.length;
+      sections.methods = lines.slice(methodsStart + 1, endIndex).join('\n');
+    }
+    
+    if (resultsStart !== -1) {
+      const endIndex = discussionStart !== -1 ? discussionStart : 
+                       referencesStart !== -1 ? referencesStart : lines.length;
+      sections.results = lines.slice(resultsStart + 1, endIndex).join('\n');
+    }
+    
+    if (discussionStart !== -1) {
+      const endIndex = referencesStart !== -1 ? referencesStart : lines.length;
+      sections.discussion = lines.slice(discussionStart + 1, endIndex).join('\n');
+    }
+    
+    if (referencesStart !== -1) {
+      const referenceLines = lines.slice(referencesStart + 1);
+      sections.references = processReferences(referenceLines);
+    }
   }
   
   return sections;
+}
+
+/**
+ * Process reference lines into individual reference entries
+ */
+function processReferences(lines: string[]): string[] {
+  const references: string[] = [];
+  let currentRef = '';
+  
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    
+    // Check if this is a new reference entry
+    if (line.match(/^\[\d+\]/) || line.match(/^\d+\./) || 
+        line.match(/^[A-Z][a-z]+,/) || 
+        (references.length > 0 && line.match(/^[A-Z]/))) {
+      
+      if (currentRef) {
+        references.push(currentRef);
+      }
+      currentRef = line;
+    } else if (currentRef) {
+      // Append to current reference
+      currentRef += ' ' + line;
+    } else {
+      currentRef = line;
+    }
+  }
+  
+  // Add the last reference
+  if (currentRef) {
+    references.push(currentRef);
+  }
+  
+  return references;
 }
 
 /**
