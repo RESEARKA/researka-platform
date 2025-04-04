@@ -1,6 +1,7 @@
 import { createLogger, LogCategory } from './logger';
 import * as mammoth from 'mammoth';
 import * as iconv from 'iconv-lite';
+import { createDeepSeekAI } from './deepseekAI';
 
 // We need to import pdfjs in a way that works with Next.js
 let pdfjsLib: any;
@@ -21,44 +22,65 @@ export interface ParsedDocument {
 }
 
 /**
+ * Configuration constants for document parsing
+ */
+const DOCUMENT_PARSING_CONFIG = {
+  MAX_ABSTRACT_LINES: 15,
+  MIN_ABSTRACT_LENGTH: 100,
+  MAX_TITLE_LENGTH: 100,
+  MAX_KEYWORDS: 10,
+  AI_ENHANCEMENT_ENABLED: true,
+};
+
+/**
  * Extracts text content from various document formats
  * Supports: Plain text, PDF, Word documents, and Apple Pages files
  */
-export async function parseDocument(file: File): Promise<ParsedDocument> {
+export async function parseDocument(file: File, options: { enhanceWithAI?: boolean } = {}): Promise<ParsedDocument> {
   try {
     logger.info(`Parsing document: ${file.name} (${file.type})`, {
       category: LogCategory.DOCUMENT
     });
-    
-    // Check file type and use appropriate parser
-    if (file.type === 'text/plain') {
-      return await parseTextFile(file);
+
+    // Determine the file type and call the appropriate parser
+    let parsedDocument: ParsedDocument;
+
+    if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+      parsedDocument = await parseTextFile(file);
+    } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      parsedDocument = await parsePdfFile(file);
+    } else if (
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      file.name.endsWith('.docx')
+    ) {
+      parsedDocument = await parseWordFile(file);
+    } else if (
+      file.type === 'application/msword' ||
+      file.name.endsWith('.doc')
+    ) {
+      parsedDocument = await parseWordFile(file);
+    } else if (
+      file.type === 'application/vnd.apple.pages' ||
+      file.name.endsWith('.pages')
+    ) {
+      parsedDocument = await parsePagesFile(file);
+    } else {
+      return {
+        error: `Unsupported file type: ${file.type}. Please upload a PDF, Word, Pages, or plain text file.`
+      };
     }
-    
-    // PDF files
-    if (file.type === 'application/pdf') {
-      return await parsePdfFile(file);
+
+    // If AI enhancement is requested and the document was parsed successfully
+    if (options.enhanceWithAI && !parsedDocument.error) {
+      return await enhanceDocumentWithAI(parsedDocument);
     }
-    
-    // Word documents
-    if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-        file.type === 'application/msword') {
-      return await parseWordFile(file);
-    }
-    
-    // Apple Pages files - typically have .pages extension
-    if (file.name.toLowerCase().endsWith('.pages') || 
-        file.type === 'application/vnd.apple.pages') {
-      return await parsePagesFile(file);
-    }
-    
-    return {
-      error: `Unsupported file type: ${file.type}. Please use a supported document format (PDF, Word, Pages, or plain text).`
-    };
+
+    return parsedDocument;
   } catch (error) {
     logger.error(`Error parsing document: ${error}`, {
       category: LogCategory.DOCUMENT
     });
+
     return {
       error: `Failed to parse document: ${error instanceof Error ? error.message : String(error)}`
     };
@@ -642,4 +664,153 @@ function extractKeywords(text: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([word]) => word);
+}
+
+/**
+ * Enhance a parsed document using AI to improve structure, formatting, and content quality
+ * @param parsedDocument The parsed document to enhance
+ * @returns A promise that resolves to the enhanced document
+ */
+export async function enhanceDocumentWithAI(parsedDocument: ParsedDocument): Promise<ParsedDocument> {
+  // If there was an error in parsing or AI enhancement is disabled, return the original document
+  if (parsedDocument.error || !DOCUMENT_PARSING_CONFIG.AI_ENHANCEMENT_ENABLED) {
+    return parsedDocument;
+  }
+
+  try {
+    logger.info('Enhancing document with AI', {
+      category: LogCategory.DOCUMENT
+    });
+
+    // Create the DeepSeek AI client
+    const deepseekAI = createDeepSeekAI();
+
+    // Prepare the prompt for AI enhancement
+    const prompt = `
+You are an academic document formatting assistant. Your task is to enhance the structure and quality of the following document sections.
+Please analyze and improve the document while maintaining its original meaning and key information.
+
+DOCUMENT:
+Title: ${parsedDocument.title || 'No title provided'}
+
+Abstract: ${parsedDocument.abstract || 'No abstract provided'}
+
+Keywords: ${parsedDocument.keywords?.join(', ') || 'No keywords provided'}
+
+Content:
+${parsedDocument.content?.substring(0, 4000) || 'No content provided'}
+
+Please provide an enhanced version of this document with the following improvements:
+1. Format the title to be clear, concise, and academically appropriate
+2. Structure the abstract to follow academic standards (problem, methods, results, conclusion)
+3. Identify and suggest the most relevant keywords (max 10)
+4. Organize the content into logical sections with appropriate headings
+5. Format any references or citations according to academic standards
+6. Correct any grammatical or spelling errors
+7. Enhance clarity and readability while preserving the original meaning
+
+Return your response as a JSON object with the following structure:
+{
+  "title": "Enhanced title",
+  "abstract": "Enhanced abstract",
+  "keywords": ["keyword1", "keyword2", "..."],
+  "content": "Enhanced content with proper sections and formatting"
+}
+`;
+
+    // Call the DeepSeek API
+    const response = await deepseekAI.generateContent(prompt, {
+      temperature: 0.3, // Lower temperature for more consistent results
+      max_tokens: 2000, // Allow enough tokens for comprehensive enhancement
+    });
+
+    if (!response.success || !response.text) {
+      logger.warn('AI enhancement failed, returning original document', {
+        category: LogCategory.DOCUMENT,
+        context: { error: response.error }
+      });
+      return parsedDocument;
+    }
+
+    // Extract the enhanced document from the AI response
+    try {
+      // Helper function from DeepSeekAI to extract JSON from responses
+      const extractJsonFromResponse = (text: string): any => {
+        try {
+          // First try direct parsing
+          return JSON.parse(text);
+        } catch (e) {
+          // Check if the response contains a JSON code block
+          const jsonBlockRegex = /```(?:json)?\s*\n([\s\S]*?)\n```/;
+          const match = text.match(jsonBlockRegex);
+          
+          if (match && match[1]) {
+            try {
+              // Try parsing the content inside the code block
+              return JSON.parse(match[1]);
+            } catch (innerError) {
+              throw new Error(`Failed to parse JSON from code block: ${innerError}`);
+            }
+          }
+          
+          // If no code block, try to find anything that looks like JSON
+          const jsonRegex = /\{[\s\S]*\}/;
+          const jsonMatch = text.match(jsonRegex);
+          
+          if (jsonMatch) {
+            try {
+              return JSON.parse(jsonMatch[0]);
+            } catch (jsonError) {
+              throw new Error(`Failed to parse JSON from response: ${jsonError}`);
+            }
+          }
+          
+          throw new Error('No valid JSON found in response');
+        }
+      };
+
+      const enhancedDocument = extractJsonFromResponse(response.text);
+
+      // Validate the enhanced document structure
+      if (!enhancedDocument.title || !enhancedDocument.abstract) {
+        logger.warn('AI enhancement returned incomplete document, using partial results', {
+          category: LogCategory.DOCUMENT
+        });
+        
+        // Merge the enhanced document with the original, preferring enhanced values
+        return {
+          title: enhancedDocument.title || parsedDocument.title,
+          abstract: enhancedDocument.abstract || parsedDocument.abstract,
+          keywords: enhancedDocument.keywords || parsedDocument.keywords,
+          content: enhancedDocument.content || parsedDocument.content
+        };
+      }
+
+      logger.info('Document enhanced successfully with AI', {
+        category: LogCategory.DOCUMENT
+      });
+
+      // Return the enhanced document
+      return {
+        title: enhancedDocument.title,
+        abstract: enhancedDocument.abstract,
+        keywords: enhancedDocument.keywords || parsedDocument.keywords,
+        content: enhancedDocument.content || parsedDocument.content
+      };
+    } catch (jsonError) {
+      logger.error(`Error parsing AI enhancement response: ${jsonError}`, {
+        category: LogCategory.DOCUMENT
+      });
+      
+      // If we can't parse the JSON, return the original document
+      return parsedDocument;
+    }
+  } catch (error) {
+    logger.error(`Error enhancing document with AI: ${error}`, {
+      category: LogCategory.DOCUMENT
+    });
+    
+    // Return the original document if enhancement fails
+    return parsedDocument;
+  }
 }

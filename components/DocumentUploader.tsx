@@ -1,27 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Text,
-  Flex,
   Button,
   useToast,
-  Heading,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription,
-  Spinner,
   Badge,
   Icon,
-  Tooltip
+  Tooltip,
+  Switch,
+  FormControl,
+  FormLabel,
+  VStack,
+  HStack,
 } from '@chakra-ui/react';
 import { InfoIcon, CheckCircleIcon } from '@chakra-ui/icons';
 import { FaFilePdf, FaFileWord, FaFileAlt, FaFile } from 'react-icons/fa';
-import FormFileUpload from './FormFileUpload';
 import { parseDocument, ParsedDocument } from '../utils/documentParser';
-import { createLogger, LogCategory } from '../utils/logger';
-
-const logger = createLogger('DocumentUploader');
+import FormFileUpload from './FormFileUpload';
 
 // Supported file types
 const SUPPORTED_EXTENSIONS = ['.txt', '.pdf', '.docx', '.doc', '.pages'];
@@ -30,96 +25,85 @@ const SUPPORTED_MIME_TYPES = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
-  'application/vnd.apple.pages'
+  'application/vnd.apple.pages',
 ];
 
 interface DocumentUploaderProps {
-  onDocumentParsed: (document: ParsedDocument) => void;
+  onDocumentParsed: (parsedDocument: ParsedDocument) => void;
+  isDisabled?: boolean;
 }
 
-const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed }) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, isDisabled = false }) => {
+  const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [useAIEnhancement, setUseAIEnhancement] = useState(true);
   const toast = useToast();
 
-  const handleFileSelect = async (files: File[]) => {
+  const handleFileSelect = useCallback(async (files: File[]) => {
     if (!files.length) return;
-    
-    setIsLoading(true);
-    setError(null);
-    setIsSuccess(false);
-    
-    const file = files[0];
-    setUploadedFile(file);
-    
-    // Validate file type
-    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    const isValidExtension = SUPPORTED_EXTENSIONS.includes(fileExtension);
-    const isValidMimeType = SUPPORTED_MIME_TYPES.includes(file.type);
-    
-    if (!isValidExtension && !isValidMimeType) {
-      const errorMessage = `Unsupported file type: ${file.type || fileExtension}. Please use a supported document format (PDF, Word, Pages, or plain text).`;
-      setError(errorMessage);
-      setIsLoading(false);
-      
-      logger.warn('Unsupported file type uploaded', {
-        category: LogCategory.DOCUMENT,
-        context: { fileType: file.type, fileName: file.name }
-      });
-      
-      return;
-    }
-    
+
     try {
-      logger.info('Processing document upload', {
-        category: LogCategory.DOCUMENT,
-        context: { fileName: file.name, fileType: file.type, fileSize: file.size }
-      });
-      
-      const result = await parseDocument(file);
-      
-      if (result.error) {
-        setError(result.error);
+      setIsUploading(true);
+      setUploadedFile(files[0]);
+      setUploadSuccess(false);
+
+      // Validate file type
+      const fileExtension = files[0].name.substring(files[0].name.lastIndexOf('.')).toLowerCase();
+      const isValidExtension = SUPPORTED_EXTENSIONS.includes(fileExtension);
+      const isValidMimeType = SUPPORTED_MIME_TYPES.includes(files[0].type);
+
+      if (!isValidExtension && !isValidMimeType) {
+        const errorMessage = `Unsupported file type: ${files[0].type || fileExtension}. Please use a supported document format (PDF, Word, Pages, or plain text).`;
         toast({
-          title: 'Document Upload Error',
-          description: result.error,
+          title: 'Unsupported File Type',
+          description: errorMessage,
           status: 'error',
           duration: 5000,
           isClosable: true,
         });
-      } else {
-        setIsSuccess(true);
-        onDocumentParsed(result);
+        setIsUploading(false);
+        return;
+      }
+
+      // Parse the document with AI enhancement if enabled
+      const parsedDocument = await parseDocument(files[0], { enhanceWithAI: useAIEnhancement });
+
+      if (parsedDocument.error) {
         toast({
-          title: 'Document Uploaded Successfully',
-          description: 'Your document has been processed and the content has been extracted.',
-          status: 'success',
+          title: 'Error parsing document',
+          description: parsedDocument.error,
+          status: 'error',
           duration: 5000,
           isClosable: true,
         });
+        setIsUploading(false);
+        return;
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-      
-      logger.error('Error processing document', {
-        category: LogCategory.DOCUMENT,
-        context: { error: errorMessage }
-      });
-      
+
+      // Handle successful parsing
+      setUploadSuccess(true);
+      onDocumentParsed(parsedDocument);
       toast({
-        title: 'Document Processing Error',
-        description: errorMessage,
+        title: 'Document processed successfully',
+        description: `The content from "${files[0].name}" has been extracted and the form has been populated.`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      toast({
+        title: 'Error uploading document',
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
     } finally {
-      setIsLoading(false);
+      setIsUploading(false);
     }
-  };
+  }, [onDocumentParsed, toast, useAIEnhancement]);
 
   const getFileIcon = (file: File) => {
     if (file.type === 'application/pdf') {
@@ -135,29 +119,49 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed })
 
   const handleReset = () => {
     setUploadedFile(null);
-    setIsSuccess(false);
-    setError(null);
+    setUploadSuccess(false);
   };
 
   return (
-    <Box borderWidth="1px" borderRadius="lg" p={4} mb={6} bg="white">
-      <Flex direction="column" align="flex-start">
-        <Heading size="md" mb={2}>Upload Document</Heading>
-        
-        <Flex alignItems="center" mb={2}>
-          <Text fontSize="sm" color="gray.600" mr={1}>
-            Supported formats:
-          </Text>
-          <Badge colorScheme="blue" mr={1}>PDF</Badge>
-          <Badge colorScheme="green" mr={1}>Word</Badge>
-          <Badge colorScheme="purple" mr={1}>Pages</Badge>
-          <Badge colorScheme="gray" mr={1}>TXT</Badge>
-          <Tooltip label="Your document will be processed and the content will be extracted to fill in the form fields automatically. The document structure should include a title, abstract, and main content.">
-            <InfoIcon color="gray.400" />
+    <Box
+      p={4}
+      borderWidth="1px"
+      borderRadius="lg"
+      borderColor="gray.200"
+      bg="white"
+      width="100%"
+    >
+      <VStack spacing={4} align="stretch">
+        <HStack justifyContent="space-between" alignItems="center">
+          <Text fontWeight="bold" fontSize="lg">Upload Document</Text>
+          <HStack spacing={2}>
+            <Text fontSize="sm" color="gray.500">Supported formats:</Text>
+            <Badge colorScheme="blue">PDF</Badge>
+            <Badge colorScheme="green">WORD</Badge>
+            <Badge colorScheme="purple">PAGES</Badge>
+            <Badge colorScheme="gray">TXT</Badge>
+            <Tooltip label="Upload a document to automatically extract its content and populate the form fields.">
+              <InfoIcon color="gray.400" />
+            </Tooltip>
+          </HStack>
+        </HStack>
+
+        <FormControl display="flex" alignItems="center" justifyContent="flex-end">
+          <FormLabel htmlFor="ai-enhancement" mb="0" fontSize="sm" color="gray.600">
+            AI Enhancement
+          </FormLabel>
+          <Tooltip label="Use AI to improve document structure, format references, and enhance content quality">
+            <Switch 
+              id="ai-enhancement" 
+              isChecked={useAIEnhancement} 
+              onChange={(e) => setUseAIEnhancement(e.target.checked)}
+              colorScheme="teal"
+              size="sm"
+            />
           </Tooltip>
-        </Flex>
-        
-        {!isSuccess && (
+        </FormControl>
+
+        {!uploadSuccess ? (
           <FormFileUpload
             id="document-upload"
             name="document"
@@ -168,48 +172,34 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed })
             helperText="Drag and drop a file or click to browse"
             showPreview={true}
             maxFileSizeInMB={10}
-            isDisabled={isLoading}
+            isDisabled={isDisabled || isUploading}
           />
-        )}
-        
-        {isLoading && (
-          <Flex align="center" justify="center" w="100%" py={4}>
-            <Spinner size="md" mr={3} />
-            <Text>Processing your document...</Text>
-          </Flex>
-        )}
-        
-        {error && (
-          <Alert status="error" mt={4} borderRadius="md">
-            <AlertIcon />
-            <Box flex="1">
-              <AlertTitle fontSize="md">Error Processing Document</AlertTitle>
-              <AlertDescription fontSize="sm">{error}</AlertDescription>
-            </Box>
-          </Alert>
-        )}
-        
-        {isSuccess && uploadedFile && (
-          <Box mt={4} p={3} bg="gray.50" borderRadius="md" w="100%">
-            <Flex align="center">
-              {getFileIcon(uploadedFile)}
-              <Box flex="1">
-                <Text fontWeight="bold" fontSize="sm">{uploadedFile.name}</Text>
-                <Text fontSize="xs" color="gray.500">
-                  {(uploadedFile.size / 1024).toFixed(1)} KB
-                </Text>
-              </Box>
-              <Icon as={CheckCircleIcon} color="green.500" boxSize={5} />
-            </Flex>
-            <Text mt={2} fontSize="sm" color="green.600">
+        ) : (
+          <VStack spacing={3} align="stretch">
+            <HStack>
+              {uploadedFile && getFileIcon(uploadedFile)}
+              <Text fontWeight="medium">{uploadedFile?.name}</Text>
+              <Icon as={CheckCircleIcon} color="green.500" />
+              {useAIEnhancement && (
+                <Badge colorScheme="teal" variant="subtle">
+                  AI Enhanced
+                </Badge>
+              )}
+            </HStack>
+            <Text fontSize="sm" color="green.600">
               Document processed successfully! The form has been populated with the extracted content.
             </Text>
-            <Button size="sm" mt={2} onClick={handleReset} colorScheme="blue" variant="outline">
+            <Button
+              size="sm"
+              leftIcon={<FaFile />}
+              variant="outline"
+              onClick={handleReset}
+            >
               Upload a different document
             </Button>
-          </Box>
+          </VStack>
         )}
-      </Flex>
+      </VStack>
     </Box>
   );
 };
