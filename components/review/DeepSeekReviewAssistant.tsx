@@ -223,8 +223,7 @@ export default function DeepSeekReviewAssistant({
           bg="gray.50"
         >
           <Spinner size="sm" mr={2} />
-          <Text>Analyzing article with DeepSeek AI...</Text>
-          <Text ml={2} fontSize="sm" color="gray.500">This may take a minute or two.</Text>
+          <Text fontSize="sm" color="gray.500">This may take a minute or two.</Text>
         </Box>
       ) : (
         <>
