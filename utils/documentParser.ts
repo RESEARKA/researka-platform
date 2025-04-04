@@ -513,19 +513,20 @@ async function parseWordFile(file: File): Promise<ParsedDocument> {
  * Improved to handle various section naming conventions and formats
  */
 function extractDocumentSections(lines: string[], startIndex: number): Record<string, any> {
+  // Initialize sections with empty values
   const sections: Record<string, any> = {
     introduction: '',
     methods: '',
     results: '',
     discussion: '',
-    references: [] as string[]
+    references: [] // Initialize references as an empty array
   };
   
-  // Simplified approach to extract sections based on clear section headers
+  // Track current section and content
   let currentSection: string | null = null;
   let sectionContent: string[] = [];
   
-  // Map to track if we've found each section
+  // Track if we've found each section
   const foundSections: Record<string, boolean> = {
     introduction: false,
     methods: false,
@@ -551,7 +552,9 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
       
       if (currentSection) {
         // Save content of previous section
-        sections[currentSection] = sectionContent.join('\n');
+        if (currentSection !== 'references') {
+          sections[currentSection] = sectionContent.join('\n');
+        }
       }
       
       currentSection = 'introduction';
@@ -570,7 +573,9 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
       
       if (currentSection) {
         // Save content of previous section
-        sections[currentSection] = sectionContent.join('\n');
+        if (currentSection !== 'references') {
+          sections[currentSection] = sectionContent.join('\n');
+        }
       }
       
       currentSection = 'methods';
@@ -589,7 +594,9 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
       
       if (currentSection) {
         // Save content of previous section
-        sections[currentSection] = sectionContent.join('\n');
+        if (currentSection !== 'references') {
+          sections[currentSection] = sectionContent.join('\n');
+        }
       }
       
       currentSection = 'results';
@@ -609,7 +616,9 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
       
       if (currentSection) {
         // Save content of previous section
-        sections[currentSection] = sectionContent.join('\n');
+        if (currentSection !== 'references') {
+          sections[currentSection] = sectionContent.join('\n');
+        }
       }
       
       currentSection = 'discussion';
@@ -627,7 +636,9 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
       
       if (currentSection) {
         // Save content of previous section
-        sections[currentSection] = sectionContent.join('\n');
+        if (currentSection !== 'references') {
+          sections[currentSection] = sectionContent.join('\n');
+        }
       }
       
       currentSection = 'references';
@@ -638,25 +649,17 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
     
     // Add line to current section content if we're in a section
     if (currentSection) {
-      // For references, handle each reference as a separate item
       if (currentSection === 'references') {
-        // Check if this is a new reference entry (often starts with number or bracket)
-        if (line.match(/^\[\d+\]/) || line.match(/^\d+\./) || 
-            line.match(/^[A-Z][a-z]+,/) || 
-            (sections.references.length > 0 && line.match(/^[A-Z]/))) {
-      
-          if (currentSection) {
-            // Save content of previous section
-            sections[currentSection] = sectionContent.join('\n');
-          }
-          
-          currentSection = 'references';
-          foundSections.references = true;
-          sectionContent = [];
+        // Handle references as a special case
+        if (line.match(/^\[\d+\]/) || line.match(/^\d+\./) || line.match(/^[A-Z][a-z]+,/)) {
+          // This looks like a new reference entry
           sections.references.push(line);
         } else if (sections.references.length > 0) {
           // Append to the last reference if it's a continuation
           sections.references[sections.references.length - 1] += ' ' + line;
+        } else {
+          // First reference doesn't match our patterns, add it anyway
+          sections.references.push(line);
         }
       } else {
         // For other sections, just add the line to the content
