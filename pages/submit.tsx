@@ -28,11 +28,13 @@ import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Head from 'next/head';
 import Layout from '../components/Layout';
 import KeywordsAutocomplete from '../components/KeywordsAutocomplete';
+import DocumentUploader from '../components/DocumentUploader';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileData, UserProfile } from '../hooks/useProfileData';
 import { submitArticle } from '../services/articleService';
 import { getUserAccessLevel, UserAccessLevel } from '../utils/accessLevels';
 import { createLogger, LogCategory } from '../utils/logger';
+import { ParsedDocument } from '../utils/documentParser';
 
 const logger = createLogger('SubmitPage');
 
@@ -407,6 +409,119 @@ const SubmitPage: React.FC = () => {
     }
   };
 
+  // Function to handle parsed document data
+  const handleDocumentParsed = (parsedDocument: ParsedDocument) => {
+    logger.info('Document parsed successfully', {
+      category: LogCategory.FORM
+    });
+    
+    // Update form fields with parsed data
+    if (parsedDocument.title) {
+      setTitle(parsedDocument.title);
+      setTouched(prev => ({ ...prev, title: true }));
+    }
+    
+    if (parsedDocument.abstract) {
+      setAbstract(parsedDocument.abstract);
+      setTouched(prev => ({ ...prev, abstract: true }));
+      
+      // Update word count and validate
+      const count = countWords(parsedDocument.abstract);
+      setWordCounts(prev => ({ ...prev, abstract: count }));
+      
+      const validation = validateWordCount(parsedDocument.abstract, 150, 500);
+      if (!validation.valid) {
+        setErrors(prev => ({ ...prev, abstract: validation.message || '' }));
+      } else {
+        setErrors(prev => ({ ...prev, abstract: '' }));
+      }
+    }
+    
+    if (parsedDocument.keywords && parsedDocument.keywords.length > 0) {
+      // Only use the first 5 keywords to avoid exceeding limits
+      const limitedKeywords = parsedDocument.keywords.slice(0, MAX_KEYWORDS);
+      setKeywords(limitedKeywords);
+      setTouched(prev => ({ ...prev, keywords: true }));
+      
+      // Validate keywords
+      if (limitedKeywords.length < MIN_KEYWORDS) {
+        setErrors(prev => ({ 
+          ...prev, 
+          keywords: `Please add at least ${MIN_KEYWORDS} keywords` 
+        }));
+      } else {
+        setErrors(prev => ({ ...prev, keywords: '' }));
+      }
+    }
+    
+    if (parsedDocument.content) {
+      // Distribute content across sections
+      // Simple heuristic: Split content into roughly equal parts for each section
+      const contentLines = parsedDocument.content.split('\n');
+      const totalLines = contentLines.length;
+      const linesPerSection = Math.floor(totalLines / 4); // 4 sections
+      
+      // Extract sections
+      const introLines = contentLines.slice(0, linesPerSection);
+      const methodsLines = contentLines.slice(linesPerSection, linesPerSection * 2);
+      const resultsLines = contentLines.slice(linesPerSection * 2, linesPerSection * 3);
+      const discussionLines = contentLines.slice(linesPerSection * 3);
+      
+      // Set introduction
+      const introContent = introLines.join('\n');
+      setIntroduction(introContent);
+      setTouched(prev => ({ ...prev, introduction: true }));
+      updateWordCount('introduction', introContent);
+      
+      // Set methods
+      const methodsContent = methodsLines.join('\n');
+      setMethods(methodsContent);
+      setTouched(prev => ({ ...prev, methods: true }));
+      updateWordCount('methods', methodsContent);
+      
+      // Set results
+      const resultsContent = resultsLines.join('\n');
+      setResults(resultsContent);
+      setTouched(prev => ({ ...prev, results: true }));
+      updateWordCount('results', resultsContent);
+      
+      // Set discussion
+      const discussionContent = discussionLines.join('\n');
+      setDiscussion(discussionContent);
+      setTouched(prev => ({ ...prev, discussion: true }));
+      updateWordCount('discussion', discussionContent);
+    }
+  };
+  
+  // Helper function to update word count and validate
+  const updateWordCount = (field: string, text: string) => {
+    const count = countWords(text);
+    setWordCounts(prev => ({ ...prev, [field]: count }));
+    
+    // Validate based on field-specific requirements
+    let min = 0;
+    let max = 10000;
+    
+    switch (field) {
+      case 'introduction':
+      case 'methods':
+      case 'results':
+      case 'discussion':
+        min = 200;
+        max = 2000;
+        break;
+      default:
+        break;
+    }
+    
+    const validation = validateWordCount(text, min, max);
+    if (!validation.valid) {
+      setErrors(prev => ({ ...prev, [field]: validation.message || '' }));
+    } else {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
   if (submissionComplete) {
     return (
       <Layout title="Submission Successful" description="Your article has been submitted.">
@@ -484,6 +599,9 @@ const SubmitPage: React.FC = () => {
                 {currentStep === 1 && (
                   <VStack spacing={6} align="stretch">
                     <Heading size="md">Basic Information</Heading>
+                    
+                    <DocumentUploader onDocumentParsed={handleDocumentParsed} />
+                    
                     <FormControl isRequired>
                       <FormLabel>Article Title</FormLabel>
                       <Input

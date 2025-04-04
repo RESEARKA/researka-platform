@@ -28,7 +28,9 @@ export enum LogCategory {
   PERFORMANCE = 'performance',
   LIFECYCLE = 'lifecycle',
   SYSTEM = 'system',
-  ERROR = 'error'
+  ERROR = 'error',
+  DOCUMENT = 'document',
+  FORM = 'form'
 }
 
 interface LogOptions {
