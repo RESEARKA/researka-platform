@@ -27,6 +27,7 @@ import {
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Head from 'next/head';
 import Layout from '../components/Layout';
+import KeywordsAutocomplete from '../components/KeywordsAutocomplete';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileData, UserProfile } from '../hooks/useProfileData';
 import { submitArticle } from '../services/articleService';
@@ -75,7 +76,6 @@ const SubmitPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [abstract, setAbstract] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
-  const [keywordsInput, setKeywordsInput] = useState('');
   const [category, setCategory] = useState('');
   const [license, setLicense] = useState('CC BY 4.0');
   const [submissionComplete, setSubmissionComplete] = useState(false);
@@ -529,48 +529,16 @@ const SubmitPage: React.FC = () => {
 
                     <FormControl isRequired isInvalid={!!errors.keywords && touched.keywords}>
                       <FormLabel>Keywords</FormLabel>
-                      <Input
-                        placeholder="Enter keywords separated by commas (e.g., rapamycin, aging, biology)"
-                        value={keywordsInput}
-                        onChange={(e) => {
-                          // Update the raw input value
-                          setKeywordsInput(e.target.value);
-                          
-                          // Process keywords from input
-                          const processedKeywords = e.target.value
-                            .split(',')
-                            .map(k => k.trim())
-                            .filter(Boolean);
-                          
-                          // Update the keywords state
-                          setKeywords(processedKeywords);
-                          
-                          // Mark as touched when user interacts
-                          setTouched(prev => ({ ...prev, keywords: true }));
-                          
-                          // Validate on change
-                          if (processedKeywords.length < MIN_KEYWORDS) {
-                            setErrors(prev => ({ 
-                              ...prev, 
-                              keywords: `At least ${MIN_KEYWORDS} keywords required. Currently: ${processedKeywords.length}` 
-                            }));
-                          } else if (processedKeywords.length > MAX_KEYWORDS) {
-                            setErrors(prev => ({ 
-                              ...prev, 
-                              keywords: `Maximum ${MAX_KEYWORDS} keywords allowed. Currently: ${processedKeywords.length}` 
-                            }));
-                          } else {
-                            setErrors(prev => ({ ...prev, keywords: '' }));
-                          }
-                        }}
-                        aria-describedby="keywords-help keywords-error"
+                      <KeywordsAutocomplete
+                        keywords={keywords}
+                        setKeywords={setKeywords}
+                        errors={errors}
+                        setErrors={setErrors}
+                        touched={touched}
+                        setTouched={setTouched}
+                        MIN_KEYWORDS={MIN_KEYWORDS}
+                        MAX_KEYWORDS={MAX_KEYWORDS}
                       />
-                      {errors.keywords && touched.keywords && (
-                        <FormErrorMessage id="keywords-error">{errors.keywords}</FormErrorMessage>
-                      )}
-                      <FormHelperText id="keywords-help">
-                        {keywords.length} keywords | Required: {MIN_KEYWORDS}-{MAX_KEYWORDS} keywords
-                      </FormHelperText>
                     </FormControl>
 
                     <FormControl isRequired>
