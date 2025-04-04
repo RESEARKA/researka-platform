@@ -185,7 +185,7 @@ const SubmitPage: React.FC = () => {
     
     switch(step) {
       case 1:
-        // Validate title, abstract, keywords
+        // Validate title, abstract, category
         if (!title.trim()) {
           newErrors.title = 'Title is required';
           newTouched.title = true;
@@ -200,12 +200,6 @@ const SubmitPage: React.FC = () => {
           isValid = false;
         }
         
-        if (keywords.length < MIN_KEYWORDS) {
-          newErrors.keywords = `At least ${MIN_KEYWORDS} keywords required. Currently: ${keywords.length}`;
-          newTouched.keywords = true;
-          isValid = false;
-        }
-        
         if (!category) {
           newErrors.category = 'Please select a category';
           newTouched.category = true;
@@ -213,7 +207,7 @@ const SubmitPage: React.FC = () => {
         }
         break;
         
-      case 3:
+      case 2:
         // Validate introduction, methods, results, discussion, references
         const introValidation = validateWordCount(introduction, 500, 2000);
         if (!introValidation.valid) {
@@ -255,6 +249,15 @@ const SubmitPage: React.FC = () => {
           isValid = false;
         }
         setWordCounts(prev => ({ ...prev, references: referencesValidation.count }));
+        break;
+        
+      case 3:
+        // Validate keywords
+        if (keywords.length < MIN_KEYWORDS) {
+          newErrors.keywords = `At least ${MIN_KEYWORDS} keywords required. Currently: ${keywords.length}`;
+          newTouched.keywords = true;
+          isValid = false;
+        }
         break;
     }
     
@@ -323,9 +326,10 @@ const SubmitPage: React.FC = () => {
       
       // Validate all sections before submission
       const isStep1Valid = validateStep(1);
+      const isStep2Valid = validateStep(2);
       const isStep3Valid = validateStep(3);
       
-      if (!isStep1Valid || !isStep3Valid) {
+      if (!isStep1Valid || !isStep2Valid || !isStep3Valid) {
         toast({
           title: 'Validation Error',
           description: 'Please fix the errors in your submission before proceeding.',
@@ -337,6 +341,8 @@ const SubmitPage: React.FC = () => {
         // Navigate to the step with errors
         if (!isStep1Valid) {
           setCurrentStep(1);
+        } else if (!isStep2Valid) {
+          setCurrentStep(2);
         } else if (!isStep3Valid) {
           setCurrentStep(3);
         }
@@ -645,20 +651,6 @@ const SubmitPage: React.FC = () => {
                       </FormHelperText>
                     </FormControl>
 
-                    <FormControl isRequired isInvalid={!!errors.keywords && touched.keywords}>
-                      <FormLabel>Keywords</FormLabel>
-                      <KeywordsAutocomplete
-                        keywords={keywords}
-                        setKeywords={setKeywords}
-                        errors={errors}
-                        setErrors={setErrors}
-                        touched={touched}
-                        setTouched={setTouched}
-                        MIN_KEYWORDS={MIN_KEYWORDS}
-                        MAX_KEYWORDS={MAX_KEYWORDS}
-                      />
-                    </FormControl>
-
                     <FormControl isRequired>
                       <FormLabel>Category</FormLabel>
                       <Select
@@ -685,19 +677,6 @@ const SubmitPage: React.FC = () => {
                         <FormErrorMessage>{errors.category}</FormErrorMessage>
                       )}
                     </FormControl>
-                  </VStack>
-                )}
-
-                {currentStep === 2 && (
-                  <VStack spacing={6} align="stretch">
-                    <Heading size="md">Authors</Heading>
-                    <Text>Author information will be pulled from your profile</Text>
-                  </VStack>
-                )}
-
-                {currentStep === 3 && (
-                  <VStack spacing={6} align="stretch">
-                    <Heading size="md">Content</Heading>
 
                     <FormControl isRequired>
                       <FormLabel>Introduction</FormLabel>
@@ -859,6 +838,35 @@ const SubmitPage: React.FC = () => {
                         {wordCounts.references} references | Required: 6-40 references (one per line)
                       </FormHelperText>
                     </FormControl>
+                  </VStack>
+                )}
+
+                {currentStep === 2 && (
+                  <VStack spacing={6} align="stretch">
+                    <Heading size="md">Keywords</Heading>
+                    <FormControl isRequired isInvalid={!!errors.keywords && touched.keywords}>
+                      <FormLabel>Keywords</FormLabel>
+                      <KeywordsAutocomplete
+                        keywords={keywords}
+                        setKeywords={setKeywords}
+                        errors={errors}
+                        setErrors={setErrors}
+                        touched={touched}
+                        setTouched={setTouched}
+                        MIN_KEYWORDS={MIN_KEYWORDS}
+                        MAX_KEYWORDS={MAX_KEYWORDS}
+                      />
+                      <FormHelperText>
+                        Please add {MIN_KEYWORDS}-{MAX_KEYWORDS} keywords
+                      </FormHelperText>
+                    </FormControl>
+                  </VStack>
+                )}
+
+                {currentStep === 3 && (
+                  <VStack spacing={6} align="stretch">
+                    <Heading size="md">Authors</Heading>
+                    <Text>Author information will be pulled from your profile</Text>
                   </VStack>
                 )}
 
