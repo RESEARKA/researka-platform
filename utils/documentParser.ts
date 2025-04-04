@@ -18,6 +18,12 @@ export interface ParsedDocument {
   abstract?: string;
   keywords?: string[];
   content?: string;
+  introduction?: string;
+  methods?: string;
+  results?: string;
+  discussion?: string;
+  references?: string[];
+  warnings?: string[];
   error?: string;
 }
 
@@ -96,70 +102,277 @@ async function parsePdfFile(file: File): Promise<ParsedDocument> {
   }
   
   try {
-    // Convert file to ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
+    // Get PDF document
+    const loadingTask = pdfjsLib.getDocument(new Uint8Array(await file.arrayBuffer()));
+    const pdf = await loadingTask.promise;
     
-    // Load PDF document
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const numPages = pdf.numPages;
-    
+    // Extract text from all pages with improved formatting
     let fullText = '';
-    let title = '';
-    let abstract = '';
+    let warnings: string[] = [];
     
-    // Extract text from each page
-    for (let i = 1; i <= numPages; i++) {
+    // First pass: extract all text with page numbers for debugging
+    const pageTexts: string[] = [];
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
+      const content = await page.getTextContent();
       
-      // First page typically contains title and abstract
-      if (i === 1) {
-        const lines = pageText.split(/\r?\n/);
-        
-        // Extract title (usually first non-empty line)
-        for (let j = 0; j < lines.length; j++) {
-          if (lines[j].trim()) {
-            title = lines[j].trim();
-            break;
+      // Improved text extraction with position awareness
+      const textItems = content.items.map((item: any) => ({
+        text: item.str,
+        x: item.transform[4], // x position
+        y: item.transform[5], // y position
+        fontName: item.fontName
+      }));
+      
+      // Sort by y position (top to bottom) and then by x position (left to right)
+      textItems.sort((a: any, b: any) => {
+        // Group items by line (similar y values)
+        const yDiff = Math.abs(a.y - b.y);
+        if (yDiff < 5) { // Items on the same line
+          return a.x - b.x; // Sort by x position
+        }
+        return b.y - a.y; // Sort by y position (top to bottom)
+      });
+      
+      // Reconstruct lines with proper spacing
+      let lastY = -1;
+      let lineText = '';
+      const lines: string[] = [];
+      
+      for (const item of textItems) {
+        if (lastY !== -1 && Math.abs(item.y - lastY) > 5) {
+          // New line
+          if (lineText.trim()) {
+            lines.push(lineText.trim());
+          }
+          lineText = item.text;
+        } else {
+          // Same line or first item
+          if (lineText && item.text) {
+            // Add space between words if needed
+            lineText += ' ' + item.text;
+          } else {
+            lineText += item.text;
           }
         }
+        lastY = item.y;
+      }
+      
+      // Add the last line
+      if (lineText.trim()) {
+        lines.push(lineText.trim());
+      }
+      
+      const pageText = lines.join('\n');
+      pageTexts.push(pageText);
+      fullText += pageText + '\n\n'; // Add double newline between pages
+    }
+    
+    // Split text into lines
+    const lines = fullText.split(/\r?\n/).filter(line => line.trim());
+    
+    // Extract title (look for large font or first lines)
+    let title = '';
+    let abstractStart = 0;
+    
+    // First, look for title in the first 20 lines
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      const line = lines[i].trim();
+      
+      // Skip journal name, date, DOI, etc.
+      if (line.includes('doi:') || line.includes('DOI:') || 
+          line.includes('http') || line.includes('www.') ||
+          line.includes('Received:') || line.includes('Accepted:') ||
+          line.includes('Published:') || line.includes('Citation:') ||
+          line.includes('ISSN') || line.includes('Volume') ||
+          line.toLowerCase().includes('journal') || line.includes('©')) {
+        continue;
+      }
+      
+      // Likely a title if it's not too long and not too short
+      if (line.length > 10 && line.length < 200 && 
+          !line.toLowerCase().includes('abstract') && 
+          !line.toLowerCase().includes('introduction')) {
+        title = line;
+        abstractStart = i + 1;
+        break;
+      }
+    }
+    
+    // Extract abstract
+    let abstract = '';
+    let contentStart = abstractStart;
+    
+    // Look for abstract section with multiple patterns
+    const abstractPatterns = [
+      /abstract/i,
+      /summary/i,
+      /synopsis/i
+    ];
+    
+    const abstractIndex = lines.findIndex((line, index) => {
+      // Only check in the first part of the document
+      if (index > 50) return false;
+      
+      const lineText = line.toLowerCase().trim();
+      return abstractPatterns.some(pattern => pattern.test(lineText)) && 
+             lineText.length < 30; // Abstract header is usually short
+    });
+    
+    if (abstractIndex !== -1 && abstractIndex < 50) {
+      // Start from the line after "Abstract"
+      let abstractLines: string[] = [];
+      for (let i = abstractIndex + 1; i < lines.length; i++) {
+        const line = lines[i].trim();
         
-        // Extract abstract (typically follows title and is a paragraph)
-        // Look for keywords like "Abstract" or take first substantial paragraph
-        const abstractIndex = pageText.toLowerCase().indexOf('abstract');
-        if (abstractIndex !== -1) {
-          // Extract text after "Abstract" keyword
-          abstract = pageText.substring(abstractIndex + 8).trim().split(/\r?\n\r?\n/)[0];
-        } else {
-          // Take first substantial paragraph (more than 100 chars)
-          for (let j = 1; j < lines.length; j++) {
-            if (lines[j].length > 100) {
-              abstract = lines[j];
-              break;
-            }
+        // Stop at next section header or empty line after collecting some text
+        if (abstractLines.length > 3 && 
+            (line.toLowerCase().includes('introduction') || 
+             line.toLowerCase().includes('keywords') ||
+             line.toLowerCase().includes('background') ||
+             line.toLowerCase().includes('methods') ||
+             (line.match(/^\d+\./) && line.length < 50))) { // Numbered sections like "1. Introduction"
+          contentStart = i;
+          break;
+        }
+        
+        if (line) {
+          abstractLines.push(line);
+        }
+        
+        // If we have collected a reasonable amount of text and hit an empty line, that might be the end of abstract
+        if (abstractLines.length >= 5 && !line) {
+          contentStart = i + 1;
+          break;
+        }
+      }
+      abstract = abstractLines.join(' ');
+    } else {
+      // No explicit abstract section, take first substantive paragraph
+      let abstractLines: string[] = [];
+      let foundSubstantiveText = false;
+      
+      for (let i = abstractStart; i < Math.min(abstractStart + 30, lines.length); i++) {
+        const line = lines[i].trim();
+        
+        // Skip headers, metadata, etc.
+        if (!foundSubstantiveText && 
+            (line.includes('doi:') || line.includes('DOI:') || 
+             line.includes('http') || line.includes('www.') ||
+             line.includes('Received:') || line.includes('Accepted:') ||
+             line.includes('Published:') || line.includes('Citation:') ||
+             line.includes('ISSN') || line.includes('Volume') ||
+             line.toLowerCase().includes('journal') || line.includes('©'))) {
+          continue;
+        }
+        
+        // Found substantive text
+        if (line.length > 50) {
+          foundSubstantiveText = true;
+        }
+        
+        if (foundSubstantiveText) {
+          // Stop at next section header
+          if (line.toLowerCase().includes('introduction') || 
+              line.toLowerCase().includes('methods') ||
+              line.toLowerCase().includes('background') ||
+              (line.match(/^\d+\./) && line.length < 50)) {
+            contentStart = i;
+            break;
+          }
+          
+          if (line) {
+            abstractLines.push(line);
+          }
+          
+          // If we have 5+ lines and hit an empty line, that might be the end of abstract
+          if (abstractLines.length >= 5 && !line) {
+            contentStart = i + 1;
+            break;
           }
         }
       }
       
-      fullText += pageText + '\n\n';
+      if (abstractLines.length > 0) {
+        abstract = abstractLines.join(' ');
+        warnings.push("No explicit 'Abstract' section found. Using the first substantive paragraph as abstract.");
+      } else {
+        abstract = '';
+        warnings.push("Could not identify an abstract section.");
+      }
     }
     
     // Extract keywords
-    const keywords = extractKeywords(fullText);
+    let keywords: string[] = [];
+    
+    // Look for keywords section with multiple patterns
+    const keywordsPatterns = [
+      /keywords/i,
+      /key\s+words/i,
+      /index\s+terms/i
+    ];
+    
+    const keywordsIndex = lines.findIndex((line, index) => {
+      // Only check in the first part of the document
+      if (index > 100) return false;
+      
+      const lineText = line.toLowerCase().trim();
+      return keywordsPatterns.some(pattern => pattern.test(lineText)) && 
+             lineText.length < 30; // Keywords header is usually short
+    });
+    
+    if (keywordsIndex !== -1 && keywordsIndex < 100) {
+      // Extract keywords from the line after the "Keywords" header
+      let keywordsLine = '';
+      
+      // Sometimes keywords are on the same line after a colon
+      if (lines[keywordsIndex].includes(':')) {
+        keywordsLine = lines[keywordsIndex].split(':')[1].trim();
+      } 
+      // Otherwise check the next line
+      else if (keywordsIndex + 1 < lines.length) {
+        keywordsLine = lines[keywordsIndex + 1].trim();
+      }
+      
+      if (keywordsLine) {
+        // Try different delimiters: comma, semicolon, or "and"
+        if (keywordsLine.includes(';')) {
+          keywords = keywordsLine.split(';').map(k => k.trim()).filter(Boolean);
+        } else if (keywordsLine.includes(',')) {
+          keywords = keywordsLine.split(',').map(k => k.trim()).filter(Boolean);
+        } else {
+          // Split by "and" or just spaces if no other delimiter is found
+          keywords = keywordsLine.split(/\s+and\s+|\s+/).map(k => k.trim()).filter(Boolean);
+        }
+      }
+    }
+    
+    // Extract document sections
+    const sections = extractDocumentSections(lines, contentStart);
+    
+    // Ensure we have content even if section extraction fails
+    if (!sections.introduction && !sections.methods && 
+        !sections.results && !sections.discussion) {
+      warnings.push("Could not identify standard academic paper sections. The document may have a different structure.");
+    }
+    
+    // Always set the full content for fallback
+    const content = lines.slice(contentStart).join('\n');
     
     return {
       title,
       abstract,
       keywords,
-      content: fullText
+      content,
+      ...sections,
+      warnings
     };
   } catch (error) {
-    logger.error(`Error parsing PDF: ${error}`, {
-      category: LogCategory.DOCUMENT
-    });
+    console.error('Error parsing PDF:', error);
     return {
-      error: `Failed to parse PDF: ${error instanceof Error ? error.message : String(error)}`
+      error: error instanceof Error ? error.message : 'Unknown error parsing PDF',
+      content: 'Failed to extract content from PDF'
     };
   }
 }
@@ -194,6 +407,7 @@ async function parseWordFile(file: File): Promise<ParsedDocument> {
     // Extract abstract
     let abstractLines: string[] = [];
     let contentStart = abstractStart;
+    const warnings: string[] = [];
     
     // Look for abstract section
     const abstractIndex = lines.findIndex(line => 
@@ -238,6 +452,7 @@ async function parseWordFile(file: File): Promise<ParsedDocument> {
           break;
         }
       }
+      warnings.push("No explicit 'Abstract' section found. Using the first paragraph as abstract.");
     }
     
     // Extract keywords
@@ -253,16 +468,35 @@ async function parseWordFile(file: File): Promise<ParsedDocument> {
       if (keywordsLine) {
         keywords = keywordsLine.split(/[,;]/).map(k => k.trim()).filter(Boolean);
       }
+    } else {
+      warnings.push("No explicit 'Keywords' section found. Keywords were automatically extracted from content.");
     }
+    
+    // Extract sections for academic papers and whitepapers
+    const sectionsMap = extractDocumentSections(lines, contentStart);
     
     // Join the remaining lines as content
     const contentText = lines.slice(contentStart).join('\n');
+    
+    if (!sectionsMap.introduction && !sectionsMap.methods && !sectionsMap.results && !sectionsMap.discussion) {
+      warnings.push("Standard academic sections (Introduction, Methods, Results, Discussion) were not found. Content has been extracted but may need manual organization.");
+    }
+    
+    if (!sectionsMap.references || sectionsMap.references.length === 0) {
+      warnings.push("No references section found in the document. Please add references manually if needed.");
+    }
     
     return {
       title,
       abstract: abstractLines.join(' '),
       keywords,
-      content: contentText
+      content: contentText,
+      introduction: sectionsMap.introduction,
+      methods: sectionsMap.methods,
+      results: sectionsMap.results,
+      discussion: sectionsMap.discussion,
+      references: sectionsMap.references,
+      warnings
     };
   } catch (error) {
     logger.error(`Error parsing Word document: ${error}`, {
@@ -272,6 +506,176 @@ async function parseWordFile(file: File): Promise<ParsedDocument> {
       error: `Failed to parse Word document: ${error instanceof Error ? error.message : String(error)}`
     };
   }
+}
+
+/**
+ * Extract document sections based on common academic paper structure
+ * Improved to handle various section naming conventions and formats
+ */
+function extractDocumentSections(lines: string[], startIndex: number): Record<string, any> {
+  const sections: Record<string, any> = {
+    introduction: '',
+    methods: '',
+    results: '',
+    discussion: '',
+    references: [] as string[]
+  };
+  
+  // Common section headers for academic papers
+  const sectionPatterns = {
+    introduction: [
+      /^introduction$/i,
+      /^1\.?\s*introduction$/i,
+      /^1\.?\s*background$/i,
+      /^background$/i,
+      /^overview$/i
+    ],
+    methods: [
+      /^methods$/i,
+      /^materials\s+and\s+methods$/i,
+      /^methodology$/i,
+      /^experimental\s+methods$/i,
+      /^2\.?\s*methods$/i,
+      /^2\.?\s*materials\s+and\s+methods$/i,
+      /^experimental$/i,
+      /^study\s+design$/i
+    ],
+    results: [
+      /^results$/i,
+      /^findings$/i,
+      /^3\.?\s*results$/i,
+      /^results\s+and\s+analysis$/i,
+      /^experimental\s+results$/i,
+      /^data\s+analysis$/i
+    ],
+    discussion: [
+      /^discussion$/i,
+      /^4\.?\s*discussion$/i,
+      /^discussion\s+and\s+conclusion$/i,
+      /^interpretation$/i,
+      /^implications$/i,
+      /^analysis$/i
+    ],
+    conclusion: [
+      /^conclusion$/i,
+      /^conclusions$/i,
+      /^5\.?\s*conclusion$/i,
+      /^final\s+remarks$/i,
+      /^summary$/i
+    ],
+    references: [
+      /^references$/i,
+      /^bibliography$/i,
+      /^works\s+cited$/i,
+      /^cited\s+works$/i,
+      /^literature\s+cited$/i
+    ]
+  };
+  
+  // Find section boundaries
+  const sectionBoundaries: Record<string, { start: number; end: number }> = {};
+  let currentSection: string | null = null;
+  
+  // First pass: identify section boundaries
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Skip empty lines
+    if (!line) continue;
+    
+    // Check if this line is a section header
+    let foundSection = false;
+    for (const [section, patterns] of Object.entries(sectionPatterns)) {
+      if (patterns.some(pattern => pattern.test(line))) {
+        // Found a new section
+        if (currentSection) {
+          sectionBoundaries[currentSection].end = i - 1;
+        }
+        
+        sectionBoundaries[section] = { start: i + 1, end: lines.length - 1 };
+        currentSection = section;
+        foundSection = true;
+        break;
+      }
+    }
+    
+    // Also check for numbered sections like "1. Introduction"
+    if (!foundSection && line.match(/^\d+\.\s+.+$/i) && line.length < 50) {
+      const lowerLine = line.toLowerCase();
+      
+      // Check if this numbered section contains a known section name
+      for (const [section, patterns] of Object.entries(sectionPatterns)) {
+        const sectionName = section.toLowerCase();
+        if (lowerLine.includes(sectionName)) {
+          if (currentSection) {
+            sectionBoundaries[currentSection].end = i - 1;
+          }
+          
+          sectionBoundaries[section] = { start: i + 1, end: lines.length - 1 };
+          currentSection = section;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Second pass: extract section content
+  for (const [section, boundaries] of Object.entries(sectionBoundaries)) {
+    if (section === 'references') {
+      // Handle references differently - extract as array of strings
+      const referenceLines: string[] = [];
+      for (let i = boundaries.start; i <= boundaries.end; i++) {
+        const line = lines[i].trim();
+        if (line) {
+          // Check if this is a new reference entry (often starts with number or bracket)
+          if (line.match(/^\[\d+\]/) || line.match(/^\d+\./) || line.match(/^[A-Z][a-z]+,/)) {
+            referenceLines.push(line);
+          } else if (referenceLines.length > 0) {
+            // Append to the last reference if it's a continuation
+            referenceLines[referenceLines.length - 1] += ' ' + line;
+          }
+        }
+      }
+      sections.references = referenceLines;
+    } else {
+      // Extract regular section content
+      const sectionLines: string[] = [];
+      for (let i = boundaries.start; i <= boundaries.end; i++) {
+        // Stop if we hit the next section header
+        if (i > boundaries.start) {
+          const line = lines[i].trim();
+          let isNextSectionHeader = false;
+          
+          for (const patterns of Object.values(sectionPatterns)) {
+            if (patterns.some(pattern => pattern.test(line))) {
+              isNextSectionHeader = true;
+              break;
+            }
+          }
+          
+          if (isNextSectionHeader) break;
+        }
+        
+        if (i < lines.length) {
+          const line = lines[i].trim();
+          if (line) sectionLines.push(line);
+        }
+      }
+      
+      sections[section] = sectionLines.join('\n');
+    }
+  }
+  
+  // Combine conclusion with discussion if both exist
+  if (sections.conclusion && sections.discussion) {
+    sections.discussion += '\n\n' + sections.conclusion;
+    delete sections.conclusion;
+  } else if (sections.conclusion && !sections.discussion) {
+    sections.discussion = sections.conclusion;
+    delete sections.conclusion;
+  }
+  
+  return sections;
 }
 
 /**

@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { getFirebaseFirestore } from '../config/firebase';
+import { useCallback, useState, useEffect, useRef } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirebaseFirestore, initializeFirebase } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import useClient from './useClient';
 import { createLogger, LogCategory } from '../utils/logger';
 
 // Create a logger instance for this hook
 const logger = createLogger('useProfileData');
+
+// Module-level flag to prevent concurrent Firebase initialization
+let firebaseInitializationInProgress = false;
 
 // Profile loading states for more granular tracking
 export enum ProfileLoadingState {
@@ -63,24 +65,25 @@ export function useProfileData() {
   // Get authentication context
   const { currentUser, authIsInitialized } = useAuth();
   
-  // Check if we're on the client side
-  const isClient = useClient();
-  
   // State for profile data and loading status
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false);
-  const [loadingState, setLoadingState] = useState<ProfileLoadingState>(
-    isClient ? ProfileLoadingState.INITIALIZING : ProfileLoadingState.IDLE
-  );
+  const [loadingState, setLoadingState] = useState<ProfileLoadingState>(ProfileLoadingState.INITIALIZING);
   const [error, setError] = useState<string | null>(null);
   
   // Refs to prevent duplicate operations and track loading state
   const isLoadingData = useRef<boolean>(false);
   const isUpdatingProfile = useRef<boolean>(false);
-  const retryCount = useRef<number>(0);
   const updateOperationInProgress = useRef<boolean>(false);
-  const lastUpdateTimestamp = useRef<number>(0);
-  
+  const isMounted = useRef<boolean>(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   // Revised checkProfileComplete function
   const checkProfileComplete = useCallback((profileData: UserProfile | null): boolean => {
     if (!profileData) return false;
@@ -100,6 +103,14 @@ export function useProfileData() {
     newLoadingState: ProfileLoadingState,
     newError: string | null = null
   ) => {
+    // Don't update state if component is unmounted
+    if (!isMounted.current) {
+      logger.debug('Skipping state update - component unmounted', {
+        category: LogCategory.LIFECYCLE
+      });
+      return;
+    }
+    
     // Use a single React batch update for all state changes
     // This prevents multiple re-renders
     setProfile(newProfile);
@@ -114,374 +125,528 @@ export function useProfileData() {
         loadingState: newLoadingState,
         hasError: !!newError
       },
-      category: LogCategory.DATA
+      category: LogCategory.LIFECYCLE
     });
   }, []);
   
-  // Function to load profile data
+  // Load profile data
   const loadProfileData = useCallback(async () => {
-    // Skip if not initialized or no user
-    if (!authIsInitialized || !currentUser) {
-      logger.warn('Cannot load profile: not initialized or no user', {
-        context: {
-          authIsInitialized,
-          hasUser: !!currentUser
-        },
-        category: LogCategory.LIFECYCLE
-      });
+    if (!authIsInitialized) {
+      logger.debug('Auth not initialized yet, skipping profile load', { category: LogCategory.AUTH });
       return;
     }
-    
-    // Skip if not on client side
-    if (!isClient) {
-      logger.warn('Not on client side, skipping profile load', {
-        category: LogCategory.LIFECYCLE
-      });
+
+    if (!currentUser) {
+      logger.debug('No user logged in, skipping profile load', { category: LogCategory.AUTH });
       return;
     }
-    
-    // Skip if already loading
+
+    // Prevent duplicate loading
     if (isLoadingData.current) {
-      logger.warn('Already loading profile data', {
-        category: LogCategory.LIFECYCLE
-      });
+      logger.debug('Profile data already loading, skipping duplicate request', { category: LogCategory.DATA });
       return;
     }
-    
-    // Set loading flag
+
     isLoadingData.current = true;
     
-    // Update loading state
-    setLoadingState(ProfileLoadingState.LOADING);
-    
     try {
-      
-      logger.info(`Loading profile data for user ${currentUser.uid}`, {
-        category: LogCategory.LIFECYCLE
+      logger.debug('Loading profile data', { 
+        context: { uid: currentUser.uid }, 
+        category: LogCategory.DATA 
       });
       
+      // Update loading state
+      batchUpdateState(
+        null,
+        false,
+        ProfileLoadingState.LOADING,
+        null
+      );
+
       // Get Firestore instance
-      const db = getFirebaseFirestore();
-      if (!db) {
-        throw new Error('Firestore not initialized');
+      let dbInstance = getFirebaseFirestore();
+      if (!dbInstance) {
+        // Try to initialize Firebase if it's not already initialized
+        logger.debug('Firestore not initialized, attempting to initialize', { category: LogCategory.DATA });
+        
+        if (firebaseInitializationInProgress) {
+          logger.debug('Firebase initialization already in progress, waiting...', { category: LogCategory.DATA });
+          
+          // Wait for a bit to let the other initialization complete
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Try to get Firestore again
+          const dbAfterWait = getFirebaseFirestore();
+          if (dbAfterWait) {
+            logger.debug('Firestore now available after waiting', { category: LogCategory.DATA });
+            dbInstance = dbAfterWait;
+          } else if (!isMounted.current) {
+            logger.debug('Component unmounted during Firebase initialization wait', { category: LogCategory.LIFECYCLE });
+            isLoadingData.current = false;
+            return;
+          } else {
+            logger.debug('Firestore still not available after waiting, proceeding with initialization', { category: LogCategory.DATA });
+          }
+        }
+        
+        if (!dbInstance) {
+          firebaseInitializationInProgress = true;
+          
+          try {
+            // Initialize Firebase
+            logger.debug('Initializing Firebase', { category: LogCategory.DATA });
+            await initializeFirebase();
+            
+            // Check mount status after async operation
+            if (!isMounted.current) {
+              logger.debug('Component unmounted during Firebase initialization', { category: LogCategory.LIFECYCLE });
+              isLoadingData.current = false;
+              firebaseInitializationInProgress = false;
+              return;
+            }
+            
+            logger.debug('Firebase initialized successfully', { category: LogCategory.DATA });
+          } catch (error) {
+            logger.error('Failed to initialize Firebase', { 
+              context: { error }, 
+              category: LogCategory.ERROR 
+            });
+            
+            // Check mount status after async operation
+            if (!isMounted.current) {
+              logger.debug('Component unmounted during Firebase initialization error', { category: LogCategory.LIFECYCLE });
+              isLoadingData.current = false;
+              firebaseInitializationInProgress = false;
+              return;
+            }
+            
+            batchUpdateState(
+              null,
+              false,
+              ProfileLoadingState.ERROR,
+              error instanceof Error ? error.message : 'Failed to initialize Firebase'
+            );
+            isLoadingData.current = false;
+            firebaseInitializationInProgress = false;
+            return;
+          } finally {
+            firebaseInitializationInProgress = false;
+          }
+        }
+      }
+      
+      // Try again to get Firestore after initialization
+      dbInstance = getFirebaseFirestore();
+      if (!dbInstance) {
+        throw new Error('Firestore still not available after initialization');
+      }
+      
+      // Check mount status after async operations
+      if (!isMounted.current) {
+        logger.debug('Component unmounted after Firebase initialization', { category: LogCategory.LIFECYCLE });
+        isLoadingData.current = false;
+        return;
       }
       
       // Get user document reference
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      
-      // Get user document
-      const userDoc = await getDoc(userDocRef);
-      
-      if (userDoc.exists()) {
-        // User document exists, get data
-        const userData = userDoc.data() as UserProfile;
+      if (dbInstance) {
+        const userDocRef = doc(dbInstance, 'users', currentUser.uid);
         
-        // Get all reviews for the user to ensure accurate review count
-        const { getUserReviews } = await import('../services/reviewService');
-        const userReviews = await getUserReviews(currentUser.uid);
-        const actualReviewCount = userReviews.length;
+        // Get user document
+        const userDoc = await getDoc(userDocRef);
         
-        // Update the userData with the accurate review count
-        userData.reviewCount = actualReviewCount;
-        userData.reviews = actualReviewCount; // For backward compatibility
-        
-        // If the review count in Firestore is different, update it
-        if ((userData.reviewCount !== actualReviewCount) || (userData.reviews !== actualReviewCount)) {
-          logger.info(`Updating review count in Firestore from ${userData.reviewCount} to ${actualReviewCount}`, {
-            category: LogCategory.DATA
-          });
-          
-          await updateDoc(userDocRef, {
-            reviewCount: actualReviewCount,
-            reviews: actualReviewCount,
-            updatedAt: new Date().toISOString()
-          });
+        // Check mount status after async operation
+        if (!isMounted.current) {
+          logger.debug('Component unmounted after Firestore getDoc', { category: LogCategory.LIFECYCLE });
+          isLoadingData.current = false;
+          return;
         }
         
-        // Check if profile is complete
-        const isComplete = checkProfileComplete(userData);
-        
-        // Update state in a single batch
-        batchUpdateState(userData, isComplete, ProfileLoadingState.SUCCESS);
-        
-        logger.info(`Profile data loaded successfully, isComplete: ${isComplete}`, {
-          category: LogCategory.LIFECYCLE
-        });
-      } else {
-        // User document doesn't exist, create a new one
-        logger.info('User document does not exist, creating new profile', {
-          category: LogCategory.LIFECYCLE
-        });
-        
-        // Create basic profile from auth data
-        const newProfile: UserProfile = {
-          uid: currentUser.uid,
-          email: currentUser.email || '',
-          name: currentUser.displayName || '',
-          role: 'Author',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          articleCount: 0,
-          reviewCount: 0,
-          reputation: 0,
-          isComplete: false,
-          profileComplete: false
-        };
-        
-        // Save new profile to Firestore
-        await setDoc(userDocRef, newProfile);
-        
-        // Update state in a single batch
-        batchUpdateState(newProfile, false, ProfileLoadingState.SUCCESS);
-        
-        logger.info('New profile created successfully', {
-          category: LogCategory.LIFECYCLE
-        });
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as UserProfile;
+          
+          logger.debug('Profile data loaded successfully', { 
+            context: { 
+              hasData: !!userData,
+              isComplete: userData?.isComplete || false
+            }, 
+            category: LogCategory.DATA 
+          });
+          
+          // Check if profile is complete
+          const isComplete = checkProfileComplete(userData);
+          
+          // Update profile data
+          batchUpdateState(
+            userData,
+            isComplete,
+            ProfileLoadingState.SUCCESS,
+            null
+          );
+        } else {
+          logger.debug('No profile data found for user', { 
+            context: { uid: currentUser.uid }, 
+            category: LogCategory.DATA 
+          });
+          
+          // Create a new profile with default values
+          const newProfile: UserProfile = {
+            uid: currentUser.uid,
+            email: currentUser.email || '',
+            name: currentUser.displayName || '',
+            role: 'reader',
+            institution: '',
+            department: '',
+            position: '',
+            bio: '',
+            researchInterests: '',
+            articles: 0,
+            reviews: 0,
+            walletAddress: '',
+            hasChangedName: false,
+            hasChangedInstitution: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isComplete: false,
+            profileComplete: false,
+            avatarUrl: '',
+            articleCount: 0,
+            reviewCount: 0,
+            reputation: 0,
+            twitter: '',
+            linkedin: '',
+            orcidId: '',
+            personalWebsite: '',
+            wantsToBeEditor: false,
+          };
+          
+          // Set the new profile in Firestore
+          try {
+            await setDoc(doc(dbInstance, 'users', currentUser.uid), newProfile);
+            
+            // Check mount status after async operation
+            if (!isMounted.current) {
+              logger.debug('Component unmounted after creating new profile', { category: LogCategory.LIFECYCLE });
+              isLoadingData.current = false;
+              return;
+            }
+            
+            logger.debug('Created new profile for user', { 
+              context: { uid: currentUser.uid }, 
+              category: LogCategory.DATA 
+            });
+            
+            // Update profile data
+            batchUpdateState(
+              newProfile,
+              false,
+              ProfileLoadingState.SUCCESS,
+              null
+            );
+          } catch (error) {
+            // Check mount status after async operation
+            if (!isMounted.current) {
+              logger.debug('Component unmounted after profile creation error', { category: LogCategory.LIFECYCLE });
+              isLoadingData.current = false;
+              return;
+            }
+            
+            logger.error('Failed to create new profile', { 
+              context: { error }, 
+              category: LogCategory.ERROR 
+            });
+            
+            batchUpdateState(
+              null,
+              false,
+              ProfileLoadingState.ERROR,
+              error instanceof Error ? error.message : 'Unknown error creating profile'
+            );
+          }
+        }
       }
     } catch (error) {
-      // Handle error
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error loading profile';
+      // Check mount status after any async error
+      if (!isMounted.current) {
+        logger.debug('Component unmounted during error handling', { category: LogCategory.LIFECYCLE });
+        isLoadingData.current = false;
+        return;
+      }
       
-      logger.error('Error loading profile data', {
-        context: { error },
-        category: LogCategory.ERROR
+      logger.error('Error loading profile data', { 
+        context: { error }, 
+        category: LogCategory.ERROR 
       });
       
-      // Update state with error
-      batchUpdateState(null, false, ProfileLoadingState.ERROR, errorMessage);
+      batchUpdateState(
+        null,
+        false,
+        ProfileLoadingState.ERROR,
+        error instanceof Error ? error.message : 'Unknown error loading profile'
+      );
     } finally {
-      // Reset loading flag
       isLoadingData.current = false;
     }
-  }, [authIsInitialized, batchUpdateState, currentUser, isClient]);
+  }, [authIsInitialized, currentUser, batchUpdateState, checkProfileComplete]);
   
   // Function to update profile data
   const updateProfile = useCallback(async (updatedProfile: Partial<UserProfile>): Promise<boolean> => {
-    // Skip if auth is not initialized or no user
-    if (!authIsInitialized || !currentUser) {
-      logger.error('Cannot update profile: Auth not initialized or no user', {
-        context: { 
-          authIsInitialized,
-          hasUser: !!currentUser
-        },
-        category: LogCategory.ERROR
-      });
+    if (!currentUser) {
+      logger.error('Cannot update profile - no user logged in', { category: LogCategory.AUTH });
       return false;
     }
     
-    // Skip if not client-side
-    if (!isClient) {
-      logger.error('Cannot update profile: Not on client side', {
-        category: LogCategory.ERROR
-      });
+    // Prevent duplicate updates
+    if (isUpdatingProfile.current) {
+      logger.debug('Profile update already in progress, skipping duplicate request', { category: LogCategory.DATA });
       return false;
     }
     
-    // Skip if an update is already in progress
+    // Prevent updates if another operation is in progress
     if (updateOperationInProgress.current) {
-      const timeSinceLastUpdate = Date.now() - lastUpdateTimestamp.current;
-      logger.warn(`Update already in progress (${timeSinceLastUpdate}ms since last update)`, {
-        context: {
-          timeSinceLastUpdate,
-          updatedFields: Object.keys(updatedProfile)
-        },
-        category: LogCategory.LIFECYCLE
-      });
+      logger.debug('Another update operation is in progress, skipping', { category: LogCategory.DATA });
       return false;
     }
+    
+    // Set update flags
+    isUpdatingProfile.current = true;
+    updateOperationInProgress.current = true;
     
     try {
-      // Set updating state and refs
-      updateOperationInProgress.current = true;
-      isUpdatingProfile.current = true;
-      lastUpdateTimestamp.current = Date.now();
-      
-      // Update loading state
-      setLoadingState(ProfileLoadingState.UPDATING);
-      setError(null);
-      
-      logger.info(`Updating profile for user ${currentUser.uid}`, {
+      logger.debug('Updating profile data', { 
         context: { 
-          fieldCount: Object.keys(updatedProfile).length,
+          uid: currentUser.uid,
           fields: Object.keys(updatedProfile)
-        },
-        category: LogCategory.LIFECYCLE
+        }, 
+        category: LogCategory.DATA 
       });
       
+      // Update loading state
+      batchUpdateState(
+        profile,
+        isProfileComplete,
+        ProfileLoadingState.UPDATING,
+        null
+      );
+      
       // Get Firestore instance
-      const db = getFirebaseFirestore();
-      if (!db) {
-        throw new Error('Firestore not initialized');
+      let dbInstance = getFirebaseFirestore();
+      if (!dbInstance) {
+        // Try to initialize Firebase if it's not already initialized
+        logger.debug('Firestore not initialized for profile update, attempting to initialize', { category: LogCategory.DATA });
+        
+        if (firebaseInitializationInProgress) {
+          logger.debug('Firebase initialization already in progress, waiting...', { category: LogCategory.DATA });
+          
+          // Wait for a bit to let the other initialization complete
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Try to get Firestore again
+          const dbAfterWait = getFirebaseFirestore();
+          if (dbAfterWait) {
+            logger.debug('Firestore now available after waiting', { category: LogCategory.DATA });
+            dbInstance = dbAfterWait;
+          } else if (!isMounted.current) {
+            logger.debug('Component unmounted during Firebase initialization wait', { category: LogCategory.LIFECYCLE });
+            isUpdatingProfile.current = false;
+            updateOperationInProgress.current = false;
+            return false;
+          } else {
+            logger.debug('Firestore still not available after waiting, proceeding with initialization', { category: LogCategory.DATA });
+          }
+        }
+        
+        if (!dbInstance) {
+          firebaseInitializationInProgress = true;
+          
+          try {
+            // Initialize Firebase
+            logger.debug('Initializing Firebase for profile update', { category: LogCategory.DATA });
+            await initializeFirebase();
+            
+            // Check mount status after async operation
+            if (!isMounted.current) {
+              logger.debug('Component unmounted during Firebase initialization for update', { category: LogCategory.LIFECYCLE });
+              isUpdatingProfile.current = false;
+              updateOperationInProgress.current = false;
+              firebaseInitializationInProgress = false;
+              return false;
+            }
+            
+            logger.debug('Firebase initialized successfully for profile update', { category: LogCategory.DATA });
+          } catch (error) {
+            logger.error('Failed to initialize Firebase for profile update', { 
+              context: { error }, 
+              category: LogCategory.ERROR 
+            });
+            
+            // Check mount status after async operation
+            if (!isMounted.current) {
+              logger.debug('Component unmounted during Firebase initialization error for update', { category: LogCategory.LIFECYCLE });
+              isUpdatingProfile.current = false;
+              updateOperationInProgress.current = false;
+              firebaseInitializationInProgress = false;
+              return false;
+            }
+            
+            batchUpdateState(
+              profile,
+              isProfileComplete,
+              ProfileLoadingState.ERROR,
+              error instanceof Error ? error.message : 'Failed to initialize Firebase for profile update'
+            );
+            isUpdatingProfile.current = false;
+            updateOperationInProgress.current = false;
+            firebaseInitializationInProgress = false;
+            return false;
+          } finally {
+            firebaseInitializationInProgress = false;
+          }
+        }
       }
       
-      // Get user document reference
-      const userDocRef = doc(db, 'users', currentUser.uid);
+      // Try again to get Firestore after initialization
+      dbInstance = getFirebaseFirestore();
+      if (!dbInstance) {
+        throw new Error('Firestore still not available after initialization for profile update');
+      }
+      
+      // Check mount status after async operations
+      if (!isMounted.current) {
+        logger.debug('Component unmounted after Firebase initialization for update', { category: LogCategory.LIFECYCLE });
+        isUpdatingProfile.current = false;
+        updateOperationInProgress.current = false;
+        return false;
+      }
       
       // Ensure we have the complete profile data
       const updatedData: Partial<UserProfile> = {
-        ...updatedProfile,      // Start with the updates
-        uid: currentUser.uid,   // Ensure uid is set
-        email: currentUser.email || '',  // Ensure email is set
+        ...updatedProfile,
         updatedAt: new Date().toISOString()
       };
-
-      // If this is a new profile, add createdAt timestamp
-      if (!profile || !profile.createdAt) {
+      
+      if (!profile) {
+        // If we don't have a profile yet, create a new one with defaults
+        updatedData.uid = currentUser.uid;
+        updatedData.email = currentUser.email || '';
         updatedData.createdAt = new Date().toISOString();
       }
       
-      // Apply the lenient check - only require name and role
-      const hasName = typeof updatedData.name === 'string' && updatedData.name.trim() !== '';
-      const hasRole = typeof updatedData.role === 'string' && updatedData.role.trim() !== '';
-      const isComplete = hasName && hasRole;
-      
-      // Set the completion flags
-      updatedData.isComplete = isComplete;
-      updatedData.profileComplete = isComplete;
-      
-      // Log the complete profile data being saved
-      logger.debug('Profile data being saved to Firestore', {
-        context: { 
-          isComplete,
-          hasName,
-          hasRole,
-          profileData: updatedData
-        },
-        category: LogCategory.DATA
-      });
-
-      // Attempt to write to Firestore
-      logger.debug('[DEBUG] Attempting setDoc for profile update', {
-        context: { 
-          userId: currentUser.uid,
-          dataToWrite: updatedData
-        },
-        category: LogCategory.DATA
-      });
-      
-      try {
-        // Update document in Firestore using setDoc with merge: true for robustness
+      // Update the document in Firestore
+      if (dbInstance) {
+        const userDocRef = doc(dbInstance, 'users', currentUser.uid);
         await setDoc(userDocRef, updatedData, { merge: true });
         
-        logger.debug('[DEBUG] setDoc for profile update SUCCESSFUL', {
-          context: {
-            userId: currentUser.uid
-          },
-          category: LogCategory.DATA
-        });
-      } catch (firestoreError) {
-        logger.error('Firestore setDoc operation failed', {
-          context: {
-            error: firestoreError,
-            userId: currentUser.uid,
-            errorMessage: firestoreError instanceof Error ? firestoreError.message : String(firestoreError)
-          },
-          category: LogCategory.ERROR
-        });
-        throw firestoreError;
+        // Check mount status after async operation
+        if (!isMounted.current) {
+          logger.debug('Component unmounted after Firestore update', { category: LogCategory.LIFECYCLE });
+          isUpdatingProfile.current = false;
+          updateOperationInProgress.current = false;
+          return false;
+        }
+        
+        // Get the updated document to ensure we have the latest data
+        const updatedDoc = await getDoc(userDocRef);
+        
+        // Check mount status after async operation
+        if (!isMounted.current) {
+          logger.debug('Component unmounted after getting updated profile', { category: LogCategory.LIFECYCLE });
+          isUpdatingProfile.current = false;
+          updateOperationInProgress.current = false;
+          return false;
+        }
+        
+        if (updatedDoc.exists()) {
+          const updatedUserData = updatedDoc.data() as UserProfile;
+          
+          // Check if profile is complete
+          const isComplete = checkProfileComplete(updatedUserData);
+          
+          // Update profile data
+          batchUpdateState(
+            updatedUserData,
+            isComplete,
+            ProfileLoadingState.SUCCESS,
+            null
+          );
+          
+          logger.debug('Profile updated successfully', { 
+            context: { 
+              uid: currentUser.uid,
+              isComplete
+            }, 
+            category: LogCategory.DATA 
+          });
+          
+          return true;
+        } else {
+          throw new Error('Profile document not found after update');
+        }
+      } else {
+        throw new Error('Firestore not available for profile update');
+      }
+    } catch (error) {
+      // Check mount status after any async error
+      if (!isMounted.current) {
+        logger.debug('Component unmounted during error handling for update', { category: LogCategory.LIFECYCLE });
+        isUpdatingProfile.current = false;
+        updateOperationInProgress.current = false;
+        return false;
       }
       
-      // Update local state with the complete updated profile
-      // If we have an existing profile, merge it with the updates
-      const finalProfileData = profile 
-        ? { ...profile, ...updatedData } as UserProfile 
-        : updatedData as UserProfile;
-      
-      // Update state in a single batch to prevent multiple renders
-      batchUpdateState(finalProfileData, isComplete, ProfileLoadingState.SUCCESS);
-      
-      logger.info(`Profile updated successfully, isComplete: ${isComplete}`, {
-        context: { 
-          fieldCount: Object.keys(updatedProfile).length,
-          fields: Object.keys(updatedProfile),
-          duration: Date.now() - lastUpdateTimestamp.current
-        },
-        category: LogCategory.LIFECYCLE
+      logger.error('Error updating profile', { 
+        context: { error }, 
+        category: LogCategory.ERROR 
       });
       
-      return true;
-    } catch (err) {
-      logger.error('[DEBUG] setDoc for profile update FAILED', {
-        context: {
-          userId: currentUser.uid,
-          error: err
-        },
-        category: LogCategory.ERROR
-      });
-      
-      // Handle error
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error(`Error updating profile: ${errorMessage}`, {
-        context: { 
-          error: err,
-          fieldCount: Object.keys(updatedProfile).length,
-          fields: Object.keys(updatedProfile)
-        },
-        category: LogCategory.ERROR
-      });
-      
-      // Update state in a single batch
-      batchUpdateState(profile, isProfileComplete, ProfileLoadingState.ERROR, errorMessage);
+      batchUpdateState(
+        profile,
+        isProfileComplete,
+        ProfileLoadingState.ERROR,
+        error instanceof Error ? error.message : 'Unknown error updating profile'
+      );
       
       return false;
     } finally {
-      // Reset updating flags directly to ensure it happens synchronously
-      updateOperationInProgress.current = false;
       isUpdatingProfile.current = false;
       
-      logger.debug('Reset update operation flags synchronously in finally block', {
-        category: LogCategory.LIFECYCLE
-      });
+      // Set a timeout to reset the operation in progress flag
+      // This prevents rapid successive updates
+      setTimeout(() => {
+        updateOperationInProgress.current = false;
+      }, 500);
     }
-  }, [authIsInitialized, batchUpdateState, checkProfileComplete, currentUser, isClient, isProfileComplete, profile]);
+  }, [authIsInitialized, currentUser, profile, isProfileComplete, batchUpdateState, checkProfileComplete]);
   
-  // Function to retry loading after an error
-  const retryLoading = useCallback(() => {
-    logger.info('Manually retrying profile load', {
-      category: LogCategory.LIFECYCLE
-    });
-    retryCount.current = 0;
-    setError(null);
-    loadProfileData();
-  }, [loadProfileData]);
-  
-  // Load profile data when auth is initialized and user changes
+  // Auto-load profile data when auth is initialized and user is logged in
   useEffect(() => {
-    // Skip if not initialized or no user
-    if (!authIsInitialized || !currentUser) {
-      return;
-    }
-    
-    // Skip if already loading or updating
-    // Use updateOperationInProgress as it guards the full update cycle
-    if (isLoadingData.current || updateOperationInProgress.current) {
-      logger.debug('Already loading or updating data, skipping duplicate load', {
-        context: {
-          isLoading: isLoadingData.current,
-          isUpdating: updateOperationInProgress.current // Log the correct flag
-        },
-        category: LogCategory.LIFECYCLE
+    if (authIsInitialized && currentUser) {
+      logger.debug('Auto-loading profile data', { 
+        context: { uid: currentUser.uid, loadingState }, 
+        category: LogCategory.LIFECYCLE 
       });
-      return;
+      
+      // Only trigger load if we're not already loading
+      if (loadingState === ProfileLoadingState.INITIALIZING || loadingState === ProfileLoadingState.IDLE || loadingState === ProfileLoadingState.ERROR) {
+        loadProfileData();
+      }
+    } else if (authIsInitialized && !currentUser) {
+      // Reset state when user logs out
+      logger.debug('No user logged in, resetting profile state', { category: LogCategory.AUTH });
+      batchUpdateState(null, false, ProfileLoadingState.IDLE, null);
     }
-    
-    // Load profile data
-    loadProfileData();
-  }, [authIsInitialized, currentUser, loadProfileData]);
+  }, [authIsInitialized, currentUser, loadProfileData, loadingState, batchUpdateState]);
   
-  // Return profile data and functions
+  // Return the hook's public API
   return {
     profile,
-    isLoading: isInLoadingState([ProfileLoadingState.INITIALIZING, ProfileLoadingState.LOADING], loadingState),
-    isUpdating: isInLoadingState([ProfileLoadingState.UPDATING], loadingState),
-    error,
     isProfileComplete,
     loadingState,
+    error,
+    isLoading: loadingState === ProfileLoadingState.LOADING || loadingState === ProfileLoadingState.INITIALIZING,
+    loadProfileData,
     updateProfile,
-    retryLoading,
-    isLoadingData,
-    isUpdatingProfile,
-    updateOperationInProgress,
-    loadData: loadProfileData
+    retryLoading: loadProfileData, // Alias for loadProfileData to match the expected interface
+    profileLoadingState: loadingState, // Alias for loadingState to match the expected interface
   };
 }

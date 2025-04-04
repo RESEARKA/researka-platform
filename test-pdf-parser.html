@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Parser Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      overflow: auto;
+      max-height: 400px;
+    }
+    .result-section {
+      margin-bottom: 20px;
+    }
+    h3 {
+      margin-bottom: 5px;
+    }
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+    button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 10px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    input[type="file"] {
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>PDF Parser Test</h1>
+  
+  <div>
+    <p>Select a PDF file to test the parser:</p>
+    <input type="file" id="pdfFile" accept=".pdf" />
+    <button id="parseButton">Parse PDF</button>
+  </div>
+  
+  <div id="results" style="display: none;">
+    <h2>Parsing Results</h2>
+    
+    <div class="result-section">
+      <h3>Title</h3>
+      <div id="title"></div>
+    </div>
+    
+    <div class="result-section">
+      <h3>Abstract</h3>
+      <div id="abstract"></div>
+    </div>
+    
+    <div class="result-section">
+      <h3>Keywords</h3>
+      <div id="keywords"></div>
+    </div>
+    
+    <div class="result-section">
+      <h3>Warnings</h3>
+      <div id="warnings"></div>
+    </div>
+    
+    <div class="result-section">
+      <h3>Full JSON Result</h3>
+      <pre id="fullResult"></pre>
+    </div>
+  </div>
+  
+  <div id="loading" style="display: none;" class="loading">
+    Processing PDF... This may take a few moments.
+  </div>
+
+  <script type="module">
+    // Set up PDF.js worker
+    window.pdfjsLib = window.pdfjsLib || {};
+    window.pdfjsLib.GlobalWorkerOptions = window.pdfjsLib.GlobalWorkerOptions || {};
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
+    
+    // Import the document parser
+    async function importDocumentParser() {
+      // We need to create a temporary module that exports the parsePdfFile function
+      const code = `
+        // Temporary module for PDF parsing
+        const pdfjsLib = window.pdfjsLib;
+        
+        async function parsePdfFile(file) {
+          if (typeof window === 'undefined') {
+            return { error: 'PDF parsing is only available in browser environments' };
+          }
+          
+          try {
+            // Get PDF document
+            const loadingTask = pdfjsLib.getDocument(new Uint8Array(await file.arrayBuffer()));
+            const pdf = await loadingTask.promise;
+            
+            // Extract text from all pages with improved formatting
+            let fullText = '';
+            let warnings = [];
+            
+            // First pass: extract all text with page numbers for debugging
+            const pageTexts = [];
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              
+              // Improved text extraction with position awareness
+              const textItems = content.items.map((item) => ({
+                text: item.str,
+                x: item.transform[4], // x position
+                y: item.transform[5], // y position
+                fontName: item.fontName
+              }));
+              
+              // Sort by y position (top to bottom) and then by x position (left to right)
+              textItems.sort((a, b) => {
+                // Group items by line (similar y values)
+                const yDiff = Math.abs(a.y - b.y);
+                if (yDiff < 5) { // Items on the same line
+                  return a.x - b.x; // Sort by x position
+                }
+                return b.y - a.y; // Sort by y position (top to bottom)
+              });
+              
+              // Reconstruct lines with proper spacing
+              let lastY = -1;
+              let lineText = '';
+              const lines = [];
+              
+              for (const item of textItems) {
+                if (lastY !== -1 && Math.abs(item.y - lastY) > 5) {
+                  // New line
+                  if (lineText.trim()) {
+                    lines.push(lineText.trim());
+                  }
+                  lineText = item.text;
+                } else {
+                  // Same line or first item
+                  if (lineText && item.text) {
+                    // Add space between words if needed
+                    lineText += ' ' + item.text;
+                  } else {
+                    lineText += item.text;
+                  }
+                }
+                lastY = item.y;
+              }
+              
+              // Add the last line
+              if (lineText.trim()) {
+                lines.push(lineText.trim());
+              }
+              
+              const pageText = lines.join('\\n');
+              pageTexts.push(pageText);
+              fullText += pageText + '\\n\\n'; // Add double newline between pages
+            }
+            
+            // Split text into lines
+            const lines = fullText.split(/\\r?\\n/).filter(line => line.trim());
+            
+            // Extract title (look for large font or first lines)
+            let title = '';
+            let abstractStart = 0;
+            
+            // First, look for title in the first 20 lines
+            for (let i = 0; i < Math.min(20, lines.length); i++) {
+              const line = lines[i].trim();
+              
+              // Skip journal name, date, DOI, etc.
+              if (line.includes('doi:') || line.includes('DOI:') || 
+                  line.includes('http') || line.includes('www.') ||
+                  line.includes('Received:') || line.includes('Accepted:') ||
+                  line.includes('Published:') || line.includes('Citation:') ||
+                  line.includes('ISSN') || line.includes('Volume') ||
+                  line.toLowerCase().includes('journal') || line.includes('©')) {
+                continue;
+              }
+              
+              // Likely a title if it's not too long and not too short
+              if (line.length > 10 && line.length < 200 && 
+                  !line.toLowerCase().includes('abstract') && 
+                  !line.toLowerCase().includes('introduction')) {
+                title = line;
+                abstractStart = i + 1;
+                break;
+              }
+            }
+            
+            // Extract abstract
+            let abstract = '';
+            let contentStart = abstractStart;
+            
+            // Look for abstract section with multiple patterns
+            const abstractPatterns = [
+              /abstract/i,
+              /summary/i,
+              /synopsis/i
+            ];
+            
+            const abstractIndex = lines.findIndex((line, index) => {
+              // Only check in the first part of the document
+              if (index > 50) return false;
+              
+              const lineText = line.toLowerCase().trim();
+              return abstractPatterns.some(pattern => pattern.test(lineText)) && 
+                     lineText.length < 30; // Abstract header is usually short
+            });
+            
+            if (abstractIndex !== -1 && abstractIndex < 50) {
+              // Start from the line after "Abstract"
+              let abstractLines = [];
+              for (let i = abstractIndex + 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Stop at next section header or empty line after collecting some text
+                if (abstractLines.length > 3 && 
+                    (line.toLowerCase().includes('introduction') || 
+                     line.toLowerCase().includes('keywords') ||
+                     line.toLowerCase().includes('background') ||
+                     line.toLowerCase().includes('methods') ||
+                     (line.match(/^\\d+\\./) && line.length < 50))) { // Numbered sections like "1. Introduction"
+                  contentStart = i;
+                  break;
+                }
+                
+                if (line) {
+                  abstractLines.push(line);
+                }
+                
+                // If we have collected a reasonable amount of text and hit an empty line, that might be the end of abstract
+                if (abstractLines.length >= 5 && !line) {
+                  contentStart = i + 1;
+                  break;
+                }
+              }
+              abstract = abstractLines.join(' ');
+            } else {
+              // No explicit abstract section, take first substantive paragraph
+              let abstractLines = [];
+              let foundSubstantiveText = false;
+              
+              for (let i = abstractStart; i < Math.min(abstractStart + 30, lines.length); i++) {
+                const line = lines[i].trim();
+                
+                // Skip headers, metadata, etc.
+                if (!foundSubstantiveText && 
+                    (line.includes('doi:') || line.includes('DOI:') || 
+                     line.includes('http') || line.includes('www.') ||
+                     line.includes('Received:') || line.includes('Accepted:') ||
+                     line.includes('Published:') || line.includes('Citation:') ||
+                     line.includes('ISSN') || line.includes('Volume') ||
+                     line.toLowerCase().includes('journal') || line.includes('©'))) {
+                  continue;
+                }
+                
+                // Found substantive text
+                if (line.length > 50) {
+                  foundSubstantiveText = true;
+                }
+                
+                if (foundSubstantiveText) {
+                  // Stop at next section header
+                  if (line.toLowerCase().includes('introduction') || 
+                      line.toLowerCase().includes('methods') ||
+                      line.toLowerCase().includes('background') ||
+                      (line.match(/^\\d+\\./) && line.length < 50)) {
+                    contentStart = i;
+                    break;
+                  }
+                  
+                  if (line) {
+                    abstractLines.push(line);
+                  }
+                  
+                  // If we have 5+ lines and hit an empty line, that might be the end of abstract
+                  if (abstractLines.length >= 5 && !line) {
+                    contentStart = i + 1;
+                    break;
+                  }
+                }
+              }
+              
+              if (abstractLines.length > 0) {
+                abstract = abstractLines.join(' ');
+                warnings.push("No explicit 'Abstract' section found. Using the first substantive paragraph as abstract.");
+              } else {
+                abstract = '';
+                warnings.push("Could not identify an abstract section.");
+              }
+            }
+            
+            // Extract keywords
+            let keywords = [];
+            
+            // Look for keywords section with multiple patterns
+            const keywordsPatterns = [
+              /keywords/i,
+              /key\\s+words/i,
+              /index\\s+terms/i
+            ];
+            
+            const keywordsIndex = lines.findIndex((line, index) => {
+              // Only check in the first part of the document
+              if (index > 100) return false;
+              
+              const lineText = line.toLowerCase().trim();
+              return keywordsPatterns.some(pattern => pattern.test(lineText)) && 
+                     lineText.length < 30; // Keywords header is usually short
+            });
+            
+            if (keywordsIndex !== -1 && keywordsIndex < 100) {
+              // Extract keywords from the line after the "Keywords" header
+              let keywordsLine = '';
+              
+              // Sometimes keywords are on the same line after a colon
+              if (lines[keywordsIndex].includes(':')) {
+                keywordsLine = lines[keywordsIndex].split(':')[1].trim();
+              } 
+              // Otherwise check the next line
+              else if (keywordsIndex + 1 < lines.length) {
+                keywordsLine = lines[keywordsIndex + 1].trim();
+              }
+              
+              if (keywordsLine) {
+                // Try different delimiters: comma, semicolon, or "and"
+                if (keywordsLine.includes(';')) {
+                  keywords = keywordsLine.split(';').map(k => k.trim()).filter(Boolean);
+                } else if (keywordsLine.includes(',')) {
+                  keywords = keywordsLine.split(',').map(k => k.trim()).filter(Boolean);
+                } else {
+                  // Split by "and" or just spaces if no other delimiter is found
+                  keywords = keywordsLine.split(/\\s+and\\s+|\\s+/).map(k => k.trim()).filter(Boolean);
+                }
+              }
+            }
+            
+            // Extract document sections
+            const sections = extractDocumentSections(lines, contentStart);
+            
+            // Ensure we have content even if section extraction fails
+            if (!sections.introduction && !sections.methods && 
+                !sections.results && !sections.discussion) {
+              warnings.push("Could not identify standard academic paper sections. The document may have a different structure.");
+            }
+            
+            // Always set the full content for fallback
+            const content = lines.slice(contentStart).join('\\n');
+            
+            return {
+              title,
+              abstract,
+              keywords,
+              content,
+              ...sections,
+              warnings
+            };
+          } catch (error) {
+            console.error('Error parsing PDF:', error);
+            return {
+              error: error instanceof Error ? error.message : 'Unknown error parsing PDF',
+              content: 'Failed to extract content from PDF'
+            };
+          }
+        }
+
+        /**
+         * Extract document sections based on common academic paper structure
+         */
+        function extractDocumentSections(lines, startIndex) {
+          const sections = {
+            introduction: '',
+            methods: '',
+            results: '',
+            discussion: '',
+            references: []
+          };
+          
+          // Common section headers for academic papers
+          const sectionPatterns = {
+            introduction: [
+              /^introduction$/i,
+              /^1\\.?\\s*introduction$/i,
+              /^1\\.?\\s*background$/i,
+              /^background$/i,
+              /^overview$/i
+            ],
+            methods: [
+              /^methods$/i,
+              /^materials\\s+and\\s+methods$/i,
+              /^methodology$/i,
+              /^experimental\\s+methods$/i,
+              /^2\\.?\\s*methods$/i,
+              /^2\\.?\\s*materials\\s+and\\s+methods$/i,
+              /^experimental$/i,
+              /^study\\s+design$/i
+            ],
+            results: [
+              /^results$/i,
+              /^findings$/i,
+              /^3\\.?\\s*results$/i,
+              /^results\\s+and\\s+analysis$/i,
+              /^experimental\\s+results$/i,
+              /^data\\s+analysis$/i
+            ],
+            discussion: [
+              /^discussion$/i,
+              /^4\\.?\\s*discussion$/i,
+              /^discussion\\s+and\\s+conclusion$/i,
+              /^interpretation$/i,
+              /^implications$/i,
+              /^analysis$/i
+            ],
+            conclusion: [
+              /^conclusion$/i,
+              /^conclusions$/i,
+              /^5\\.?\\s*conclusion$/i,
+              /^final\\s+remarks$/i,
+              /^summary$/i
+            ],
+            references: [
+              /^references$/i,
+              /^bibliography$/i,
+              /^works\\s+cited$/i,
+              /^cited\\s+works$/i,
+              /^literature\\s+cited$/i
+            ]
+          };
+          
+          // Find section boundaries
+          const sectionBoundaries = {};
+          let currentSection = null;
+          
+          // First pass: identify section boundaries
+          for (let i = startIndex; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            // Skip empty lines
+            if (!line) continue;
+            
+            // Check if this line is a section header
+            let foundSection = false;
+            for (const [section, patterns] of Object.entries(sectionPatterns)) {
+              if (patterns.some(pattern => pattern.test(line))) {
+                // Found a new section
+                if (currentSection) {
+                  sectionBoundaries[currentSection].end = i - 1;
+                }
+                
+                sectionBoundaries[section] = { start: i + 1, end: lines.length - 1 };
+                currentSection = section;
+                foundSection = true;
+                break;
+              }
+            }
+            
+            // Also check for numbered sections like "1. Introduction"
+            if (!foundSection && line.match(/^\\d+\\.\\s+.+$/i) && line.length < 50) {
+              const lowerLine = line.toLowerCase();
+              
+              // Check if this numbered section contains a known section name
+              for (const [section, patterns] of Object.entries(sectionPatterns)) {
+                const sectionName = section.toLowerCase();
+                if (lowerLine.includes(sectionName)) {
+                  if (currentSection) {
+                    sectionBoundaries[currentSection].end = i - 1;
+                  }
+                  
+                  sectionBoundaries[section] = { start: i + 1, end: lines.length - 1 };
+                  currentSection = section;
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Second pass: extract section content
+          for (const [section, boundaries] of Object.entries(sectionBoundaries)) {
+            if (section === 'references') {
+              // Handle references differently - extract as array of strings
+              const referenceLines = [];
+              for (let i = boundaries.start; i <= boundaries.end; i++) {
+                const line = lines[i].trim();
+                if (line) {
+                  // Check if this is a new reference entry (often starts with number or bracket)
+                  if (line.match(/^\\[\\d+\\]/) || line.match(/^\\d+\\./) || line.match(/^[A-Z][a-z]+,/)) {
+                    referenceLines.push(line);
+                  } else if (referenceLines.length > 0) {
+                    // Append to the last reference if it's a continuation
+                    referenceLines[referenceLines.length - 1] += ' ' + line;
+                  }
+                }
+              }
+              sections.references = referenceLines;
+            } else {
+              // Extract regular section content
+              const sectionLines = [];
+              for (let i = boundaries.start; i <= boundaries.end; i++) {
+                // Stop if we hit the next section header
+                if (i > boundaries.start) {
+                  const line = lines[i].trim();
+                  let isNextSectionHeader = false;
+                  
+                  for (const patterns of Object.values(sectionPatterns)) {
+                    if (patterns.some(pattern => pattern.test(line))) {
+                      isNextSectionHeader = true;
+                      break;
+                    }
+                  }
+                  
+                  if (isNextSectionHeader) break;
+                }
+                
+                if (i < lines.length) {
+                  const line = lines[i].trim();
+                  if (line) sectionLines.push(line);
+                }
+              }
+              
+              sections[section] = sectionLines.join('\\n');
+            }
+          }
+          
+          // Combine conclusion with discussion if both exist
+          if (sections.conclusion && sections.discussion) {
+            sections.discussion += '\\n\\n' + sections.conclusion;
+            delete sections.conclusion;
+          } else if (sections.conclusion && !sections.discussion) {
+            sections.discussion = sections.conclusion;
+            delete sections.conclusion;
+          }
+          
+          return sections;
+        }
+        
+        export { parsePdfFile };
+      `;
+      
+      // Create a blob with the code
+      const blob = new Blob([code], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      
+      // Import the module
+      try {
+        const module = await import(url);
+        return module.parsePdfFile;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+    
+    // Get DOM elements
+    const fileInput = document.getElementById('pdfFile');
+    const parseButton = document.getElementById('parseButton');
+    const resultsDiv = document.getElementById('results');
+    const loadingDiv = document.getElementById('loading');
+    const titleDiv = document.getElementById('title');
+    const abstractDiv = document.getElementById('abstract');
+    const keywordsDiv = document.getElementById('keywords');
+    const warningsDiv = document.getElementById('warnings');
+    const fullResultPre = document.getElementById('fullResult');
+    
+    // Add event listener to parse button
+    parseButton.addEventListener('click', async () => {
+      // Check if a file is selected
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select a PDF file first.');
+        return;
+      }
+      
+      // Show loading indicator
+      loadingDiv.style.display = 'block';
+      resultsDiv.style.display = 'none';
+      
+      try {
+        // Import the document parser
+        const parsePdfFile = await importDocumentParser();
+        
+        // Parse the PDF
+        const file = fileInput.files[0];
+        const result = await parsePdfFile(file);
+        
+        // Display results
+        titleDiv.textContent = result.title || 'No title found';
+        abstractDiv.textContent = result.abstract || 'No abstract found';
+        
+        // Display keywords
+        if (result.keywords && result.keywords.length > 0) {
+          keywordsDiv.textContent = result.keywords.join(', ');
+        } else {
+          keywordsDiv.textContent = 'No keywords found';
+        }
+        
+        // Display warnings
+        if (result.warnings && result.warnings.length > 0) {
+          warningsDiv.innerHTML = result.warnings.map(warning => `<p>- ${warning}</p>`).join('');
+        } else {
+          warningsDiv.textContent = 'No warnings';
+        }
+        
+        // Display full result as JSON
+        fullResultPre.textContent = JSON.stringify(result, null, 2);
+        
+        // Show results
+        resultsDiv.style.display = 'block';
+      } catch (error) {
+        console.error('Error parsing PDF:', error);
+        alert('Error parsing PDF: ' + error.message);
+      } finally {
+        // Hide loading indicator
+        loadingDiv.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

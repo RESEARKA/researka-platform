@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Text,
@@ -12,6 +12,8 @@ import {
   FormLabel,
   VStack,
   HStack,
+  Progress,
+  Spinner,
 } from '@chakra-ui/react';
 import { InfoIcon, CheckCircleIcon } from '@chakra-ui/icons';
 import { FaFilePdf, FaFileWord, FaFileAlt, FaFile } from 'react-icons/fa';
@@ -38,7 +40,49 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [useAIEnhancement, setUseAIEnhancement] = useState(true);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<string | null>(null);
   const toast = useToast();
+
+  // Update progress bar during processing
+  useEffect(() => {
+    let progressInterval: NodeJS.Timeout;
+    
+    if (isUploading && useAIEnhancement) {
+      // Start progress timer
+      setProcessingStartTime(Date.now());
+      setProcessingProgress(0);
+      
+      // Simulate progress over 30 seconds (typical AI processing time)
+      progressInterval = setInterval(() => {
+        setProcessingProgress(prev => {
+          // Cap at 95% until actual completion
+          return prev < 95 ? prev + 1 : prev;
+        });
+        
+        // Update estimated time remaining
+        if (processingStartTime) {
+          const elapsedSeconds = Math.floor((Date.now() - processingStartTime) / 1000);
+          const estimatedTotalTime = useAIEnhancement ? 30 : 10; // seconds
+          const remainingSeconds = Math.max(0, estimatedTotalTime - elapsedSeconds);
+          
+          if (remainingSeconds > 0) {
+            setEstimatedTimeRemaining(`${remainingSeconds}s remaining`);
+          } else {
+            setEstimatedTimeRemaining('Finalizing...');
+          }
+        }
+      }, 300);
+    } else {
+      setProcessingProgress(0);
+      setEstimatedTimeRemaining(null);
+    }
+    
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
+    };
+  }, [isUploading, useAIEnhancement, processingStartTime]);
 
   const handleFileSelect = useCallback(async (files: File[]) => {
     if (!files.length) return;
@@ -47,6 +91,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
       setIsUploading(true);
       setUploadedFile(files[0]);
       setUploadSuccess(false);
+      setProcessingProgress(0);
 
       // Validate file type
       const fileExtension = files[0].name.substring(files[0].name.lastIndexOf('.')).toLowerCase();
@@ -66,6 +111,17 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
         return;
       }
 
+      // Display toast for AI processing
+      if (useAIEnhancement) {
+        toast({
+          title: 'AI Document Enhancement',
+          description: 'Processing your document with AI. This may take 20-30 seconds depending on document size.',
+          status: 'info',
+          duration: 10000,
+          isClosable: true,
+        });
+      }
+
       // Parse the document with AI enhancement if enabled
       const parsedDocument = await parseDocument(files[0], { enhanceWithAI: useAIEnhancement });
 
@@ -83,6 +139,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
 
       // Handle successful parsing
       setUploadSuccess(true);
+      setProcessingProgress(100);
       onDocumentParsed(parsedDocument);
       toast({
         title: 'Document processed successfully',
@@ -160,6 +217,30 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
             />
           </Tooltip>
         </FormControl>
+
+        {isUploading && (
+          <Box>
+            <HStack mb={2}>
+              <Text fontSize="sm" color="gray.600">
+                {useAIEnhancement ? 'AI Processing' : 'Processing'} 
+              </Text>
+              {estimatedTimeRemaining && (
+                <Text fontSize="sm" color="gray.500">
+                  {estimatedTimeRemaining}
+                </Text>
+              )}
+              <Spinner size="xs" color="teal.500" ml={2} />
+            </HStack>
+            <Progress 
+              value={processingProgress} 
+              size="sm" 
+              colorScheme="teal" 
+              borderRadius="full"
+              hasStripe
+              isAnimated
+            />
+          </Box>
+        )}
 
         {!uploadSuccess ? (
           <FormFileUpload
