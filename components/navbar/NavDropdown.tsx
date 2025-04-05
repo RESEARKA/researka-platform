@@ -15,7 +15,7 @@ import { NavDropdownProps } from './types';
  * NavDropdown component
  * Renders a dropdown menu with navigation links
  */
-function NavDropdown({ label, items }: NavDropdownProps) {
+function NavDropdown({ label, items, isActive = false }: NavDropdownProps) {
   return (
     <Menu>
       <MenuButton
@@ -28,6 +28,10 @@ function NavDropdown({ label, items }: NavDropdownProps) {
         height="auto"
         fontWeight="500"
         mx={1}
+        color={isActive ? "blue.500" : "inherit"}
+        borderBottom={isActive ? "2px solid" : "none"}
+        borderColor="blue.500"
+        borderRadius={0}
       >
         {label}
       </MenuButton>

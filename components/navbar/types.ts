@@ -38,6 +38,7 @@ export interface NavItemProps {
 export interface NavDropdownProps {
   label: string;
   items: NavItem[];
+  isActive?: boolean;
 }
 
 /**
