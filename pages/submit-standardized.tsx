@@ -26,6 +26,7 @@ import { ParsedDocument } from '../utils/documentParser';
 import { ArticlePreview } from '../components/ArticlePreview';
 import { SectionEditor } from '../components/SectionEditor';
 import { ReferenceFormatGuide } from '../components/ReferenceFormatGuide';
+import NavBar from '../components/NavBar';
 
 // Define the Article interface based on our standardized template
 interface Article {
@@ -520,18 +521,21 @@ export default function StandardizedSubmitPage() {
   
   // Main render
   return (
-    <Container maxW="container.xl" py={8}>
-      <Heading as="h1" size="xl" mb={2}>Submit Your Article</Heading>
-      <Text mb={8} color="gray.600">
-        Use our standardized template to submit your article for publication.
-      </Text>
-      
-      <VStack spacing={8} align="stretch">
-        {renderTemplateDownload()}
-        {renderDocumentUpload()}
-        {isDocumentUploaded && renderArticlePreview()}
-        {isDocumentUploaded && renderSubmission()}
-      </VStack>
-    </Container>
+    <>
+      <NavBar activePage="submit-standardized" />
+      <Container maxW="container.xl" py={8}>
+        <Heading as="h1" size="xl" mb={2}>Submit Your Article</Heading>
+        <Text mb={8} color="gray.600">
+          Use our standardized template to submit your article for publication.
+        </Text>
+        
+        <VStack spacing={8} align="stretch">
+          {renderTemplateDownload()}
+          {renderDocumentUpload()}
+          {isDocumentUploaded && renderArticlePreview()}
+          {isDocumentUploaded && renderSubmission()}
+        </VStack>
+      </Container>
+    </>
   );
 }
