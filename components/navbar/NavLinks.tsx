@@ -55,13 +55,10 @@ function NavLinks({
       
       {isLoggedIn && (
         <>
-          <NavDropdown 
+          <NavItem 
+            href="/submit-standardized" 
             label="SUBMIT" 
-            isActive={activePageLower === 'submit' || activePageLower === 'submit-standardized'}
-            items={[
-              { label: "Regular Submission", href: "/submit" },
-              { label: "Standardized Template", href: "/submit-standardized" }
-            ]}
+            isActive={activePageLower === 'submit-standardized'} 
           />
           
           <NavItem 

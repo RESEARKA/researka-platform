@@ -80,7 +80,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
         articles: 0,
         reviews: 0,
         reputation: 0,
-        profileComplete: getRedirectPath() === '/submit' || getRedirectPath() === '/review'
+        profileComplete: getRedirectPath() === '/review'
       });
       
       toast({
