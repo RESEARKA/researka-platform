@@ -132,7 +132,7 @@ const SubmitPage: React.FC = () => {
     references: 0
   });
 
-  const totalSteps = 4;
+  const totalSteps = 3;
   const progress = (currentStep / totalSteps) * 100;
 
   useEffect(() => {
@@ -803,7 +803,9 @@ const SubmitPage: React.FC = () => {
       case 2:
         return (
           <VStack spacing={6} align="stretch">
-            <Heading size="md">Keywords</Heading>
+            <Heading size="md">Keywords & Authors</Heading>
+            
+            {/* Keywords Section */}
             <FormControl isRequired isInvalid={!!errors.keywords && touched.keywords}>
               <FormLabel>Keywords</FormLabel>
               <KeywordsAutocomplete
@@ -820,16 +822,15 @@ const SubmitPage: React.FC = () => {
                 Please add {MIN_KEYWORDS}-{MAX_KEYWORDS} keywords
               </FormHelperText>
             </FormControl>
+            
+            {/* Authors Section */}
+            <Box mt={6}>
+              <Heading size="sm" mb={3}>Authors</Heading>
+              <Text>Author information will be pulled from your profile</Text>
+            </Box>
           </VStack>
         );
       case 3:
-        return (
-          <VStack spacing={6} align="stretch">
-            <Heading size="md">Authors</Heading>
-            <Text>Author information will be pulled from your profile</Text>
-          </VStack>
-        );
-      case 4:
         return (
           <VStack spacing={6} align="stretch">
             <Heading size="md">Review Your Submission</Heading>
