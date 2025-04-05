@@ -40,13 +40,13 @@ Enter your acknowledgments here. Acknowledge individuals, organizations, or fund
 [50-200 words total]
 
 ### Ethics
-[Enter ethics statement here]
+"All ethical guidelines have been followed, and necessary ethical approvals were obtained for this research. Relevant ethical approval numbers and approving bodies are noted within the article where applicable."
 
 ### Conflict of Interest
-[Enter conflict of interest statement here]
+"The authors declare no conflicts of interest associated with this research."
 
 ### Funding
-[Enter funding statement here]
+"This research received no specific external funding. Any funding received or supporting institutions are acknowledged within the article."
 
 ## References
 [30-50 references]
