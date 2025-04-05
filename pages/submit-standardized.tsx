@@ -434,6 +434,8 @@ export default function StandardizedSubmitPage() {
         onFileSelect={handleFileSelect}
         acceptedFileTypes=".docx,.md"
         maxFileSizeMB={10}
+        useStandardizedTemplate={true}
+        onDocumentParsed={handleDocumentParsed}
       />
       {documentWarnings.length > 0 && (
         <Alert status="warning" mt={4}>

@@ -18,24 +18,37 @@ import {
 import { InfoIcon, CheckCircleIcon } from '@chakra-ui/icons';
 import { FaFilePdf, FaFileWord, FaFileAlt, FaFile } from 'react-icons/fa';
 import { parseDocument, ParsedDocument } from '../utils/documentParser';
+import { parseStandardizedWordTemplate, parseStandardizedMarkdownTemplate } from '../utils/standardizedTemplateParser';
 import FormFileUpload from './FormFileUpload';
 
 // Supported file types
-const SUPPORTED_EXTENSIONS = ['.txt', '.pdf', '.docx', '.doc', '.pages'];
+const SUPPORTED_EXTENSIONS = ['.txt', '.pdf', '.docx', '.doc', '.pages', '.md'];
 const SUPPORTED_MIME_TYPES = [
   'text/plain',
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
   'application/vnd.apple.pages',
+  'text/markdown',
 ];
 
 interface DocumentUploaderProps {
   onDocumentParsed: (parsedDocument: ParsedDocument) => void;
   isDisabled?: boolean;
+  useStandardizedTemplate?: boolean;
+  onFileSelect?: (file: File) => Promise<void>;
+  acceptedFileTypes?: string;
+  maxFileSizeMB?: number;
 }
 
-const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, isDisabled = false }) => {
+const DocumentUploader: React.FC<DocumentUploaderProps> = ({ 
+  onDocumentParsed, 
+  isDisabled = false,
+  useStandardizedTemplate = false,
+  onFileSelect,
+  acceptedFileTypes = '.docx,.doc,.md',
+  maxFileSizeMB = 10
+}) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -93,6 +106,13 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
       setUploadSuccess(false);
       setProcessingProgress(0);
 
+      // If custom file select handler is provided, use it
+      if (onFileSelect) {
+        await onFileSelect(files[0]);
+        setIsUploading(false);
+        return;
+      }
+
       // Validate file type
       const fileExtension = files[0].name.substring(files[0].name.lastIndexOf('.')).toLowerCase();
       const isValidExtension = SUPPORTED_EXTENSIONS.includes(fileExtension);
@@ -122,8 +142,30 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
         });
       }
 
-      // Parse the document with AI enhancement if enabled
-      const parsedDocument = await parseDocument(files[0], { enhanceWithAI: useAIEnhancement });
+      // Parse the document based on template type
+      let parsedDocument: ParsedDocument;
+      
+      if (useStandardizedTemplate) {
+        // Use standardized template parser
+        if (fileExtension === '.docx' || fileExtension === '.doc') {
+          parsedDocument = await parseStandardizedWordTemplate(files[0]);
+        } else if (fileExtension === '.md') {
+          parsedDocument = await parseStandardizedMarkdownTemplate(files[0]);
+        } else {
+          toast({
+            title: 'Unsupported File Type for Standardized Template',
+            description: 'Please use a DOCX or Markdown file with the standardized template format.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+          setIsUploading(false);
+          return;
+        }
+      } else {
+        // Use regular document parser
+        parsedDocument = await parseDocument(files[0], { enhanceWithAI: useAIEnhancement });
+      }
 
       if (parsedDocument.error) {
         toast({
@@ -160,14 +202,14 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
     } finally {
       setIsUploading(false);
     }
-  }, [onDocumentParsed, toast, useAIEnhancement]);
+  }, [onDocumentParsed, toast, useAIEnhancement, useStandardizedTemplate, onFileSelect]);
 
   const getFileIcon = (file: File) => {
     if (file.type === 'application/pdf') {
       return <Icon as={FaFilePdf} color="red.500" boxSize={5} mr={2} />;
     } else if (file.type.includes('word') || file.type.includes('docx') || file.type.includes('doc')) {
       return <Icon as={FaFileWord} color="blue.500" boxSize={5} mr={2} />;
-    } else if (file.type === 'text/plain') {
+    } else if (file.type === 'text/plain' || file.type === 'text/markdown') {
       return <Icon as={FaFileAlt} color="gray.500" boxSize={5} mr={2} />;
     } else {
       return <Icon as={FaFile} color="green.500" boxSize={5} mr={2} />;
@@ -193,91 +235,89 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({ onDocumentParsed, i
           <Text fontWeight="bold" fontSize="lg">Upload Document</Text>
           <HStack spacing={2}>
             <Text fontSize="sm" color="gray.500">Supported formats:</Text>
-            <Badge colorScheme="blue">PDF</Badge>
-            <Badge colorScheme="green">WORD</Badge>
-            <Badge colorScheme="purple">PAGES</Badge>
-            <Badge colorScheme="gray">TXT</Badge>
-            <Tooltip label="Upload a document to automatically extract its content and populate the form fields.">
+            {useStandardizedTemplate ? (
+              <>
+                <Badge colorScheme="green">WORD</Badge>
+                <Badge colorScheme="purple">MD</Badge>
+              </>
+            ) : (
+              <>
+                <Badge colorScheme="blue">PDF</Badge>
+                <Badge colorScheme="green">WORD</Badge>
+                <Badge colorScheme="purple">PAGES</Badge>
+                <Badge colorScheme="gray">TXT</Badge>
+              </>
+            )}
+            <Tooltip label={useStandardizedTemplate 
+              ? "Upload a document using our standardized template format to automatically extract its content."
+              : "Upload a document to automatically extract its content and populate the form fields."
+            }>
               <InfoIcon color="gray.400" />
             </Tooltip>
           </HStack>
         </HStack>
-
-        <FormControl display="flex" alignItems="center" justifyContent="flex-end">
-          <FormLabel htmlFor="ai-enhancement" mb="0" fontSize="sm" color="gray.600">
-            AI Enhancement
-          </FormLabel>
-          <Tooltip label="Use AI to improve document structure, format references, and enhance content quality">
-            <Switch 
-              id="ai-enhancement" 
-              isChecked={useAIEnhancement} 
-              onChange={(e) => setUseAIEnhancement(e.target.checked)}
-              colorScheme="teal"
-              size="sm"
+        
+        {!uploadedFile ? (
+          <>
+            <FormFileUpload
+              onFileSelect={handleFileSelect}
+              isDisabled={isDisabled || isUploading}
+              acceptedFileTypes={acceptedFileTypes}
+              maxFileSizeMB={maxFileSizeMB}
             />
-          </Tooltip>
-        </FormControl>
-
-        {isUploading && (
-          <Box>
-            <HStack mb={2}>
-              <Text fontSize="sm" color="gray.600">
-                {useAIEnhancement ? 'AI Processing' : 'Processing'} 
-              </Text>
-              {estimatedTimeRemaining && (
-                <Text fontSize="sm" color="gray.500">
-                  {estimatedTimeRemaining}
-                </Text>
-              )}
-              <Spinner size="xs" color="teal.500" ml={2} />
-            </HStack>
-            <Progress 
-              value={processingProgress} 
-              size="sm" 
-              colorScheme="teal" 
-              borderRadius="full"
-              hasStripe
-              isAnimated
-            />
-          </Box>
-        )}
-
-        {!uploadSuccess ? (
-          <FormFileUpload
-            id="document-upload"
-            name="document"
-            onFileSelect={handleFileSelect}
-            accept=".txt,.pdf,.docx,.doc,.pages,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,application/vnd.apple.pages"
-            multiple={false}
-            buttonText="Select Document"
-            helperText="Drag and drop a file or click to browse"
-            showPreview={true}
-            maxFileSizeInMB={10}
-            isDisabled={isDisabled || isUploading}
-          />
+            
+            {!useStandardizedTemplate && (
+              <FormControl display="flex" alignItems="center" justifyContent="space-between">
+                <FormLabel htmlFor="ai-enhancement" mb="0" fontSize="sm">
+                  Use AI to enhance document parsing
+                  <Tooltip label="AI helps extract structured content more accurately from your document, especially for complex formats.">
+                    <InfoIcon ml={1} color="gray.400" boxSize={3} />
+                  </Tooltip>
+                </FormLabel>
+                <Switch
+                  id="ai-enhancement"
+                  isChecked={useAIEnhancement}
+                  onChange={(e) => setUseAIEnhancement(e.target.checked)}
+                  colorScheme="blue"
+                />
+              </FormControl>
+            )}
+          </>
         ) : (
           <VStack spacing={3} align="stretch">
-            <HStack>
-              {uploadedFile && getFileIcon(uploadedFile)}
-              <Text fontWeight="medium">{uploadedFile?.name}</Text>
-              <Icon as={CheckCircleIcon} color="green.500" />
-              {useAIEnhancement && (
-                <Badge colorScheme="teal" variant="subtle">
-                  AI Enhanced
-                </Badge>
-              )}
-            </HStack>
-            <Text fontSize="sm" color="green.600">
-              Document processed successfully! The form has been populated with the extracted content.
-            </Text>
-            <Button
-              size="sm"
-              leftIcon={<FaFile />}
-              variant="outline"
-              onClick={handleReset}
-            >
-              Upload a different document
-            </Button>
+            {isUploading ? (
+              <>
+                <HStack>
+                  <Spinner size="sm" />
+                  <Text>Processing document...</Text>
+                </HStack>
+                <Progress
+                  value={processingProgress}
+                  size="sm"
+                  colorScheme="blue"
+                  hasStripe
+                  isAnimated
+                />
+                {estimatedTimeRemaining && (
+                  <Text fontSize="xs" color="gray.500" textAlign="right">
+                    {estimatedTimeRemaining}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <>
+                <HStack>
+                  {getFileIcon(uploadedFile)}
+                  <Text fontWeight="medium">{uploadedFile.name}</Text>
+                  {uploadSuccess && <CheckCircleIcon color="green.500" />}
+                </HStack>
+                <HStack spacing={2}>
+                  <Button size="sm" onClick={handleReset} variant="outline">
+                    Change File
+                  </Button>
+                </HStack>
+              </>
+            )}
           </VStack>
         )}
       </VStack>
