@@ -360,6 +360,17 @@ async function parsePdfFile(file: File): Promise<ParsedDocument> {
     // Always set the full content for fallback
     const content = lines.slice(contentStart).join('\n');
     
+    // Debug logging for section extraction
+    console.log('Extracted sections:', JSON.stringify({
+      title,
+      abstract,
+      introduction: sections.introduction || 'Not found',
+      methods: sections.methods || 'Not found',
+      results: sections.results || 'Not found',
+      discussion: sections.discussion || 'Not found',
+      references: Array.isArray(sections.references) ? `${sections.references.length} references found` : 'Not found'
+    }, null, 2));
+    
     return {
       title,
       abstract,
@@ -474,6 +485,17 @@ async function parseWordFile(file: File): Promise<ParsedDocument> {
     
     // Extract sections for academic papers and whitepapers
     const sectionsMap = extractDocumentSections(lines, contentStart);
+    
+    // Debug logging for section extraction
+    console.log('Extracted sections:', JSON.stringify({
+      title,
+      abstract: abstractLines.join(' '),
+      introduction: sectionsMap.introduction || 'Not found',
+      methods: sectionsMap.methods || 'Not found',
+      results: sectionsMap.results || 'Not found',
+      discussion: sectionsMap.discussion || 'Not found',
+      references: Array.isArray(sectionsMap.references) ? `${sectionsMap.references.length} references found` : 'Not found'
+    }, null, 2));
     
     // Join the remaining lines as content
     const contentText = lines.slice(contentStart).join('\n');
@@ -703,6 +725,7 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
                        discussionStart !== -1 ? discussionStart : 
                        referencesStart !== -1 ? referencesStart : lines.length;
       sections.introduction = lines.slice(introStart + 1, endIndex).join('\n');
+      foundSections.introduction = true;
     }
     
     if (methodsStart !== -1) {
@@ -710,24 +733,42 @@ function extractDocumentSections(lines: string[], startIndex: number): Record<st
                        discussionStart !== -1 ? discussionStart : 
                        referencesStart !== -1 ? referencesStart : lines.length;
       sections.methods = lines.slice(methodsStart + 1, endIndex).join('\n');
+      foundSections.methods = true;
     }
     
     if (resultsStart !== -1) {
       const endIndex = discussionStart !== -1 ? discussionStart : 
                        referencesStart !== -1 ? referencesStart : lines.length;
       sections.results = lines.slice(resultsStart + 1, endIndex).join('\n');
+      foundSections.results = true;
     }
     
     if (discussionStart !== -1) {
       const endIndex = referencesStart !== -1 ? referencesStart : lines.length;
       sections.discussion = lines.slice(discussionStart + 1, endIndex).join('\n');
+      foundSections.discussion = true;
     }
     
     if (referencesStart !== -1) {
       const referenceLines = lines.slice(referencesStart + 1);
       sections.references = processReferences(referenceLines);
+      foundSections.references = true;
     }
   }
+  
+  // Debug logging for section extraction
+  console.log('Section extraction results:', {
+    foundIntroduction: foundSections.introduction,
+    foundMethods: foundSections.methods,
+    foundResults: foundSections.results,
+    foundDiscussion: foundSections.discussion,
+    foundReferences: foundSections.references,
+    introLength: sections.introduction ? sections.introduction.length : 0,
+    methodsLength: sections.methods ? sections.methods.length : 0,
+    resultsLength: sections.results ? sections.results.length : 0,
+    discussionLength: sections.discussion ? sections.discussion.length : 0,
+    referencesCount: Array.isArray(sections.references) ? sections.references.length : 0
+  });
   
   return sections;
 }
