@@ -50,7 +50,16 @@ import {
   FiChevronRight
 } from 'react-icons/fi';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { collection, query, getDocs, doc, updateDoc, getFirestore, writeBatch } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  getFirestore, 
+  writeBatch, 
+  where 
+} from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { createLogger, LogCategory } from '../../utils/logger';
 
@@ -114,14 +123,13 @@ const UserManagement: React.FC = () => {
         return;
       }
       
-      // Create a simple query without complex conditions
-      // Don't use orderBy or other complex queries that might require indexes
+      // Create a query that filters out deleted users
       const usersCollection = collection(firestore, 'users');
-      const usersQuery = query(usersCollection);
+      const usersQuery = query(usersCollection, where('isDeleted', '!=', true));
       
       logger.info('Fetching users with query', {
         category: LogCategory.DATA,
-        context: { collectionPath: 'users' }
+        context: { collectionPath: 'users', excludeDeleted: true }
       });
       
       try {
@@ -360,6 +368,11 @@ const UserManagement: React.FC = () => {
         prevUsers.filter(user => user.id !== selectedUser.id)
       );
       
+      // Also update filtered users
+      setFilteredUsers(prevFilteredUsers => 
+        prevFilteredUsers.filter(user => user.id !== selectedUser.id)
+      );
+      
       toast({
         title: 'Success',
         description: 'User has been deleted',
@@ -440,45 +453,6 @@ const UserManagement: React.FC = () => {
     }
   };
   
-  // Get current users for pagination
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-  
-  // Handle page change
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
-  
-  // Handle select all users on current page
-  const handleSelectAll = (isChecked: boolean) => {
-    if (isChecked) {
-      const currentPageUserIds = currentUsers.map(user => user.id);
-      setSelectedUsers(prevSelected => {
-        const uniqueIds = new Set([...prevSelected, ...currentPageUserIds]);
-        return Array.from(uniqueIds);
-      });
-    } else {
-      // Deselect only users on the current page
-      const currentPageUserIds = new Set(currentUsers.map(user => user.id));
-      setSelectedUsers(prevSelected => 
-        prevSelected.filter(id => !currentPageUserIds.has(id))
-      );
-    }
-  };
-  
-  // Handle select individual user
-  const handleSelectUser = (userId: string, isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedUsers(prev => [...prev, userId]);
-    } else {
-      setSelectedUsers(prev => prev.filter(id => id !== userId));
-    }
-  };
-  
-  // Check if all users on current page are selected
-  const areAllCurrentUsersSelected = currentUsers.length > 0 && 
-    currentUsers.every(user => selectedUsers.includes(user.id));
-  
   // Bulk actions for selected users
   const handleBulkAction = async (action: 'activate' | 'deactivate' | 'delete') => {
     if (selectedUsers.length === 0 || !db) return;
@@ -519,6 +493,9 @@ const UserManagement: React.FC = () => {
       if (action === 'delete') {
         setUsers(prevUsers => 
           prevUsers.filter(user => !selectedUsers.includes(user.id))
+        );
+        setFilteredUsers(prevFilteredUsers => 
+          prevFilteredUsers.filter(user => !selectedUsers.includes(user.id))
         );
       } else {
         setUsers(prevUsers => 
@@ -565,6 +542,45 @@ const UserManagement: React.FC = () => {
       });
     }
   };
+  
+  // Get current users for pagination
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  
+  // Handle page change
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  
+  // Handle select all users on current page
+  const handleSelectAll = (isChecked: boolean) => {
+    if (isChecked) {
+      const currentPageUserIds = currentUsers.map(user => user.id);
+      setSelectedUsers(prevSelected => {
+        const uniqueIds = new Set([...prevSelected, ...currentPageUserIds]);
+        return Array.from(uniqueIds);
+      });
+    } else {
+      // Deselect only users on the current page
+      const currentPageUserIds = new Set(currentUsers.map(user => user.id));
+      setSelectedUsers(prevSelected => 
+        prevSelected.filter(id => !currentPageUserIds.has(id))
+      );
+    }
+  };
+  
+  // Handle select individual user
+  const handleSelectUser = (userId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedUsers(prev => [...prev, userId]);
+    } else {
+      setSelectedUsers(prev => prev.filter(id => id !== userId));
+    }
+  };
+  
+  // Check if all users on current page are selected
+  const areAllCurrentUsersSelected = currentUsers.length > 0 && 
+    currentUsers.every(user => selectedUsers.includes(user.id));
   
   return (
     <AdminLayout title="User Management">
