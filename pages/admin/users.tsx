@@ -34,7 +34,10 @@ import {
   Spinner,
   Center,
   useToast,
-  Tooltip
+  Tooltip,
+  Checkbox,
+  Flex,
+  ButtonGroup
 } from '@chakra-ui/react';
 import { 
   FiSearch, 
@@ -42,10 +45,12 @@ import {
   FiEdit, 
   FiTrash2,
   FiUserCheck,
-  FiUserX
+  FiUserX,
+  FiChevronLeft,
+  FiChevronRight
 } from 'react-icons/fi';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { collection, query, getDocs, doc, updateDoc, getFirestore } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, getFirestore, writeBatch } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { createLogger, LogCategory } from '../../utils/logger';
 
@@ -71,6 +76,9 @@ const UserManagement: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [newRole, setNewRole] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage] = useState(50);
   
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -432,6 +440,132 @@ const UserManagement: React.FC = () => {
     }
   };
   
+  // Get current users for pagination
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  
+  // Handle page change
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  
+  // Handle select all users on current page
+  const handleSelectAll = (isChecked: boolean) => {
+    if (isChecked) {
+      const currentPageUserIds = currentUsers.map(user => user.id);
+      setSelectedUsers(prevSelected => {
+        const uniqueIds = new Set([...prevSelected, ...currentPageUserIds]);
+        return Array.from(uniqueIds);
+      });
+    } else {
+      // Deselect only users on the current page
+      const currentPageUserIds = new Set(currentUsers.map(user => user.id));
+      setSelectedUsers(prevSelected => 
+        prevSelected.filter(id => !currentPageUserIds.has(id))
+      );
+    }
+  };
+  
+  // Handle select individual user
+  const handleSelectUser = (userId: string, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedUsers(prev => [...prev, userId]);
+    } else {
+      setSelectedUsers(prev => prev.filter(id => id !== userId));
+    }
+  };
+  
+  // Check if all users on current page are selected
+  const areAllCurrentUsersSelected = currentUsers.length > 0 && 
+    currentUsers.every(user => selectedUsers.includes(user.id));
+  
+  // Bulk actions for selected users
+  const handleBulkAction = async (action: 'activate' | 'deactivate' | 'delete') => {
+    if (selectedUsers.length === 0 || !db) return;
+    
+    try {
+      // Create a batch to perform multiple operations
+      const batch = writeBatch(db);
+      
+      // Process each selected user
+      for (const userId of selectedUsers) {
+        const userRef = doc(db, 'users', userId);
+        
+        if (action === 'activate') {
+          batch.update(userRef, {
+            isActive: true,
+            updatedAt: new Date()
+          });
+        } else if (action === 'deactivate') {
+          batch.update(userRef, {
+            isActive: false,
+            deactivatedAt: new Date(),
+            updatedAt: new Date()
+          });
+        } else if (action === 'delete') {
+          batch.update(userRef, {
+            isDeleted: true,
+            isActive: false,
+            deletedAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      }
+      
+      // Commit the batch
+      await batch.commit();
+      
+      // Update local state
+      if (action === 'delete') {
+        setUsers(prevUsers => 
+          prevUsers.filter(user => !selectedUsers.includes(user.id))
+        );
+      } else {
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            if (selectedUsers.includes(user.id)) {
+              return {
+                ...user,
+                isActive: action === 'activate'
+              };
+            }
+            return user;
+          })
+        );
+      }
+      
+      // Clear selection
+      setSelectedUsers([]);
+      
+      toast({
+        title: 'Success',
+        description: `Bulk action completed: ${selectedUsers.length} users ${action}d`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      logger.info(`Bulk ${action} completed`, {
+        context: { count: selectedUsers.length },
+        category: LogCategory.DATA
+      });
+      
+    } catch (error) {
+      logger.error(`Error performing bulk ${action}`, {
+        context: { error },
+        category: LogCategory.ERROR
+      });
+      
+      toast({
+        title: 'Error',
+        description: `Failed to ${action} users. Please try again.`,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+  
   return (
     <AdminLayout title="User Management">
       <Box mb={6}>
@@ -456,6 +590,14 @@ const UserManagement: React.FC = () => {
           <Table variant="simple">
             <Thead>
               <Tr>
+                <Th>
+                  <Checkbox 
+                    isChecked={areAllCurrentUsersSelected} 
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  >
+                    Select All
+                  </Checkbox>
+                </Th>
                 <Th>User</Th>
                 <Th>Role</Th>
                 <Th>Status</Th>
@@ -466,9 +608,15 @@ const UserManagement: React.FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map(user => (
+              {currentUsers.length > 0 ? (
+                currentUsers.map(user => (
                   <Tr key={user.id}>
+                    <Td>
+                      <Checkbox 
+                        isChecked={selectedUsers.includes(user.id)} 
+                        onChange={(e) => handleSelectUser(user.id, e.target.checked)}
+                      />
+                    </Td>
                     <Td>
                       <Box>
                         <Text fontWeight="medium">{user.displayName || 'Unnamed User'}</Text>
@@ -537,13 +685,57 @@ const UserManagement: React.FC = () => {
                 ))
               ) : (
                 <Tr>
-                  <Td colSpan={7} textAlign="center">
+                  <Td colSpan={8} textAlign="center">
                     No users found
                   </Td>
                 </Tr>
               )}
             </Tbody>
           </Table>
+          <Flex justifyContent="space-between" mt={4}>
+            <ButtonGroup>
+              <Button 
+                onClick={() => handleBulkAction('activate')} 
+                colorScheme="green"
+              >
+                Activate
+              </Button>
+              <Button 
+                onClick={() => handleBulkAction('deactivate')} 
+                colorScheme="orange"
+              >
+                Deactivate
+              </Button>
+              <Button 
+                onClick={() => handleBulkAction('delete')} 
+                colorScheme="red"
+              >
+                Delete
+              </Button>
+            </ButtonGroup>
+            <Box>
+              <Text>
+                Showing {currentUsers.length} of {filteredUsers.length} users
+              </Text>
+              <ButtonGroup>
+                <Button 
+                  onClick={() => paginate(currentPage - 1)} 
+                  disabled={currentPage === 1}
+                >
+                  <FiChevronLeft />
+                </Button>
+                <Button>
+                  Page {currentPage} of {totalPages}
+                </Button>
+                <Button 
+                  onClick={() => paginate(currentPage + 1)} 
+                  disabled={currentPage === totalPages}
+                >
+                  <FiChevronRight />
+                </Button>
+              </ButtonGroup>
+            </Box>
+          </Flex>
         </Box>
       )}
       
