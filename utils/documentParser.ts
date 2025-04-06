@@ -17,14 +17,24 @@ export interface ParsedDocument {
   title?: string;
   abstract?: string;
   keywords?: string[];
-  content?: string;
   introduction?: string;
+  literatureReview?: string;
   methods?: string;
   results?: string;
   discussion?: string;
+  conclusion?: string;
+  acknowledgments?: string;
+  declarations?: {
+    ethics?: string;
+    conflictOfInterest?: string;
+    funding?: string;
+  };
   references?: string[];
-  warnings?: string[];
+  appendices?: string;
+  supplementaryMaterial?: string;
+  content?: string;
   error?: string;
+  warnings?: string[];
 }
 
 /**

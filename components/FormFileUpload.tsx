@@ -16,9 +16,9 @@ import {
 } from '@chakra-ui/react';
 import { FiUpload, FiFile, FiX } from 'react-icons/fi';
 
-interface FormFileUploadProps extends Omit<ChakraInputProps, 'size' | 'type'> {
-  id: string;
-  name: string;
+export interface FormFileUploadProps extends Omit<ChakraInputProps, 'size' | 'type'> {
+  id?: string;
+  name?: string;
   label?: string;
   error?: string;
   touched?: boolean;
@@ -26,10 +26,13 @@ interface FormFileUploadProps extends Omit<ChakraInputProps, 'size' | 'type'> {
   size?: 'sm' | 'md' | 'lg';
   isRequired?: boolean;
   accept?: string;
+  acceptedFileTypes?: string;
   multiple?: boolean;
   buttonText?: string;
   showPreview?: boolean;
   maxFileSizeInMB?: number;
+  maxFileSizeMB?: number;
+  isDisabled?: boolean;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onFileSelect?: (files: File[]) => void;
 }
@@ -37,19 +40,22 @@ interface FormFileUploadProps extends Omit<ChakraInputProps, 'size' | 'type'> {
 const FormFileUpload = forwardRef<HTMLInputElement, FormFileUploadProps>(
   (
     {
-      id,
-      name,
+      id = 'file-upload',
+      name = 'file',
       label,
       error,
       touched,
       helperText,
       size = 'md',
       isRequired = false,
-      accept = '*/*',
+      accept,
+      acceptedFileTypes,
       multiple = false,
       buttonText = 'Choose File',
       showPreview = true,
-      maxFileSizeInMB = 5,
+      maxFileSizeInMB,
+      maxFileSizeMB = 5,
+      isDisabled = false,
       onChange,
       onFileSelect,
       ...rest
@@ -60,6 +66,12 @@ const FormFileUpload = forwardRef<HTMLInputElement, FormFileUploadProps>(
     const [dragActive, setDragActive] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    
+    // Use either acceptedFileTypes or accept prop
+    const fileAccept = acceptedFileTypes || accept || '*/*';
+    
+    // Use either maxFileSizeMB or maxFileSizeInMB prop
+    const maxSize = maxFileSizeMB || maxFileSizeInMB || 5;
     
     // Dark mode support
     const labelColor = useColorModeValue('gray.700', 'gray.300');
@@ -77,12 +89,12 @@ const FormFileUpload = forwardRef<HTMLInputElement, FormFileUploadProps>(
         
         // Check file size
         const oversizedFiles = fileList.filter(
-          file => file.size > maxFileSizeInMB * 1024 * 1024
+          file => file.size > maxSize * 1024 * 1024
         );
         
         if (oversizedFiles.length > 0) {
           const fileNames = oversizedFiles.map(f => f.name).join(', ');
-          alert(`Files exceeding ${maxFileSizeInMB}MB: ${fileNames}`);
+          alert(`Files exceeding ${maxSize}MB: ${fileNames}`);
           return;
         }
         
@@ -144,12 +156,12 @@ const FormFileUpload = forwardRef<HTMLInputElement, FormFileUploadProps>(
         
         // Check file size
         const oversizedFiles = fileList.filter(
-          file => file.size > maxFileSizeInMB * 1024 * 1024
+          file => file.size > maxSize * 1024 * 1024
         );
         
         if (oversizedFiles.length > 0) {
           const fileNames = oversizedFiles.map(f => f.name).join(', ');
-          alert(`Files exceeding ${maxFileSizeInMB}MB: ${fileNames}`);
+          alert(`Files exceeding ${maxSize}MB: ${fileNames}`);
           return;
         }
         
@@ -201,104 +213,94 @@ const FormFileUpload = forwardRef<HTMLInputElement, FormFileUploadProps>(
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           borderWidth={2}
-          borderStyle="dashed"
-          borderColor={dragActive ? 'blue.400' : borderColor}
           borderRadius="md"
+          borderColor={dragActive ? 'blue.500' : borderColor}
+          borderStyle="dashed"
           bg={dragActive ? dropzoneActiveBg : dropzoneBg}
           p={4}
           textAlign="center"
           transition="all 0.2s"
+          cursor={isDisabled ? 'not-allowed' : 'pointer'}
+          opacity={isDisabled ? 0.6 : 1}
+          position="relative"
+          onClick={() => !isDisabled && inputRef.current?.click()}
         >
           <Input
+            ref={inputRef}
             id={id}
             name={name}
-            ref={(node) => {
-              if (typeof ref === 'function') {
-                ref(node);
-              } else if (ref) {
-                ref.current = node;
-              }
-              inputRef.current = node;
-            }}
             type="file"
-            accept={accept}
+            accept={fileAccept}
             multiple={multiple}
             onChange={handleFileChange}
-            display="none"
+            hidden
+            disabled={isDisabled}
             {...rest}
           />
           
-          <Flex direction="column" align="center" justify="center">
-            <Icon as={FiUpload} boxSize={8} color="blue.500" mb={2} />
-            <Text mb={2} fontWeight="medium">
-              Drag & drop files here, or
-            </Text>
-            <Button
-              size={size}
-              onClick={() => inputRef.current?.click()}
-              colorScheme="blue"
-              variant="outline"
-            >
-              {buttonText}
-            </Button>
-            <Text fontSize="sm" color={helperColor} mt={2}>
-              Max file size: {maxFileSizeInMB}MB
-            </Text>
-          </Flex>
+          {files.length === 0 ? (
+            <Flex direction="column" align="center" justify="center" py={4}>
+              <Icon as={FiUpload} boxSize={8} color="blue.500" mb={2} />
+              <Text fontWeight="medium" mb={1}>{buttonText}</Text>
+              <Text fontSize="sm" color={helperColor}>
+                {helperText || `Drag and drop or click to select a file (Max: ${maxSize}MB)`}
+              </Text>
+            </Flex>
+          ) : (
+            showPreview && (
+              <Box>
+                {files.map((file, index) => (
+                  <Flex
+                    key={`${file.name}-${index}`}
+                    bg={fileItemBg}
+                    p={2}
+                    borderRadius="md"
+                    mb={2}
+                    alignItems="center"
+                  >
+                    <Icon as={FiFile} mr={2} />
+                    <Box flex="1">
+                      <Text fontSize="sm" fontWeight="medium" noOfLines={1}>
+                        {file.name}
+                      </Text>
+                      <Text fontSize="xs" color={helperColor}>
+                        {formatFileSize(file.size)}
+                      </Text>
+                    </Box>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="red"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                      isDisabled={isDisabled}
+                    >
+                      <Icon as={FiX} />
+                    </Button>
+                  </Flex>
+                ))}
+              </Box>
+            )
+          )}
           
           {uploadProgress !== null && (
-            <Progress 
-              value={uploadProgress} 
-              size="sm" 
-              colorScheme="blue" 
-              mt={4} 
+            <Progress
+              value={uploadProgress}
+              size="xs"
+              colorScheme="blue"
+              mt={2}
               borderRadius="full"
+              isAnimated
+              hasStripe
             />
           )}
         </Box>
         
-        {showPreview && files.length > 0 && (
-          <Box mt={4}>
-            <Text fontWeight="medium" mb={2}>
-              {files.length} {files.length === 1 ? 'file' : 'files'} selected
-            </Text>
-            <Box maxH="200px" overflowY="auto">
-              {files.map((file, index) => (
-                <Flex
-                  key={index}
-                  align="center"
-                  bg={fileItemBg}
-                  p={2}
-                  borderRadius="md"
-                  mb={2}
-                >
-                  <Icon as={FiFile} mr={2} />
-                  <Text flex="1" fontSize="sm" isTruncated>
-                    {file.name}
-                  </Text>
-                  <Text fontSize="xs" color={helperColor} mr={2}>
-                    {formatFileSize(file.size)}
-                  </Text>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    colorScheme="red"
-                    onClick={() => removeFile(index)}
-                    aria-label="Remove file"
-                  >
-                    <Icon as={FiX} />
-                  </Button>
-                </Flex>
-              ))}
-            </Box>
-          </Box>
-        )}
-        
-        {isInvalid ? (
+        {error && touched && (
           <FormErrorMessage>{error}</FormErrorMessage>
-        ) : helperText ? (
-          <FormHelperText color={helperColor}>{helperText}</FormHelperText>
-        ) : null}
+        )}
       </FormControl>
     );
   }

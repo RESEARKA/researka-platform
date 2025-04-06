@@ -55,7 +55,7 @@ const EditorRequestsPage: React.FC = () => {
 
       // In a real application, you would check if the user has admin privileges
       // For now, we'll use a simple email check for demonstration purposes
-      const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com'];
+      const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com', 'dominic@dominic.ac'];
       setIsAdmin(adminEmails.includes(currentUser.email || ''));
     };
 
