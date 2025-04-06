@@ -8,7 +8,6 @@ import {
   Link as ChakraLink,
   Divider,
   VStack,
-  HStack,
   useColorModeValue,
   Alert,
   AlertIcon,
@@ -24,9 +23,7 @@ import {
   FiFileText, 
   FiSettings, 
   FiAlertTriangle,
-  FiHome,
-  FiEdit,
-  FiCheckSquare
+  FiHome
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { createLogger, LogCategory } from '../../utils/logger';
@@ -193,7 +190,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => {
               </ChakraLink>
             </Link>
             
-            <Link href="/admin/editor-requests" passHref legacyBehavior>
+            <Link href="/admin/content-moderation" passHref legacyBehavior>
               <ChakraLink 
                 py={2} 
                 px={4} 
@@ -202,23 +199,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => {
                 display="flex"
                 alignItems="center"
                 _hover={{ bg: 'gray.100', textDecoration: 'none' }}
-                bg={router.pathname === '/admin/editor-requests' ? 'gray.100' : 'transparent'}
-              >
-                <Icon as={FiEdit} mr={3} />
-                Editor Requests
-              </ChakraLink>
-            </Link>
-            
-            <Link href="/admin/moderation" passHref legacyBehavior>
-              <ChakraLink 
-                py={2} 
-                px={4} 
-                borderRadius="md" 
-                w="full" 
-                display="flex"
-                alignItems="center"
-                _hover={{ bg: 'gray.100', textDecoration: 'none' }}
-                bg={router.pathname === '/admin/moderation' ? 'gray.100' : 'transparent'}
+                bg={router.pathname === '/admin/content-moderation' ? 'gray.100' : 'transparent'}
               >
                 <Icon as={FiAlertTriangle} mr={3} />
                 Content Moderation

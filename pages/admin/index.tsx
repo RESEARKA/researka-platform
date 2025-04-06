@@ -20,7 +20,7 @@ import {
   Center,
   useColorModeValue
 } from '@chakra-ui/react';
-import { FiUsers, FiFileText, FiAlertTriangle, FiEdit, FiCheckSquare } from 'react-icons/fi';
+import { FiUsers, FiFileText, FiAlertTriangle, FiCheckSquare } from 'react-icons/fi';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { collection, query, where, getDocs, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -77,7 +77,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, stat, icon, helpText, isLoad
 
 interface RecentActivityItem {
   id: string;
-  type: 'user' | 'article' | 'review' | 'editor_request';
+  type: 'user' | 'article' | 'review';
   title: string;
   timestamp: Date;
   status?: string;
@@ -88,7 +88,6 @@ const AdminDashboard: React.FC = () => {
     totalUsers: 0,
     totalArticles: 0,
     pendingReviews: 0,
-    editorRequests: 0,
     flaggedContent: 0
   });
   
@@ -121,14 +120,6 @@ const AdminDashboard: React.FC = () => {
         const pendingReviewsSnapshot = await getCountFromServer(pendingReviewsQuery);
         const pendingReviews = pendingReviewsSnapshot.data().count;
         
-        // Get editor requests count
-        const editorRequestsQuery = query(
-          collection(db, 'users'),
-          where('editorStatus', '==', 'pending')
-        );
-        const editorRequestsSnapshot = await getCountFromServer(editorRequestsQuery);
-        const editorRequests = editorRequestsSnapshot.data().count;
-        
         // Get flagged content count
         const flaggedContentQuery = query(
           collection(db, 'reports'),
@@ -141,7 +132,6 @@ const AdminDashboard: React.FC = () => {
           totalUsers,
           totalArticles,
           pendingReviews,
-          editorRequests,
           flaggedContent
         });
         
@@ -203,7 +193,7 @@ const AdminDashboard: React.FC = () => {
   
   return (
     <AdminLayout title="Admin Dashboard">
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={6} mb={8}>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
         <StatCard
           title="Total Users"
           stat={stats.totalUsers}
@@ -220,12 +210,6 @@ const AdminDashboard: React.FC = () => {
           title="Pending Reviews"
           stat={stats.pendingReviews}
           icon={<Icon as={FiCheckSquare} w={8} h={8} />}
-          isLoading={isLoading}
-        />
-        <StatCard
-          title="Editor Requests"
-          stat={stats.editorRequests}
-          icon={<Icon as={FiEdit} w={8} h={8} />}
           isLoading={isLoading}
         />
         <StatCard
@@ -255,8 +239,7 @@ const AdminDashboard: React.FC = () => {
                       <Box>
                         <Heading size="xs" textTransform="uppercase">
                           {item.type === 'user' ? 'New User' : 
-                           item.type === 'article' ? 'Article' : 
-                           item.type === 'review' ? 'Review' : 'Editor Request'}
+                           item.type === 'article' ? 'Article' : 'Review'}
                         </Heading>
                         <Text pt={2} fontSize="sm">
                           {item.title}
