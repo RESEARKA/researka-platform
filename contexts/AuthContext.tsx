@@ -137,6 +137,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
       
+      // Create a user document in Firestore
+      try {
+        const db = getFirebaseFirestore();
+        if (db) {
+          const userDocRef = doc(db, 'users', userCredential.user.uid);
+          await setDoc(userDocRef, {
+            email: userCredential.user.email,
+            displayName: displayName || userCredential.user.displayName || '',
+            createdAt: new Date(),
+            lastLogin: new Date(),
+            role: 'User',
+            isActive: true,
+            articleCount: 0,
+            reviewCount: 0
+          });
+          
+          logger.info('User document created in Firestore', {
+            context: { uid: userCredential.user.uid },
+            category: LogCategory.DATA
+          });
+        } else {
+          logger.error('Failed to create user document - Firestore not initialized', {
+            context: { uid: userCredential.user.uid },
+            category: LogCategory.ERROR
+          });
+        }
+      } catch (firestoreError) {
+        // Log error but don't fail the signup process
+        logger.error('Failed to create user document in Firestore', {
+          context: { error: firestoreError, uid: userCredential.user.uid },
+          category: LogCategory.ERROR
+        });
+      }
+      
       logger.info('Signup successful', { 
         context: { 
           uid: userCredential.user.uid,

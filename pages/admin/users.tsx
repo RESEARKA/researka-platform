@@ -34,21 +34,18 @@ import {
   Spinner,
   Center,
   useToast,
-  Flex,
   Tooltip
 } from '@chakra-ui/react';
 import { 
   FiSearch, 
   FiMoreVertical, 
   FiEdit, 
-  FiTrash2, 
-  FiLock, 
-  FiUnlock,
+  FiTrash2,
   FiUserCheck,
   FiUserX
 } from 'react-icons/fi';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, where, orderBy, limit, getFirestore } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, getFirestore } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { createLogger, LogCategory } from '../../utils/logger';
 
@@ -141,20 +138,86 @@ const UserManagement: React.FC = () => {
         usersSnapshot.forEach(doc => {
           try {
             const userData = doc.data();
+            
+            // Safely extract data with fallbacks for all fields
+            const email = userData.email || '';
+            const displayName = userData.displayName || '';
+            const role = userData.role || 'User';
+            const isActive = userData.isActive !== false; // Default to true if not specified
+            const articles = typeof userData.articleCount === 'number' ? userData.articleCount : 0;
+            const reviews = typeof userData.reviewCount === 'number' ? userData.reviewCount : 0;
+            
+            // Handle date fields safely
+            let createdAtDate = new Date();
+            let lastLoginDate = new Date();
+            
+            try {
+              // Handle Firestore Timestamp objects
+              if (userData.createdAt) {
+                if (typeof userData.createdAt.toDate === 'function') {
+                  createdAtDate = userData.createdAt.toDate();
+                } else if (userData.createdAt instanceof Date) {
+                  createdAtDate = userData.createdAt;
+                } else if (userData.createdAt._seconds) {
+                  // Handle serialized Firestore timestamps
+                  createdAtDate = new Date(userData.createdAt._seconds * 1000);
+                }
+              }
+              
+              if (userData.lastLogin) {
+                if (typeof userData.lastLogin.toDate === 'function') {
+                  lastLoginDate = userData.lastLogin.toDate();
+                } else if (userData.lastLogin instanceof Date) {
+                  lastLoginDate = userData.lastLogin;
+                } else if (userData.lastLogin._seconds) {
+                  // Handle serialized Firestore timestamps
+                  lastLoginDate = new Date(userData.lastLogin._seconds * 1000);
+                }
+              }
+            } catch (dateError) {
+              logger.error('Error processing date fields', {
+                context: { 
+                  error: JSON.stringify(dateError, Object.getOwnPropertyNames(dateError)),
+                  docId: doc.id,
+                  createdAt: JSON.stringify(userData.createdAt),
+                  lastLogin: JSON.stringify(userData.lastLogin)
+                },
+                category: LogCategory.ERROR
+              });
+            }
+            
+            // Add the processed user data to our array
             usersData.push({
               id: doc.id,
-              email: userData.email || '',
-              displayName: userData.displayName || '',
-              role: userData.role || 'User',
-              createdAt: userData.createdAt?.toDate() || new Date(),
-              lastLogin: userData.lastLogin?.toDate() || new Date(),
-              isActive: userData.isActive !== false, // Default to true if not specified
-              articles: userData.articleCount || 0,
-              reviews: userData.reviewCount || 0
+              email,
+              displayName,
+              role,
+              createdAt: createdAtDate,
+              lastLogin: lastLoginDate,
+              isActive,
+              articles,
+              reviews
             });
           } catch (docError) {
             logger.error('Error processing user document', {
-              context: { docError, docId: doc.id },
+              context: { 
+                error: JSON.stringify(docError, Object.getOwnPropertyNames(docError)), 
+                docId: doc.id,
+                userData: JSON.stringify(doc.data(), (_, value) => {
+                  // Handle circular references and special objects
+                  if (typeof value === 'object' && value !== null) {
+                    try {
+                      // Try to safely stringify special objects
+                      if (value.toDate) {
+                        return `Timestamp: ${value.toDate().toISOString()}`;
+                      }
+                    } catch (e) {
+                      return `[Unstringifiable Object: ${typeof value}]`;
+                    }
+                  }
+                  return value;
+                })
+              },
               category: LogCategory.ERROR
             });
           }
@@ -168,20 +231,29 @@ const UserManagement: React.FC = () => {
         setFilteredUsers(usersData);
       } catch (queryError) {
         logger.error('Error executing users query', {
-          context: { queryError },
+          context: { 
+            error: JSON.stringify(queryError, Object.getOwnPropertyNames(queryError))
+          },
           category: LogCategory.ERROR
         });
-        throw queryError; // Re-throw to be caught by outer catch
+        toast({
+          title: 'Error fetching users',
+          description: 'There was a problem loading the user data. Please try again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
       }
     } catch (error) {
-      logger.error('Error fetching users', {
-        context: { error },
+      logger.error('Unexpected error in fetchUsers', {
+        context: { 
+          error: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        },
         category: LogCategory.ERROR
       });
-      
       toast({
         title: 'Error',
-        description: 'Failed to load users. Please try again.',
+        description: 'An unexpected error occurred. Please try again.',
         status: 'error',
         duration: 5000,
         isClosable: true,
