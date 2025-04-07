@@ -1,0 +1,33 @@
+[debug] [2025-04-06T10:52:56.752Z] ----------------------------------------------------------------------
+[debug] [2025-04-06T10:52:56.752Z] Command:       /Users/dom12/nodejs/bin/node /Users/dom12/nodejs/bin/firebase deploy --only firestore:rules
+[debug] [2025-04-06T10:52:56.753Z] CLI Version:   13.35.1
+[debug] [2025-04-06T10:52:56.753Z] Platform:      darwin
+[debug] [2025-04-06T10:52:56.753Z] Node Version:  v18.18.2
+[debug] [2025-04-06T10:52:56.753Z] Time:          Sun Apr 06 2025 14:52:56 GMT+0400 (Gulf Standard Time)
+[debug] [2025-04-06T10:52:56.754Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-04-06T10:52:56.829Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-04-06T10:52:56.829Z] > authorizing via signed-in user (dom123dxb@gmail.com)
+[debug] [2025-04-06T10:52:56.829Z] [iam] checking project researka for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-04-06T10:52:56.830Z] Checked if tokens are valid: false, expires at: 1743920879492
+[debug] [2025-04-06T10:52:56.830Z] Checked if tokens are valid: false, expires at: 1743920879492
+[debug] [2025-04-06T10:52:56.830Z] > refreshing access token with scopes: []
+[debug] [2025-04-06T10:52:56.831Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-04-06T10:52:56.831Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-04-06T10:52:57.183Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-04-06T10:52:57.183Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-04-06T10:52:57.196Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/researka:testIamPermissions [none]
+[debug] [2025-04-06T10:52:57.196Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/researka:testIamPermissions x-goog-quota-user=projects/researka
+[debug] [2025-04-06T10:52:57.197Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/researka:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-04-06T10:52:58.695Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/researka:testIamPermissions 200
+[debug] [2025-04-06T10:52:58.695Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/researka:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'researka'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-04-06T10:52:58.700Z] Checked if tokens are valid: true, expires at: 1743940376184
+[debug] [2025-04-06T10:52:58.700Z] Checked if tokens are valid: true, expires at: 1743940376184
+[debug] [2025-04-06T10:52:58.700Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/researka:test [none]
+[debug] [2025-04-06T10:52:58.700Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/researka:test [omitted]

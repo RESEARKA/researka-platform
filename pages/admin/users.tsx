@@ -37,7 +37,13 @@ import {
   Tooltip,
   Checkbox,
   Flex,
-  ButtonGroup
+  ButtonGroup,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay
 } from '@chakra-ui/react';
 import { 
   FiSearch, 
@@ -52,24 +58,23 @@ import {
 import AdminLayout from '../../components/admin/AdminLayout';
 import { 
   collection, 
-  query, 
-  getDocs, 
   doc, 
+  getDocs, 
+  query, 
   updateDoc, 
-  getFirestore, 
-  writeBatch, 
   where 
 } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { db, auth } from '../../config/firebase';
 import { createLogger, LogCategory } from '../../utils/logger';
 
 const logger = createLogger('admin-users');
 
+// User type definition
 interface User {
   id: string;
   email: string;
   displayName: string;
-  role: string;
+  role: UserRole;
   createdAt: Date;
   lastLogin: Date;
   isActive: boolean;
@@ -77,17 +82,27 @@ interface User {
   reviews?: number;
 }
 
+// User role type
+type UserRole = 'User' | 'Reviewer' | 'Editor' | 'Admin';
+
 const UserManagement: React.FC = () => {
+  // State for API errors
+  const [apiError, setApiError] = useState<string | null>(null);
+  const apiErrorCancelRef = React.useRef<HTMLButtonElement>(null);
+  const { isOpen: isApiErrorOpen, onOpen: onApiErrorOpen, onClose: onApiErrorClose } = useDisclosure();
+
+  // State for user management
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole>('User');
   const [actionReason, setActionReason] = useState('');
-  const [newRole, setNewRole] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [usersPerPage] = useState(50);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -113,163 +128,42 @@ const UserManagement: React.FC = () => {
   
   const fetchUsers = async () => {
     try {
-      // Make sure we have a valid Firestore instance
-      const firestore = db || getFirestore();
+      setIsLoading(true);
       
-      if (!firestore) {
-        logger.error('Firestore not initialized', {
-          category: LogCategory.ERROR
-        });
-        return;
+      if (!db) {
+        throw new Error('Firestore is not initialized');
       }
       
-      // Create a query that filters out deleted users
-      const usersCollection = collection(firestore, 'users');
+      const usersCollection = collection(db, 'users');
       const usersQuery = query(usersCollection, where('isDeleted', '!=', true));
+      const usersSnapshot = await getDocs(usersQuery);
       
-      logger.info('Fetching users with query', {
-        category: LogCategory.DATA,
-        context: { collectionPath: 'users', excludeDeleted: true }
+      const usersData = usersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          email: data.email || '',
+          displayName: data.displayName || '',
+          role: data.role || 'User',
+          isActive: data.isActive !== false, // Default to true if not specified
+          createdAt: data.createdAt?.toDate() || new Date(),
+          lastLogin: data.lastLogin?.toDate() || null,
+          articles: data.articleCount || 0,
+          reviews: data.reviewCount || 0
+        } as User;
       });
       
-      try {
-        const usersSnapshot = await getDocs(usersQuery);
-        
-        if (usersSnapshot.empty) {
-          logger.info('No users found in collection', {
-            category: LogCategory.DATA
-          });
-          setUsers([]);
-          setFilteredUsers([]);
-          setIsLoading(false);
-          return;
-        }
-        
-        logger.info(`Found ${usersSnapshot.size} users`, {
-          category: LogCategory.DATA
-        });
-        
-        const usersData: User[] = [];
-        
-        usersSnapshot.forEach(doc => {
-          try {
-            const userData = doc.data();
-            
-            // Safely extract data with fallbacks for all fields
-            const email = userData.email || '';
-            const displayName = userData.displayName || '';
-            const role = userData.role || 'User';
-            const isActive = userData.isActive !== false; // Default to true if not specified
-            const articles = typeof userData.articleCount === 'number' ? userData.articleCount : 0;
-            const reviews = typeof userData.reviewCount === 'number' ? userData.reviewCount : 0;
-            
-            // Handle date fields safely
-            let createdAtDate = new Date();
-            let lastLoginDate = new Date();
-            
-            try {
-              // Handle Firestore Timestamp objects
-              if (userData.createdAt) {
-                if (typeof userData.createdAt.toDate === 'function') {
-                  createdAtDate = userData.createdAt.toDate();
-                } else if (userData.createdAt instanceof Date) {
-                  createdAtDate = userData.createdAt;
-                } else if (userData.createdAt._seconds) {
-                  // Handle serialized Firestore timestamps
-                  createdAtDate = new Date(userData.createdAt._seconds * 1000);
-                }
-              }
-              
-              if (userData.lastLogin) {
-                if (typeof userData.lastLogin.toDate === 'function') {
-                  lastLoginDate = userData.lastLogin.toDate();
-                } else if (userData.lastLogin instanceof Date) {
-                  lastLoginDate = userData.lastLogin;
-                } else if (userData.lastLogin._seconds) {
-                  // Handle serialized Firestore timestamps
-                  lastLoginDate = new Date(userData.lastLogin._seconds * 1000);
-                }
-              }
-            } catch (dateError) {
-              logger.error('Error processing date fields', {
-                context: { 
-                  error: JSON.stringify(dateError, Object.getOwnPropertyNames(dateError)),
-                  docId: doc.id,
-                  createdAt: JSON.stringify(userData.createdAt),
-                  lastLogin: JSON.stringify(userData.lastLogin)
-                },
-                category: LogCategory.ERROR
-              });
-            }
-            
-            // Add the processed user data to our array
-            usersData.push({
-              id: doc.id,
-              email,
-              displayName,
-              role,
-              createdAt: createdAtDate,
-              lastLogin: lastLoginDate,
-              isActive,
-              articles,
-              reviews
-            });
-          } catch (docError) {
-            logger.error('Error processing user document', {
-              context: { 
-                error: JSON.stringify(docError, Object.getOwnPropertyNames(docError)), 
-                docId: doc.id,
-                userData: JSON.stringify(doc.data(), (_, value) => {
-                  // Handle circular references and special objects
-                  if (typeof value === 'object' && value !== null) {
-                    try {
-                      // Try to safely stringify special objects
-                      if (value.toDate) {
-                        return `Timestamp: ${value.toDate().toISOString()}`;
-                      }
-                    } catch (e) {
-                      return `[Unstringifiable Object: ${typeof value}]`;
-                    }
-                  }
-                  return value;
-                })
-              },
-              category: LogCategory.ERROR
-            });
-          }
-        });
-        
-        logger.info(`Processed ${usersData.length} users successfully`, {
-          category: LogCategory.DATA
-        });
-        
-        setUsers(usersData);
-        setFilteredUsers(usersData);
-      } catch (queryError) {
-        logger.error('Error executing users query', {
-          context: { 
-            error: JSON.stringify(queryError, Object.getOwnPropertyNames(queryError))
-          },
-          category: LogCategory.ERROR
-        });
-        toast({
-          title: 'Error fetching users',
-          description: 'There was a problem loading the user data. Please try again.',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
+      setUsers(usersData);
+      setFilteredUsers(usersData);
     } catch (error) {
-      logger.error('Unexpected error in fetchUsers', {
-        context: { 
-          error: JSON.stringify(error, Object.getOwnPropertyNames(error))
-        },
+      logger.error('Error fetching users', {
+        context: { error },
         category: LogCategory.ERROR
       });
+      
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred. Please try again.',
+        description: 'Failed to load users',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -281,7 +175,7 @@ const UserManagement: React.FC = () => {
   
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
-    setNewRole(user.role);
+    setSelectedRole(user.role);
     onEditOpen();
   };
   
@@ -303,27 +197,27 @@ const UserManagement: React.FC = () => {
     try {
       const userRef = doc(db, 'users', selectedUser.id);
       await updateDoc(userRef, {
-        role: newRole,
+        role: selectedRole,
         updatedAt: new Date()
       });
       
       // Update local state
       setUsers(prevUsers => 
         prevUsers.map(user => 
-          user.id === selectedUser.id ? { ...user, role: newRole } : user
+          user.id === selectedUser.id ? { ...user, role: selectedRole } : user
         )
       );
       
       toast({
         title: 'Success',
-        description: `User role updated to ${newRole}`,
+        description: `User role updated to ${selectedRole}`,
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
       
       logger.info('User role updated', {
-        context: { userId: selectedUser.id, newRole },
+        context: { userId: selectedUser.id, newRole: selectedRole },
         category: LogCategory.DATA
       });
       
@@ -348,58 +242,73 @@ const UserManagement: React.FC = () => {
     if (!selectedUser || !db) return;
     
     try {
-      // In a real application, you might want to:
-      // 1. Archive the user data instead of deleting it
-      // 2. Delete or reassign the user's content
-      // 3. Log the deletion for compliance purposes
+      setIsDeleting(true);
       
-      // For now, we'll just update the user record to mark it as deleted
-      const userRef = doc(db, 'users', selectedUser.id);
-      await updateDoc(userRef, {
-        isDeleted: true,
-        isActive: false,
-        deletedAt: new Date(),
-        deletedReason: actionReason,
-        updatedAt: new Date()
+      // Get the current user's ID token for authentication
+      if (!auth) {
+        throw new Error('Authentication is not initialized');
+      }
+      
+      const currentUser = auth.currentUser;
+      if (currentUser === null) {
+        throw new Error('You must be logged in to perform this action');
+      }
+      
+      const idToken = await currentUser.getIdToken();
+      
+      // Call the API to delete the user
+      const response = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          reason: actionReason || 'Deleted by admin'
+        })
       });
       
-      // Remove from local state
-      setUsers(prevUsers => 
-        prevUsers.filter(user => user.id !== selectedUser.id)
-      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete user');
+      }
       
-      // Also update filtered users
-      setFilteredUsers(prevFilteredUsers => 
-        prevFilteredUsers.filter(user => user.id !== selectedUser.id)
-      );
+      // Update local state to reflect the deletion
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
+      setFilteredUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
       
+      // Show success message
       toast({
-        title: 'Success',
-        description: 'User has been deleted',
+        title: 'User Deleted',
+        description: `User ${selectedUser.displayName || selectedUser.email} has been deleted successfully.`,
         status: 'success',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
       
-      logger.info('User marked as deleted', {
+      // Log the action
+      logger.info('User deleted', {
         context: { userId: selectedUser.id, reason: actionReason },
         category: LogCategory.DATA
       });
       
+      // Close the modal
       onDeleteClose();
+      
+      // Clear the action reason
+      setActionReason('');
     } catch (error) {
+      // Handle error
+      setApiError(error instanceof Error ? error.message : 'An unknown error occurred');
+      onApiErrorOpen();
+      
       logger.error('Error deleting user', {
-        context: { error, userId: selectedUser.id },
+        context: { error, userId: selectedUser?.id },
         category: LogCategory.ERROR
       });
-      
-      toast({
-        title: 'Error',
-        description: 'Failed to delete user. Please try again.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+    } finally {
+      setIsDeleting(false);
     }
   };
   
@@ -458,46 +367,80 @@ const UserManagement: React.FC = () => {
     if (selectedUsers.length === 0 || !db) return;
     
     try {
-      // Create a batch to perform multiple operations
-      const batch = writeBatch(db);
-      
-      // Process each selected user
-      for (const userId of selectedUsers) {
-        const userRef = doc(db, 'users', userId);
-        
-        if (action === 'activate') {
-          batch.update(userRef, {
-            isActive: true,
-            updatedAt: new Date()
-          });
-        } else if (action === 'deactivate') {
-          batch.update(userRef, {
-            isActive: false,
-            deactivatedAt: new Date(),
-            updatedAt: new Date()
-          });
-        } else if (action === 'delete') {
-          batch.update(userRef, {
-            isDeleted: true,
-            isActive: false,
-            deletedAt: new Date(),
-            updatedAt: new Date()
-          });
-        }
-      }
-      
-      // Commit the batch
-      await batch.commit();
-      
-      // Update local state
       if (action === 'delete') {
-        setUsers(prevUsers => 
-          prevUsers.filter(user => !selectedUsers.includes(user.id))
-        );
-        setFilteredUsers(prevFilteredUsers => 
-          prevFilteredUsers.filter(user => !selectedUsers.includes(user.id))
-        );
+        setIsDeleting(true);
+        
+        // Get the current user's ID token for authentication
+        if (!auth) {
+          throw new Error('Authentication is not initialized');
+        }
+        
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('You must be logged in to perform this action');
+        }
+        
+        const idToken = await currentUser.getIdToken();
+        
+        // Call the bulk delete API
+        const response = await fetch('/api/admin/users/bulk-delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            userIds: selectedUsers,
+            reason: 'Bulk deletion by admin'
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to delete users');
+        }
+        
+        // Update local state to reflect the deletion
+        setUsers(prevUsers => prevUsers.filter(user => !selectedUsers.includes(user.id)));
+        setFilteredUsers(prevUsers => prevUsers.filter(user => !selectedUsers.includes(user.id)));
+        
+        // Clear selected users
+        setSelectedUsers([]);
+        
+        // Show success message
+        toast({
+          title: 'Users Deleted',
+          description: `${selectedUsers.length} users have been deleted successfully.`,
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        // Log the action
+        logger.info('Bulk user deletion', {
+          context: { count: selectedUsers.length, userIds: selectedUsers },
+          category: LogCategory.DATA
+        });
       } else {
+        // Process each selected user for activate/deactivate
+        for (const userId of selectedUsers) {
+          const userRef = doc(db, 'users', userId);
+          
+          if (action === 'activate') {
+            await updateDoc(userRef, {
+              isActive: true,
+              updatedAt: new Date()
+            });
+          } else if (action === 'deactivate') {
+            await updateDoc(userRef, {
+              isActive: false,
+              deactivatedAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
+        }
+        
+        // Update local state
         setUsers(prevUsers => 
           prevUsers.map(user => {
             if (selectedUsers.includes(user.id)) {
@@ -509,37 +452,51 @@ const UserManagement: React.FC = () => {
             return user;
           })
         );
+        
+        // Also update filtered users
+        setFilteredUsers(prevFilteredUsers => 
+          prevFilteredUsers.map(user => {
+            if (selectedUsers.includes(user.id)) {
+              return {
+                ...user,
+                isActive: action === 'activate'
+              };
+            }
+            return user;
+          })
+        );
+        
+        // Clear selection
+        setSelectedUsers([]);
+        
+        toast({
+          title: 'Success',
+          description: `${selectedUsers.length} users have been ${action === 'activate' ? 'activated' : 'deactivated'}`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
       }
-      
-      // Clear selection
-      setSelectedUsers([]);
-      
-      toast({
-        title: 'Success',
-        description: `Bulk action completed: ${selectedUsers.length} users ${action}d`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      logger.info(`Bulk ${action} completed`, {
-        context: { count: selectedUsers.length },
-        category: LogCategory.DATA
-      });
-      
-    } catch (error) {
+    } catch (error: any) {
       logger.error(`Error performing bulk ${action}`, {
-        context: { error },
+        context: { error, userIds: selectedUsers },
         category: LogCategory.ERROR
       });
       
+      setApiError(error.message || `An error occurred while ${action === 'delete' ? 'deleting' : action === 'activate' ? 'activating' : 'deactivating'} users`);
+      onApiErrorOpen();
+      
       toast({
         title: 'Error',
-        description: `Failed to ${action} users. Please try again.`,
+        description: `Failed to ${action} users`,
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+    } finally {
+      if (action === 'delete') {
+        setIsDeleting(false);
+      }
     }
   };
   
@@ -598,161 +555,168 @@ const UserManagement: React.FC = () => {
       </Box>
       
       {isLoading ? (
-        <Center p={8}>
-          <Spinner size="xl" />
+        <Center p={10}>
+          <Spinner size="xl" color="blue.500" />
         </Center>
       ) : (
-        <Box overflowX="auto">
-          <Table variant="simple">
-            <Thead>
-              <Tr>
-                <Th>
-                  <Checkbox 
-                    isChecked={areAllCurrentUsersSelected} 
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  >
-                    Select All
-                  </Checkbox>
-                </Th>
-                <Th>User</Th>
-                <Th>Role</Th>
-                <Th>Status</Th>
-                <Th>Joined</Th>
-                <Th>Last Login</Th>
-                <Th>Content</Th>
-                <Th>Actions</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {currentUsers.length > 0 ? (
-                currentUsers.map(user => (
-                  <Tr key={user.id}>
-                    <Td>
-                      <Checkbox 
-                        isChecked={selectedUsers.includes(user.id)} 
-                        onChange={(e) => handleSelectUser(user.id, e.target.checked)}
-                      />
-                    </Td>
-                    <Td>
-                      <Box>
-                        <Text fontWeight="medium">{user.displayName || 'Unnamed User'}</Text>
-                        <Text fontSize="sm" color="gray.500">{user.email}</Text>
-                      </Box>
-                    </Td>
-                    <Td>
-                      <Badge colorScheme={
-                        user.role === 'Admin' ? 'red' :
-                        user.role === 'Editor' ? 'purple' :
-                        user.role === 'Reviewer' ? 'blue' :
-                        'gray'
-                      }>
-                        {user.role}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge colorScheme={user.isActive ? 'green' : 'red'}>
-                        {user.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </Td>
-                    <Td>{user.createdAt.toLocaleDateString()}</Td>
-                    <Td>{user.lastLogin.toLocaleDateString()}</Td>
-                    <Td>
-                      <HStack spacing={2}>
-                        <Tooltip label="Articles">
-                          <Badge colorScheme="blue">{user.articles || 0}</Badge>
-                        </Tooltip>
-                        <Tooltip label="Reviews">
-                          <Badge colorScheme="green">{user.reviews || 0}</Badge>
-                        </Tooltip>
-                      </HStack>
-                    </Td>
-                    <Td>
-                      <Menu>
-                        <MenuButton
-                          as={IconButton}
-                          icon={<FiMoreVertical />}
-                          variant="ghost"
-                          size="sm"
+        <>
+          <Box overflowX="auto">
+            <Table variant="simple">
+              <Thead>
+                <Tr>
+                  <Th>
+                    <Checkbox 
+                      isChecked={areAllCurrentUsersSelected} 
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    >
+                      Select All
+                    </Checkbox>
+                  </Th>
+                  <Th>User</Th>
+                  <Th>Role</Th>
+                  <Th>Status</Th>
+                  <Th>Joined</Th>
+                  <Th>Last Login</Th>
+                  <Th>Content</Th>
+                  <Th>Actions</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {currentUsers.length > 0 ? (
+                  currentUsers.map(user => (
+                    <Tr key={user.id}>
+                      <Td>
+                        <Checkbox 
+                          isChecked={selectedUsers.includes(user.id)} 
+                          onChange={(e) => handleSelectUser(user.id, e.target.checked)}
                         />
-                        <MenuList>
-                          <MenuItem 
-                            icon={<FiEdit />} 
-                            onClick={() => handleEditUser(user)}
-                          >
-                            Edit Role
-                          </MenuItem>
-                          <MenuItem 
-                            icon={user.isActive ? <FiUserX /> : <FiUserCheck />} 
-                            onClick={() => handleDeactivateUser(user)}
-                          >
-                            {user.isActive ? 'Deactivate' : 'Activate'} User
-                          </MenuItem>
-                          <MenuItem 
-                            icon={<FiTrash2 />} 
-                            color="red.500"
-                            onClick={() => handleDeleteUser(user)}
-                          >
-                            Delete User
-                          </MenuItem>
-                        </MenuList>
-                      </Menu>
+                      </Td>
+                      <Td>
+                        <Box>
+                          <Text fontWeight="medium">{user.displayName || 'Unnamed User'}</Text>
+                          <Text fontSize="sm" color="gray.500">{user.email}</Text>
+                        </Box>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={
+                          user.role === 'Admin' ? 'red' :
+                          user.role === 'Editor' ? 'purple' :
+                          user.role === 'Reviewer' ? 'blue' :
+                          'gray'
+                        }>
+                          {user.role}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={user.isActive ? 'green' : 'red'}>
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </Td>
+                      <Td>{user.createdAt.toLocaleDateString()}</Td>
+                      <Td>{user.lastLogin?.toLocaleDateString() || 'Never'}</Td>
+                      <Td>
+                        <HStack spacing={2}>
+                          <Tooltip label="Articles">
+                            <Badge colorScheme="blue">{user.articles || 0}</Badge>
+                          </Tooltip>
+                          <Tooltip label="Reviews">
+                            <Badge colorScheme="green">{user.reviews || 0}</Badge>
+                          </Tooltip>
+                        </HStack>
+                      </Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={IconButton}
+                            icon={<FiMoreVertical />}
+                            variant="ghost"
+                            size="sm"
+                          />
+                          <MenuList>
+                            <MenuItem 
+                              icon={<FiEdit />} 
+                              onClick={() => handleEditUser(user)}
+                            >
+                              Edit Role
+                            </MenuItem>
+                            <MenuItem 
+                              icon={user.isActive ? <FiUserX /> : <FiUserCheck />} 
+                              onClick={() => handleDeactivateUser(user)}
+                            >
+                              {user.isActive ? 'Deactivate' : 'Activate'} User
+                            </MenuItem>
+                            <MenuItem 
+                              icon={<FiTrash2 />} 
+                              color="red.500"
+                              onClick={() => handleDeleteUser(user)}
+                            >
+                              Delete User
+                            </MenuItem>
+                          </MenuList>
+                        </Menu>
+                      </Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={8} textAlign="center">
+                      No users found
                     </Td>
                   </Tr>
-                ))
-              ) : (
-                <Tr>
-                  <Td colSpan={8} textAlign="center">
-                    No users found
-                  </Td>
-                </Tr>
-              )}
-            </Tbody>
-          </Table>
-          <Flex justifyContent="space-between" mt={4}>
-            <ButtonGroup>
-              <Button 
-                onClick={() => handleBulkAction('activate')} 
-                colorScheme="green"
-              >
-                Activate
-              </Button>
-              <Button 
-                onClick={() => handleBulkAction('deactivate')} 
-                colorScheme="orange"
-              >
-                Deactivate
-              </Button>
-              <Button 
-                onClick={() => handleBulkAction('delete')} 
-                colorScheme="red"
-              >
-                Delete
-              </Button>
-            </ButtonGroup>
-            <Box>
-              <Text>
-                Showing {currentUsers.length} of {filteredUsers.length} users
-              </Text>
+                )}
+              </Tbody>
+            </Table>
+            <Flex justifyContent="space-between" mt={4}>
               <ButtonGroup>
                 <Button 
-                  onClick={() => paginate(currentPage - 1)} 
-                  disabled={currentPage === 1}
+                  onClick={() => handleBulkAction('activate')} 
+                  colorScheme="green"
+                  isDisabled={selectedUsers.length === 0}
                 >
-                  <FiChevronLeft />
-                </Button>
-                <Button>
-                  Page {currentPage} of {totalPages}
+                  Activate
                 </Button>
                 <Button 
-                  onClick={() => paginate(currentPage + 1)} 
-                  disabled={currentPage === totalPages}
+                  onClick={() => handleBulkAction('deactivate')} 
+                  colorScheme="orange"
+                  isDisabled={selectedUsers.length === 0}
                 >
-                  <FiChevronRight />
+                  Deactivate
+                </Button>
+                <Button 
+                  onClick={() => handleBulkAction('delete')} 
+                  colorScheme="red"
+                  isLoading={isDeleting}
+                  loadingText="Deleting"
+                  isDisabled={selectedUsers.length === 0}
+                >
+                  Delete
                 </Button>
               </ButtonGroup>
-            </Box>
-          </Flex>
-        </Box>
+              <Box>
+                <Text>
+                  Showing {currentUsers.length} of {filteredUsers.length} users
+                </Text>
+                <ButtonGroup>
+                  <Button 
+                    onClick={() => paginate(currentPage - 1)} 
+                    disabled={currentPage === 1}
+                  >
+                    <FiChevronLeft />
+                  </Button>
+                  <Button>
+                    Page {currentPage} of {totalPages}
+                  </Button>
+                  <Button 
+                    onClick={() => paginate(currentPage + 1)} 
+                    disabled={currentPage === totalPages}
+                  >
+                    <FiChevronRight />
+                  </Button>
+                </ButtonGroup>
+              </Box>
+            </Flex>
+          </Box>
+        </>
       )}
       
       {/* Edit User Modal */}
@@ -766,8 +730,8 @@ const UserManagement: React.FC = () => {
               <FormControl>
                 <FormLabel>Role</FormLabel>
                 <Select 
-                  value={newRole} 
-                  onChange={(e) => setNewRole(e.target.value)}
+                  value={selectedRole} 
+                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
                 >
                   <option value="User">User</option>
                   <option value="Reviewer">Reviewer</option>
@@ -798,18 +762,12 @@ const UserManagement: React.FC = () => {
             <Text mb={4}>
               Are you sure you want to delete this user? This action cannot be undone.
             </Text>
-            {selectedUser && (
-              <Box mb={4}>
-                <Text fontWeight="bold">{selectedUser.displayName || 'Unnamed User'}</Text>
-                <Text>{selectedUser.email}</Text>
-              </Box>
-            )}
-            <FormControl>
+            <FormControl mb={4}>
               <FormLabel>Reason for deletion</FormLabel>
               <Textarea 
-                value={actionReason} 
+                value={actionReason}
                 onChange={(e) => setActionReason(e.target.value)}
-                placeholder="Please provide a reason for this action"
+                placeholder="Optional: Provide a reason for deletion"
               />
             </FormControl>
           </ModalBody>
@@ -817,7 +775,12 @@ const UserManagement: React.FC = () => {
             <Button variant="ghost" mr={3} onClick={onDeleteClose}>
               Cancel
             </Button>
-            <Button colorScheme="red" onClick={confirmDeleteUser}>
+            <Button 
+              colorScheme="red" 
+              onClick={confirmDeleteUser}
+              isLoading={isDeleting}
+              loadingText="Deleting"
+            >
               Delete
             </Button>
           </ModalFooter>
@@ -869,6 +832,29 @@ const UserManagement: React.FC = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+      
+      {/* API Error Modal */}
+      <AlertDialog
+        isOpen={isApiErrorOpen}
+        leastDestructiveRef={apiErrorCancelRef}
+        onClose={onApiErrorClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              API Error
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              {apiError}
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={apiErrorCancelRef} onClick={onApiErrorClose}>
+                Close
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </AdminLayout>
   );
 };
