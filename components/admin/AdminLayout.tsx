@@ -27,8 +27,11 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { createLogger, LogCategory } from '../../utils/logger';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFirebaseFirestore } from '../../config/firebase';
 
 const logger = createLogger('admin');
+const db = getFirebaseFirestore();
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -54,21 +57,56 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => {
       }
 
       try {
-        // In a production environment, you would check custom claims or a dedicated admin role
-        // For now, we'll use the same approach as the existing admin pages
-        const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com', 'dominic@dominic.ac'];
-        const hasAdminAccess = adminEmails.includes(currentUser.email || '');
-        
-        if (!hasAdminAccess) {
-          logger.warn('User does not have admin access', {
-            context: { email: currentUser.email },
-            category: LogCategory.AUTH
-          });
-          router.push('/');
-          return;
+        // Check if the user has admin access
+        if (db) {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const userRole = userData.role;
+            
+            // Allow both Admin and JuniorAdmin roles to access the admin dashboard
+            if (userRole === 'Admin' || userRole === 'JuniorAdmin') {
+              setIsAdmin(true);
+            } else {
+              logger.warn('User does not have admin access', {
+                context: { email: currentUser.email, role: userRole },
+                category: LogCategory.AUTH
+              });
+              router.push('/');
+              return;
+            }
+          } else {
+            // Fallback to email-based admin check
+            const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com', 'dominic@dominic.ac'];
+            const hasAdminAccess = adminEmails.includes(currentUser.email || '');
+            
+            if (!hasAdminAccess) {
+              logger.warn('User does not have admin access', {
+                context: { email: currentUser.email },
+                category: LogCategory.AUTH
+              });
+              router.push('/');
+              return;
+            }
+            
+            setIsAdmin(true);
+          }
+        } else {
+          // Fallback to email-based admin check if Firestore is not available
+          const adminEmails = ['admin@researka.org', 'dom123dxb@gmail.com', 'dominic@dominic.ac'];
+          const hasAdminAccess = adminEmails.includes(currentUser.email || '');
+          
+          if (!hasAdminAccess) {
+            logger.warn('User does not have admin access', {
+              context: { email: currentUser.email },
+              category: LogCategory.AUTH
+            });
+            router.push('/');
+            return;
+          }
+          
+          setIsAdmin(true);
         }
-        
-        setIsAdmin(true);
       } catch (error) {
         logger.error('Error checking admin status', {
           context: { error },

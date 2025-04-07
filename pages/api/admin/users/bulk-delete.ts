@@ -57,8 +57,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const adminDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
       const adminData = adminDoc.data();
       
-      if (!adminData || adminData.role !== 'Admin') {
-        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+      if (!adminData || (adminData.role !== 'Admin' && adminData.role !== 'JuniorAdmin')) {
+        return res.status(403).json({ error: 'Forbidden: Admin or Junior Admin access required' });
       }
     } catch (authError) {
       logger.error('Authentication error', {

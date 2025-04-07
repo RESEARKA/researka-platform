@@ -78,7 +78,7 @@ interface User {
 }
 
 // User role type
-type UserRole = 'User' | 'Reviewer' | 'Editor' | 'Admin';
+type UserRole = 'User' | 'Reviewer' | 'JuniorAdmin' | 'Editor' | 'Admin';
 
 const UserManagement: React.FC = () => {
   // State for API errors
@@ -185,19 +185,51 @@ const UserManagement: React.FC = () => {
   };
   
   const confirmEditUser = async () => {
-    if (!selectedUser || !db) return;
+    if (!selectedUser || !db || !auth) return;
     
     try {
-      const userRef = doc(db, 'users', selectedUser.id);
-      await updateDoc(userRef, {
-        role: selectedRole,
-        updatedAt: new Date()
+      setIsLoading(true);
+      
+      // Get the current user's ID token for authentication
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('You must be logged in to perform this action');
+      }
+      
+      const idToken = await currentUser.getIdToken();
+      
+      // Call the update-role API
+      const response = await fetch('/api/admin/users/update-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          role: selectedRole
+        })
       });
       
-      // Update local state
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update user role');
+      }
+      
+      // Update the local state
       setUsers(prevUsers => 
         prevUsers.map(user => 
-          user.id === selectedUser.id ? { ...user, role: selectedRole } : user
+          user.id === selectedUser.id 
+            ? { ...user, role: selectedRole } 
+            : user
+        )
+      );
+      
+      setFilteredUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === selectedUser.id 
+            ? { ...user, role: selectedRole } 
+            : user
         )
       );
       
@@ -205,13 +237,8 @@ const UserManagement: React.FC = () => {
         title: 'Success',
         description: `User role updated to ${selectedRole}`,
         status: 'success',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
-      });
-      
-      logger.info('User role updated', {
-        context: { userId: selectedUser.id, newRole: selectedRole },
-        category: LogCategory.DATA
       });
       
       onEditClose();
@@ -223,11 +250,13 @@ const UserManagement: React.FC = () => {
       
       toast({
         title: 'Error',
-        description: 'Failed to update user role. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to update user role',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -593,6 +622,7 @@ const UserManagement: React.FC = () => {
                           user.role === 'Admin' ? 'red' :
                           user.role === 'Editor' ? 'purple' :
                           user.role === 'Reviewer' ? 'blue' :
+                          user.role === 'JuniorAdmin' ? 'orange' :
                           'gray'
                         }>
                           {user.role}
@@ -757,6 +787,7 @@ const UserManagement: React.FC = () => {
                 >
                   <option value="User">User</option>
                   <option value="Reviewer">Reviewer</option>
+                  <option value="JuniorAdmin">Junior Admin</option>
                   <option value="Editor">Editor</option>
                   <option value="Admin">Admin</option>
                 </Select>

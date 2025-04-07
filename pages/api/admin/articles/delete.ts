@@ -24,11 +24,11 @@ if (!admin.apps.length) {
 const adminAuth = admin.auth();
 const adminDb = admin.firestore();
 
-const logger = createLogger('api:admin:users:delete');
+const logger = createLogger('api:admin:articles:delete');
 
 /**
- * API endpoint to delete a user
- * This is a soft delete that marks the user as deleted in Firestore and disables the account in Firebase Auth
+ * API endpoint to delete an article
+ * This is a soft delete that marks the article as deleted in Firestore
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow POST requests
@@ -38,23 +38,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Extract data from request body
-    const { userId, reason, adminId } = req.body;
+    const { articleId, reason } = req.body;
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
+    if (!articleId) {
+      return res.status(400).json({ error: 'Article ID is required' });
     }
 
-    // Verify the requester is an admin (you would implement proper auth checks here)
-    // This is a simplified check - in production, use proper authentication middleware
+    // Verify the requester is an admin or junior admin
     const adminIdToken = req.headers.authorization?.split('Bearer ')[1];
     if (!adminIdToken) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    let adminId: string;
+
     try {
       const decodedToken = await adminAuth.verifyIdToken(adminIdToken);
+      adminId = decodedToken.uid;
       
-      // Check if the user is an admin
+      // Check if the user is an admin or junior admin
       const adminDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
       const adminData = adminDoc.data();
       
@@ -69,68 +71,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid authentication' });
     }
 
-    logger.info('Deleting user', {
-      context: { userId, adminId, reason },
-      category: LogCategory.AUTH
+    logger.info('Deleting article', {
+      context: { articleId, adminId, reason },
+      category: LogCategory.DATA
     });
 
-    // 1. Disable the user in Firebase Auth
+    // Mark the article as deleted in Firestore
     try {
-      await adminAuth.updateUser(userId, {
-        disabled: true
-      });
+      const articleRef = adminDb.collection('articles').doc(articleId);
+      const articleDoc = await articleRef.get();
       
-      logger.info('User disabled in Firebase Auth', {
-        context: { userId },
-        category: LogCategory.AUTH
-      });
-    } catch (authError: any) {
-      // If the user doesn't exist in Auth, log it but continue
-      if (authError.code === 'auth/user-not-found') {
-        logger.warn('User not found in Firebase Auth', {
-          context: { userId },
-          category: LogCategory.AUTH
-        });
-      } else {
-        logger.error('Error disabling user in Firebase Auth', {
-          context: { error: authError, userId },
-          category: LogCategory.ERROR
-        });
-        return res.status(500).json({ error: 'Failed to disable user authentication' });
+      if (!articleDoc.exists) {
+        return res.status(404).json({ error: 'Article not found' });
       }
-    }
-
-    // 2. Mark the user as deleted in Firestore
-    try {
-      await adminDb.collection('users').doc(userId).update({
+      
+      await articleRef.update({
         isDeleted: true,
-        isActive: false,
-        deletedAt: new Date(),
+        deletedAt: admin.firestore.FieldValue.serverTimestamp(),
         deletedReason: reason || 'Deleted by admin',
         deletedBy: adminId,
-        updatedAt: new Date()
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
       
-      logger.info('User marked as deleted in Firestore', {
-        context: { userId, reason },
+      logger.info('Article marked as deleted in Firestore', {
+        context: { articleId, reason },
         category: LogCategory.DATA
       });
     } catch (firestoreError) {
-      logger.error('Error marking user as deleted in Firestore', {
-        context: { error: firestoreError, userId },
+      logger.error('Error marking article as deleted in Firestore', {
+        context: { error: firestoreError, articleId },
         category: LogCategory.ERROR
       });
-      return res.status(500).json({ error: 'Failed to update user data' });
+      return res.status(500).json({ error: 'Failed to update article data' });
     }
 
     // Return success response
     return res.status(200).json({ 
       success: true, 
-      message: 'User successfully deleted',
-      userId
+      message: 'Article successfully deleted',
+      articleId
     });
   } catch (error) {
-    logger.error('Unexpected error in delete user API', {
+    logger.error('Unexpected error in delete article API', {
       context: { error },
       category: LogCategory.ERROR
     });
