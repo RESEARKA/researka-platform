@@ -37,13 +37,7 @@ import {
   Tooltip,
   Checkbox,
   Flex,
-  ButtonGroup,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay
+  ButtonGroup
 } from '@chakra-ui/react';
 import { 
   FiSearch, 
@@ -53,7 +47,8 @@ import {
   FiUserCheck,
   FiUserX,
   FiChevronLeft,
-  FiChevronRight
+  FiChevronRight,
+  FiAlertCircle
 } from 'react-icons/fi';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { 
@@ -88,8 +83,6 @@ type UserRole = 'User' | 'Reviewer' | 'Editor' | 'Admin';
 const UserManagement: React.FC = () => {
   // State for API errors
   const [apiError, setApiError] = useState<string | null>(null);
-  const apiErrorCancelRef = React.useRef<HTMLButtonElement>(null);
-  const { isOpen: isApiErrorOpen, onOpen: onApiErrorOpen, onClose: onApiErrorClose } = useDisclosure();
 
   // State for user management
   const [users, setUsers] = useState<User[]>([]);
@@ -129,6 +122,7 @@ const UserManagement: React.FC = () => {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
+      setApiError(null); // Clear any previous errors
       
       if (!db) {
         throw new Error('Firestore is not initialized');
@@ -161,13 +155,12 @@ const UserManagement: React.FC = () => {
         category: LogCategory.ERROR
       });
       
-      toast({
-        title: 'Error',
-        description: 'Failed to load users',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+      // Set API error instead of showing multiple toasts
+      setApiError('Failed to load users');
+      
+      // Clear users data on error
+      setUsers([]);
+      setFilteredUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -301,7 +294,6 @@ const UserManagement: React.FC = () => {
     } catch (error) {
       // Handle error
       setApiError(error instanceof Error ? error.message : 'An unknown error occurred');
-      onApiErrorOpen();
       
       logger.error('Error deleting user', {
         context: { error, userId: selectedUser?.id },
@@ -484,7 +476,6 @@ const UserManagement: React.FC = () => {
       });
       
       setApiError(error.message || `An error occurred while ${action === 'delete' ? 'deleting' : action === 'activate' ? 'activating' : 'deactivating'} users`);
-      onApiErrorOpen();
       
       toast({
         title: 'Error',
@@ -719,6 +710,37 @@ const UserManagement: React.FC = () => {
         </>
       )}
       
+      {/* Error toast for failed operations */}
+      {apiError && (
+        <Box 
+          position="fixed" 
+          bottom="20px" 
+          right="20px" 
+          bg="red.500" 
+          color="white" 
+          p={4} 
+          borderRadius="md"
+          maxW="400px"
+          zIndex={1000}
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+        >
+          <HStack spacing={2}>
+            <Box as={FiAlertCircle} />
+            <Text>{apiError}</Text>
+          </HStack>
+          <IconButton
+            aria-label="Close"
+            icon={<Box as="span" fontSize="lg">×</Box>}
+            size="sm"
+            variant="ghost"
+            color="white"
+            onClick={() => setApiError(null)}
+          />
+        </Box>
+      )}
+      
       {/* Edit User Modal */}
       <Modal isOpen={isEditOpen} onClose={onEditClose}>
         <ModalOverlay />
@@ -832,29 +854,6 @@ const UserManagement: React.FC = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      
-      {/* API Error Modal */}
-      <AlertDialog
-        isOpen={isApiErrorOpen}
-        leastDestructiveRef={apiErrorCancelRef}
-        onClose={onApiErrorClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              API Error
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              {apiError}
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={apiErrorCancelRef} onClick={onApiErrorClose}>
-                Close
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
     </AdminLayout>
   );
 };
