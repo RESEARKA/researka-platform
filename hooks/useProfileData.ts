@@ -429,94 +429,24 @@ export function useProfileData() {
         null
       );
       
-      // Get Firestore instance
+      // Make sure Firebase is initialized
       let dbInstance = getFirebaseFirestore();
       if (!dbInstance) {
-        // Try to initialize Firebase if it's not already initialized
-        logger.debug('Firestore not initialized for profile update, attempting to initialize', { category: LogCategory.DATA });
-        
-        if (firebaseInitializationInProgress) {
-          logger.debug('Firebase initialization already in progress, waiting...', { category: LogCategory.DATA });
+        try {
+          logger.debug('Firestore not initialized, initializing Firebase', { category: LogCategory.DATA });
+          await initializeFirebase();
+          dbInstance = getFirebaseFirestore();
           
-          // Wait for a bit to let the other initialization complete
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Try to get Firestore again
-          const dbAfterWait = getFirebaseFirestore();
-          if (dbAfterWait) {
-            logger.debug('Firestore now available after waiting', { category: LogCategory.DATA });
-            dbInstance = dbAfterWait;
-          } else if (!isMounted.current) {
-            logger.debug('Component unmounted during Firebase initialization wait', { category: LogCategory.LIFECYCLE });
-            isUpdatingProfile.current = false;
-            updateOperationInProgress.current = false;
-            return false;
-          } else {
-            logger.debug('Firestore still not available after waiting, proceeding with initialization', { category: LogCategory.DATA });
+          if (!dbInstance) {
+            throw new Error('Failed to initialize Firebase for profile update');
           }
+        } catch (error) {
+          logger.error('Failed to initialize Firebase for profile update', { 
+            context: { error }, 
+            category: LogCategory.ERROR 
+          });
+          throw new Error('Failed to initialize Firebase');
         }
-        
-        if (!dbInstance) {
-          firebaseInitializationInProgress = true;
-          
-          try {
-            // Initialize Firebase
-            logger.debug('Initializing Firebase for profile update', { category: LogCategory.DATA });
-            await initializeFirebase();
-            
-            // Check mount status after async operation
-            if (!isMounted.current) {
-              logger.debug('Component unmounted during Firebase initialization for update', { category: LogCategory.LIFECYCLE });
-              isUpdatingProfile.current = false;
-              updateOperationInProgress.current = false;
-              firebaseInitializationInProgress = false;
-              return false;
-            }
-            
-            logger.debug('Firebase initialized successfully for profile update', { category: LogCategory.DATA });
-          } catch (error) {
-            logger.error('Failed to initialize Firebase for profile update', { 
-              context: { error }, 
-              category: LogCategory.ERROR 
-            });
-            
-            // Check mount status after async operation
-            if (!isMounted.current) {
-              logger.debug('Component unmounted during Firebase initialization error for update', { category: LogCategory.LIFECYCLE });
-              isUpdatingProfile.current = false;
-              updateOperationInProgress.current = false;
-              firebaseInitializationInProgress = false;
-              return false;
-            }
-            
-            batchUpdateState(
-              profile,
-              isProfileComplete,
-              ProfileLoadingState.ERROR,
-              error instanceof Error ? error.message : 'Failed to initialize Firebase for profile update'
-            );
-            isUpdatingProfile.current = false;
-            updateOperationInProgress.current = false;
-            firebaseInitializationInProgress = false;
-            return false;
-          } finally {
-            firebaseInitializationInProgress = false;
-          }
-        }
-      }
-      
-      // Try again to get Firestore after initialization
-      dbInstance = getFirebaseFirestore();
-      if (!dbInstance) {
-        throw new Error('Firestore still not available after initialization for profile update');
-      }
-      
-      // Check mount status after async operations
-      if (!isMounted.current) {
-        logger.debug('Component unmounted after Firebase initialization for update', { category: LogCategory.LIFECYCLE });
-        isUpdatingProfile.current = false;
-        updateOperationInProgress.current = false;
-        return false;
       }
       
       // Ensure we have the complete profile data
@@ -532,29 +462,20 @@ export function useProfileData() {
         updatedData.createdAt = new Date().toISOString();
       }
       
-      // Update the document in Firestore
-      if (dbInstance) {
+      // Try direct Firestore update first (simpler approach)
+      try {
+        // Update the document in Firestore
         const userDocRef = doc(dbInstance, 'users', currentUser.uid);
-        await setDoc(userDocRef, updatedData, { merge: true });
         
-        // Check mount status after async operation
-        if (!isMounted.current) {
-          logger.debug('Component unmounted after Firestore update', { category: LogCategory.LIFECYCLE });
-          isUpdatingProfile.current = false;
-          updateOperationInProgress.current = false;
-          return false;
-        }
+        logger.debug('Updating Firestore document directly', {
+          context: { uid: currentUser.uid },
+          category: LogCategory.DATA
+        });
+        
+        await setDoc(userDocRef, updatedData, { merge: true });
         
         // Get the updated document to ensure we have the latest data
         const updatedDoc = await getDoc(userDocRef);
-        
-        // Check mount status after async operation
-        if (!isMounted.current) {
-          logger.debug('Component unmounted after getting updated profile', { category: LogCategory.LIFECYCLE });
-          isUpdatingProfile.current = false;
-          updateOperationInProgress.current = false;
-          return false;
-        }
         
         if (updatedDoc.exists()) {
           const updatedUserData = updatedDoc.data() as UserProfile;
@@ -570,7 +491,7 @@ export function useProfileData() {
             null
           );
           
-          logger.debug('Profile updated successfully', { 
+          logger.debug('Profile updated successfully via direct Firestore update', { 
             context: { 
               uid: currentUser.uid,
               isComplete
@@ -579,18 +500,108 @@ export function useProfileData() {
           });
           
           return true;
-        } else {
-          throw new Error('Profile document not found after update');
         }
-      } else {
-        throw new Error('Firestore not available for profile update');
+      } catch (directUpdateError) {
+        logger.warn('Direct Firestore update failed, trying with token refresh', {
+          context: { error: directUpdateError },
+          category: LogCategory.ERROR
+        });
+        
+        // If direct update fails, try with token refresh
+        try {
+          // Force token refresh to get the latest permissions
+          await currentUser.getIdToken(true);
+          
+          // Try again with fresh token
+          const userDocRef = doc(dbInstance, 'users', currentUser.uid);
+          await setDoc(userDocRef, updatedData, { merge: true });
+          
+          // Get the updated document
+          const updatedDoc = await getDoc(userDocRef);
+          
+          if (updatedDoc.exists()) {
+            const updatedUserData = updatedDoc.data() as UserProfile;
+            
+            // Check if profile is complete
+            const isComplete = checkProfileComplete(updatedUserData);
+            
+            // Update profile data
+            batchUpdateState(
+              updatedUserData,
+              isComplete,
+              ProfileLoadingState.SUCCESS,
+              null
+            );
+            
+            logger.debug('Profile updated successfully after token refresh', { 
+              category: LogCategory.DATA 
+            });
+            
+            return true;
+          }
+        } catch (tokenRefreshError) {
+          logger.warn('Token refresh update failed, falling back to server-side update', {
+            context: { error: tokenRefreshError },
+            category: LogCategory.ERROR
+          });
+        }
+      }
+      
+      // If all client-side approaches fail, try server-side update as last resort
+      try {
+        logger.debug('Attempting server-side profile update as fallback', {
+          category: LogCategory.DATA
+        });
+        
+        // Get a fresh token
+        const idToken = await currentUser.getIdToken(true);
+        
+        const response = await fetch('/api/users/update-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify(updatedData)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          logger.debug('Server-side profile update successful', {
+            category: LogCategory.DATA,
+            context: { result }
+          });
+          
+          // Get the updated profile from the server response
+          const updatedUserData = result.profile as UserProfile;
+          
+          // Check if profile is complete
+          const isComplete = checkProfileComplete(updatedUserData);
+          
+          // Update profile data
+          batchUpdateState(
+            updatedUserData,
+            isComplete,
+            ProfileLoadingState.SUCCESS,
+            null
+          );
+          
+          return true;
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Server-side update failed');
+        }
+      } catch (serverError) {
+        logger.error('All profile update methods failed', {
+          context: { error: serverError },
+          category: LogCategory.ERROR
+        });
+        throw serverError;
       }
     } catch (error) {
       // Check mount status after any async error
       if (!isMounted.current) {
         logger.debug('Component unmounted during error handling for update', { category: LogCategory.LIFECYCLE });
-        isUpdatingProfile.current = false;
-        updateOperationInProgress.current = false;
         return false;
       }
       
@@ -613,7 +624,9 @@ export function useProfileData() {
       // Set a timeout to reset the operation in progress flag
       // This prevents rapid successive updates
       setTimeout(() => {
-        updateOperationInProgress.current = false;
+        if (isMounted.current) {
+          updateOperationInProgress.current = false;
+        }
       }, 500);
     }
   }, [authIsInitialized, currentUser, profile, isProfileComplete, batchUpdateState, checkProfileComplete]);
@@ -648,5 +661,7 @@ export function useProfileData() {
     updateProfile,
     retryLoading: loadProfileData, // Alias for loadProfileData to match the expected interface
     profileLoadingState: loadingState, // Alias for loadingState to match the expected interface
+    updateOperationInProgress, 
+    isUpdatingProfile, 
   };
 }
