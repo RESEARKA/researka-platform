@@ -37,7 +37,9 @@ import {
   Tooltip,
   Checkbox,
   Flex,
-  ButtonGroup
+  ButtonGroup,
+  Alert,
+  AlertIcon
 } from '@chakra-ui/react';
 import { 
   FiSearch, 
@@ -56,8 +58,7 @@ import {
   doc, 
   getDocs, 
   query, 
-  updateDoc, 
-  where 
+  updateDoc
 } from 'firebase/firestore';
 import { db, auth } from '../../config/firebase';
 import { createLogger, LogCategory } from '../../utils/logger';
@@ -129,23 +130,51 @@ const UserManagement: React.FC = () => {
       }
       
       const usersCollection = collection(db, 'users');
-      const usersQuery = query(usersCollection, where('isDeleted', '!=', true));
+      
+      // Use a safer query that doesn't rely on the isDeleted field existing
+      // This prevents errors if some documents don't have this field
+      const usersQuery = query(usersCollection);
       const usersSnapshot = await getDocs(usersQuery);
       
-      const usersData = usersSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          email: data.email || '',
-          displayName: data.displayName || '',
-          role: data.role || 'User',
-          isActive: data.isActive !== false, // Default to true if not specified
-          createdAt: data.createdAt?.toDate() || new Date(),
-          lastLogin: data.lastLogin?.toDate() || null,
-          articles: data.articleCount || 0,
-          reviews: data.reviewCount || 0
-        } as User;
-      });
+      const usersData: User[] = usersSnapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          
+          // Skip documents that are marked as deleted
+          if (data.isDeleted === true) {
+            return null;
+          }
+          
+          // Handle potential type conversion issues with dates
+          let createdAt = new Date();
+          try {
+            createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : 
+                       (data.createdAt ? new Date(data.createdAt) : new Date());
+          } catch (e) {
+            logger.warn('Error converting createdAt date', { context: { docId: doc.id } });
+          }
+          
+          let lastLogin = null;
+          try {
+            lastLogin = data.lastLogin?.toDate ? data.lastLogin.toDate() : 
+                       (data.lastLogin ? new Date(data.lastLogin) : null);
+          } catch (e) {
+            logger.warn('Error converting lastLogin date', { context: { docId: doc.id } });
+          }
+          
+          return {
+            id: doc.id,
+            email: data.email || '',
+            displayName: data.displayName || '',
+            role: data.role || 'User',
+            isActive: data.isActive !== false, // Default to true if not specified
+            createdAt: createdAt,
+            lastLogin: lastLogin,
+            articles: data.articleCount || 0,
+            reviews: data.reviewCount || 0
+          } as User;
+        })
+        .filter((user): user is User => user !== null); // Type guard to filter out null values
       
       setUsers(usersData);
       setFilteredUsers(usersData);
@@ -574,6 +603,27 @@ const UserManagement: React.FC = () => {
         </InputGroup>
       </Box>
       
+      {apiError && (
+        <Box mb={4}>
+          <Alert status="error" variant="left-accent">
+            <AlertIcon />
+            <Box>
+              <Text fontWeight="bold">Error loading users</Text>
+              <Text fontSize="sm">{apiError}</Text>
+              <Button 
+                size="sm" 
+                colorScheme="red" 
+                mt={2} 
+                onClick={fetchUsers}
+                leftIcon={<FiAlertCircle />}
+              >
+                Retry
+              </Button>
+            </Box>
+          </Alert>
+        </Box>
+      )}
+      
       {isLoading ? (
         <Center p={10}>
           <Spinner size="xl" color="blue.500" />
@@ -589,16 +639,16 @@ const UserManagement: React.FC = () => {
                       isChecked={areAllCurrentUsersSelected} 
                       onChange={(e) => handleSelectAll(e.target.checked)}
                     >
-                      Select All
+                      SELECT ALL
                     </Checkbox>
                   </Th>
-                  <Th>User</Th>
-                  <Th>Role</Th>
-                  <Th>Status</Th>
-                  <Th>Joined</Th>
-                  <Th>Last Login</Th>
-                  <Th>Content</Th>
-                  <Th>Actions</Th>
+                  <Th>USER</Th>
+                  <Th>ROLE</Th>
+                  <Th>STATUS</Th>
+                  <Th>JOINED</Th>
+                  <Th>LAST LOGIN</Th>
+                  <Th>CONTENT</Th>
+                  <Th>ACTIONS</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -633,8 +683,8 @@ const UserManagement: React.FC = () => {
                           {user.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </Td>
-                      <Td>{user.createdAt.toLocaleDateString()}</Td>
-                      <Td>{user.lastLogin?.toLocaleDateString() || 'Never'}</Td>
+                      <Td>{user.createdAt ? user.createdAt.toLocaleDateString() : 'Unknown'}</Td>
+                      <Td>{user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never'}</Td>
                       <Td>
                         <HStack spacing={2}>
                           <Tooltip label="Articles">
@@ -652,6 +702,7 @@ const UserManagement: React.FC = () => {
                             icon={<FiMoreVertical />}
                             variant="ghost"
                             size="sm"
+                            aria-label="Actions"
                           />
                           <MenuList>
                             <MenuItem 
@@ -738,37 +789,6 @@ const UserManagement: React.FC = () => {
             </Flex>
           </Box>
         </>
-      )}
-      
-      {/* Error toast for failed operations */}
-      {apiError && (
-        <Box 
-          position="fixed" 
-          bottom="20px" 
-          right="20px" 
-          bg="red.500" 
-          color="white" 
-          p={4} 
-          borderRadius="md"
-          maxW="400px"
-          zIndex={1000}
-          display="flex"
-          alignItems="center"
-          justifyContent="space-between"
-        >
-          <HStack spacing={2}>
-            <Box as={FiAlertCircle} />
-            <Text>{apiError}</Text>
-          </HStack>
-          <IconButton
-            aria-label="Close"
-            icon={<Box as="span" fontSize="lg">×</Box>}
-            size="sm"
-            variant="ghost"
-            color="white"
-            onClick={() => setApiError(null)}
-          />
-        </Box>
       )}
       
       {/* Edit User Modal */}
