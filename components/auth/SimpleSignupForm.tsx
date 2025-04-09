@@ -243,7 +243,7 @@ const SimpleSignupForm = ({
     }
     
     // Check if an update is already in progress
-    if (updateOperationInProgress.current) {
+    if (updateOperationInProgress?.current) {
       logger.warn('Update already in progress, skipping duplicate submission', {
         category: LogCategory.LIFECYCLE
       });
@@ -267,9 +267,28 @@ const SimpleSignupForm = ({
         profileComplete: true
       };
       
+      // Add debug log to track the update operation
+      logger.debug('Starting profile update operation', {
+        category: LogCategory.LIFECYCLE,
+        context: { profileData }
+      });
+      
       const success = await updateProfile(profileData);
       
+      logger.debug('Profile update operation completed', {
+        category: LogCategory.LIFECYCLE,
+        context: { success }
+      });
+      
       if (success) {
+        toast({
+          title: 'Success',
+          description: 'Your profile has been saved successfully.',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        
         // Call completion callback if provided
         if (onComplete) {
           onComplete();
@@ -277,6 +296,8 @@ const SimpleSignupForm = ({
           // Otherwise, redirect to homepage
           router.push('/');
         }
+      } else {
+        throw new Error('Profile update returned false');
       }
     } catch (error) {
       logger.error('Error saving profile', {
@@ -384,6 +405,7 @@ const SimpleSignupForm = ({
                   mt={1}
                   maxH="200px"
                   overflowY="auto"
+                  as="ul"
                 >
                   {institutionResults.length > 0 ? (
                     institutionResults.map((university, idx) => (
@@ -394,12 +416,13 @@ const SimpleSignupForm = ({
                         cursor="pointer"
                         _hover={{ bg: "blue.50" }}
                         onClick={() => handleAutocompleteSelect('institution', university)}
+                        as="li"
                       >
                         {university}
                       </ListItem>
                     ))
                   ) : (
-                    <ListItem px={4} py={2}>No matching universities</ListItem>
+                    <ListItem px={4} py={2} as="li">No matching universities</ListItem>
                   )}
                 </List>
               )}
@@ -438,6 +461,7 @@ const SimpleSignupForm = ({
                   mt={1}
                   maxH="200px"
                   overflowY="auto"
+                  as="ul"
                 >
                   {interestsResults.length > 0 ? (
                     interestsResults.map((interest, idx) => (
@@ -448,12 +472,13 @@ const SimpleSignupForm = ({
                         cursor="pointer"
                         _hover={{ bg: "blue.50" }}
                         onClick={() => handleAutocompleteSelect('researchInterests', interest)}
+                        as="li"
                       >
                         {interest}
                       </ListItem>
                     ))
                   ) : (
-                    <ListItem px={4} py={2}>No matching interests</ListItem>
+                    <ListItem px={4} py={2} as="li">No matching interests</ListItem>
                   )}
                 </List>
               )}
