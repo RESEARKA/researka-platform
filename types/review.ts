@@ -28,6 +28,11 @@ export interface Article {
   dataAvailability?: string;
   conflicts?: string;
   license?: string;
+  // Moderation fields
+  flagCount?: number;
+  flaggedBy?: string[]; // Array of user IDs who flagged this article
+  moderationStatus?: 'active' | 'under_review' | 'reinstated' | 'removed';
+  lastFlaggedAt?: any; // Firestore Timestamp
 }
 
 export interface Review {

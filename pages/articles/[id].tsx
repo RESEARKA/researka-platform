@@ -24,6 +24,7 @@ import { getAllResearchFields } from '../../utils/researchTaxonomy';
 import ArticleReviewStatus from '../../components/ArticleReviewStatus';
 import ArticleReviewers from '../../components/ArticleReviewers';
 import { downloadArticlePdf } from '../../utils/pdfGenerator';
+import FlagArticleButton from '../../components/moderation/FlagArticleButton';
 
 // Mock reviews for demonstration - will be replaced with real data in the future
 // Commented out for now as it's not being used
@@ -315,6 +316,7 @@ const ArticleDetailPage: React.FC = () => {
                 <Button leftIcon={<FiShare2 />} variant="outline">
                   Share
                 </Button>
+                <FlagArticleButton articleId={article.id || id as string} />
               </Flex>
             </GridItem>
             

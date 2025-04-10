@@ -1,3 +1,5 @@
+"use client";
+
 import React, { ReactNode, useState, useEffect } from 'react';
 import { Box, Spinner, Text, VStack, Center, Alert, AlertIcon, AlertTitle, AlertDescription, Button } from '@chakra-ui/react';
 import { FiRefreshCw } from 'react-icons/fi';
