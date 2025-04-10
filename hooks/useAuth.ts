@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import logger from '../utils/logger';
+import { trackUserActivity, ActivityType } from '../utils/activityTracker';
 
 export interface UserData {
   uid: string;
@@ -66,7 +67,23 @@ export function useAuth() {
     try {
       setLoading(true);
       setError(null);
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Track login activity
+      if (userCredential.user) {
+        trackUserActivity(
+          userCredential.user.uid,
+          ActivityType.LOGIN,
+          undefined,
+          {
+            timestamp: Date.now()
+          }
+        ).catch(err => {
+          logger.error('Failed to track login activity', { context: { error: err } });
+        });
+      }
+      
+      return userCredential;
     } catch (err) {
       logger.error('Login error', { context: { error: err } });
       setError(err instanceof Error ? err.message : 'Failed to login');
@@ -80,7 +97,23 @@ export function useAuth() {
     try {
       setLoading(true);
       setError(null);
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Track signup activity
+      if (userCredential.user) {
+        trackUserActivity(
+          userCredential.user.uid,
+          ActivityType.SIGNUP,
+          undefined,
+          {
+            timestamp: Date.now()
+          }
+        ).catch(err => {
+          logger.error('Failed to track signup activity', { context: { error: err } });
+        });
+      }
+      
+      return userCredential;
     } catch (err) {
       logger.error('Signup error', { context: { error: err } });
       setError(err instanceof Error ? err.message : 'Failed to create account');

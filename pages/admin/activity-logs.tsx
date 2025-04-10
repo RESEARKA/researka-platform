@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Box, Heading, Table, Thead, Tbody, Tr, Th, Td,
   Select, Input, Button, Flex, Badge, Text,
-  Spinner, useToast, Code
+  Spinner, useToast, Code, Tabs, TabList, Tab, TabPanels, TabPanel
 } from '@chakra-ui/react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../components/admin/AdminLayout';
+import UserActivityDashboard from '../../components/admin/UserActivityDashboard';
 import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'firebase/firestore';
 import { getFirebaseFirestore } from '../../config/firebase';
 import { AdminActionType, ADMIN_LOGS_COLLECTION } from '../../utils/adminLogger';
@@ -47,6 +48,7 @@ const AdminActivityLogs = () => {
   const [adminFilter, setAdminFilter] = useState<string>('');
   const [page, setPage] = useState(1);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
   const toast = useToast();
   const router = useRouter();
   const { user } = useAuth();
@@ -71,10 +73,10 @@ const AdminActivityLogs = () => {
 
   // Fetch logs with filtering
   useEffect(() => {
-    if (user?.role === 'Admin' || user?.role === 'JuniorAdmin') {
+    if ((user?.role === 'Admin' || user?.role === 'JuniorAdmin') && activeTab === 0) {
       fetchLogs();
     }
-  }, [actionFilter, adminFilter, page, user]);
+  }, [actionFilter, adminFilter, page, user, activeTab]);
 
   const fetchLogs = async () => {
     // Rate limiting
@@ -142,132 +144,161 @@ const AdminActivityLogs = () => {
     setPage(prev => Math.max(1, prev - 1));
   };
 
+  // Handle tab change
+  const handleTabChange = (index: number) => {
+    setActiveTab(index);
+  };
+
   if (!user) {
-    return <AdminLayout title="Admin Activity Logs"><Spinner /></AdminLayout>;
+    return <AdminLayout title="Activity Monitoring"><Spinner /></AdminLayout>;
   }
 
   return (
-    <AdminLayout title="Admin Activity Logs">
+    <AdminLayout title="Activity Monitoring">
       <Box p={4}>
-        <Heading mb={6}>Admin Activity Logs</Heading>
+        <Heading mb={6}>Activity Monitoring</Heading>
         
-        {/* Filter controls */}
-        <Flex mb={6} gap={4} flexWrap="wrap">
-          <Select 
-            placeholder="Filter by action" 
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            width="auto"
-            minW="200px"
-          >
-            <option value="all">All Actions</option>
-            {Object.values(AdminActionType).map(actionType => (
-              <option key={actionType} value={actionType}>
-                {actionType.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </Select>
+        <Tabs isLazy variant="enclosed" onChange={handleTabChange} index={activeTab} mb={6}>
+          <TabList>
+            <Tab>Admin Activity Logs</Tab>
+            <Tab>User Activity Analytics</Tab>
+          </TabList>
           
-          <Input
-            placeholder="Filter by admin email"
-            value={adminFilter}
-            onChange={(e) => setAdminFilter(e.target.value)}
-            width="auto"
-            minW="250px"
-          />
-          
-          <Button 
-            onClick={fetchLogs} 
-            colorScheme="blue"
-            isLoading={loading}
-            loadingText="Refreshing"
-          >
-            Refresh
-          </Button>
-        </Flex>
-        
-        {/* Logs table */}
-        {loading ? (
-          <Flex justify="center" align="center" minH="300px" direction="column" gap={4}>
-            <Spinner size="xl" />
-            <Text>Loading activity logs...</Text>
-          </Flex>
-        ) : logs.length > 0 ? (
-          <>
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Timestamp</Th>
-                  <Th>Admin</Th>
-                  <Th>Action</Th>
-                  <Th>Target</Th>
-                  <Th>Details</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {logs.map(log => (
-                  <Tr key={log.id}>
-                    <Td>
-                      {log.timestamp?.toDate 
-                        ? format(log.timestamp.toDate(), 'yyyy-MM-dd HH:mm:ss')
-                        : 'Pending'}
-                    </Td>
-                    <Td>
-                      {log.adminEmail}
-                      <Badge ml={2} colorScheme={log.adminRole === 'Admin' ? 'red' : 'orange'}>
-                        {log.adminRole}
-                      </Badge>
-                    </Td>
-                    <Td>{log.actionType.replace(/_/g, ' ')}</Td>
-                    <Td>{`${log.targetType}: ${log.targetId || 'N/A'}`}</Td>
-                    <Td>
-                      <SafeJsonDisplay data={log.details} />
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+          <TabPanels>
+            {/* Admin Activity Logs Panel */}
+            <TabPanel p={0} pt={4}>
+              {/* Filter controls */}
+              <Flex mb={6} gap={4} flexWrap="wrap">
+                <Select 
+                  placeholder="Filter by action" 
+                  value={actionFilter}
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  width="auto"
+                  minW="200px"
+                >
+                  <option value="all">All Actions</option>
+                  {Object.values(AdminActionType).map(actionType => (
+                    <option key={actionType} value={actionType}>
+                      {actionType.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </Select>
+                
+                <Input
+                  placeholder="Filter by admin email"
+                  value={adminFilter}
+                  onChange={(e) => setAdminFilter(e.target.value)}
+                  width="auto"
+                  minW="250px"
+                />
+                
+                <Button 
+                  onClick={fetchLogs} 
+                  colorScheme="blue"
+                  isLoading={loading}
+                  loadingText="Refreshing"
+                >
+                  Refresh
+                </Button>
+              </Flex>
+              
+              {/* Logs table */}
+              {loading ? (
+                <Flex justify="center" align="center" minH="300px" direction="column" gap={4}>
+                  <Spinner size="xl" />
+                  <Text>Loading activity logs...</Text>
+                </Flex>
+              ) : logs.length > 0 ? (
+                <>
+                  <Table variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th>Timestamp</Th>
+                        <Th>Admin</Th>
+                        <Th>Action</Th>
+                        <Th>Target</Th>
+                        <Th>Details</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {logs.map(log => (
+                        <Tr key={log.id}>
+                          <Td whiteSpace="nowrap">
+                            {log.timestamp instanceof Timestamp
+                              ? format(log.timestamp.toDate(), 'MMM d, yyyy h:mm a')
+                              : 'Invalid date'}
+                          </Td>
+                          <Td>
+                            <Text fontWeight="medium">{log.adminEmail}</Text>
+                            <Badge 
+                              colorScheme={log.adminRole === 'Admin' ? 'red' : 'orange'}
+                              fontSize="xs"
+                            >
+                              {log.adminRole}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <Badge colorScheme="blue">
+                              {log.actionType.replace(/_/g, ' ')}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            {log.targetId ? (
+                              <Text>
+                                <Badge colorScheme="purple" mr={1}>
+                                  {log.targetType}
+                                </Badge>
+                                <Code fontSize="xs">{log.targetId}</Code>
+                              </Text>
+                            ) : (
+                              <Text color="gray.500">N/A</Text>
+                            )}
+                          </Td>
+                          <Td maxW="300px" overflow="hidden">
+                            <SafeJsonDisplay data={log.details || {}} />
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                  
+                  {/* Pagination */}
+                  <Flex justify="space-between" mt={4}>
+                    <Button 
+                      onClick={handlePrevPage} 
+                      isDisabled={page === 1}
+                      size="sm"
+                    >
+                      Previous
+                    </Button>
+                    <Text>Page {page}</Text>
+                    <Button 
+                      onClick={handleNextPage} 
+                      isDisabled={logs.length < ITEMS_PER_PAGE}
+                      size="sm"
+                    >
+                      Next
+                    </Button>
+                  </Flex>
+                </>
+              ) : (
+                <Box textAlign="center" p={8}>
+                  <Text fontSize="lg">No admin activity logs found</Text>
+                  <Text color="gray.600" mt={2}>
+                    {actionFilter !== 'all' || adminFilter 
+                      ? 'Try changing your filters'
+                      : 'Admin actions will be recorded here'}
+                  </Text>
+                </Box>
+              )}
+            </TabPanel>
             
-            {/* Pagination controls */}
-            <Flex justify="space-between" mt={4}>
-              <Button 
-                onClick={handlePrevPage} 
-                isDisabled={page === 1}
-              >
-                Previous
-              </Button>
-              <Text>Page {page}</Text>
-              <Button 
-                onClick={handleNextPage} 
-                isDisabled={logs.length < ITEMS_PER_PAGE}
-              >
-                Next
-              </Button>
-            </Flex>
-          </>
-        ) : (
-          <Flex 
-            justify="center" 
-            align="center" 
-            minH="300px" 
-            direction="column" 
-            gap={4}
-            p={8}
-            borderWidth="1px"
-            borderRadius="lg"
-            bg="gray.50"
-          >
-            <Text fontSize="xl">No activity logs found</Text>
-            <Text>
-              {adminFilter 
-                ? `No logs found for admin: ${adminFilter}` 
-                : actionFilter !== 'all' 
-                  ? `No logs found for action type: ${actionFilter}` 
-                  : 'No admin activity has been logged yet'
-              }
-            </Text>
-          </Flex>
-        )}
+            {/* User Activity Analytics Panel */}
+            <TabPanel p={0} pt={4}>
+              <UserActivityDashboard />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </Box>
     </AdminLayout>
   );

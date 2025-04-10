@@ -25,27 +25,10 @@ import ArticleReviewStatus from '../../components/ArticleReviewStatus';
 import ArticleReviewers from '../../components/ArticleReviewers';
 import { downloadArticlePdf } from '../../utils/pdfGenerator';
 import FlagArticleButton from '../../components/moderation/FlagArticleButton';
+import { useArticleViewTracking } from '../../hooks/useActivityTracking';
+import { createLogger, LogCategory } from '../../utils/logger';
 
-// Mock reviews for demonstration - will be replaced with real data in the future
-// Commented out for now as it's not being used
-// const MOCK_REVIEWS = [
-//   {
-//     id: 'review1',
-//     reviewerId: 'user1',
-//     reviewerName: 'Dr. Emma Johnson',
-//     score: 4.2,
-//     recommendation: 'accept',
-//     createdAt: '2023-02-10',
-//   },
-//   {
-//     id: 'review2',
-//     reviewerId: 'user8',
-//     reviewerName: 'Prof. James Wilson',
-//     score: 3.8,
-//     recommendation: 'minor_revisions',
-//     createdAt: '2023-02-15',
-//   },
-// ];
+const logger = createLogger('article-detail');
 
 const ArticleDetailPage: React.FC = () => {
   const router = useRouter();
@@ -59,6 +42,26 @@ const ArticleDetailPage: React.FC = () => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   
+  // Track article view when the page loads
+  const trackingStatus = useArticleViewTracking(
+    typeof id === 'string' ? id : undefined,
+    article ? {
+      category: article.categories?.[0] || 'unknown',
+      keywords: article.keywords?.join(',') || '',
+      title: article.title || 'unknown'
+    } : {}
+  );
+  
+  // Log any tracking errors
+  useEffect(() => {
+    if (!trackingStatus.success && trackingStatus.error) {
+      logger.warn('Failed to track article view', {
+        context: { articleId: id, error: trackingStatus.error },
+        category: LogCategory.ERROR
+      });
+    }
+  }, [trackingStatus, id]);
+
   useEffect(() => {
     if (!id) return;
     
