@@ -31,6 +31,7 @@ import { getFirebaseFirestore } from '../../../config/firebase';
 import { FlaggedArticle, Flag, ModerationStatus } from '../../../types/moderation';
 import { formatDistanceToNow } from 'date-fns';
 import ModerationActionModal from '../../../components/moderation/ModerationActionModal';
+import { logAdminAction, AdminActionType } from '../../../utils/adminLogger';
 
 const ModerationQueue = () => {
   const toast = useToast();
@@ -200,6 +201,28 @@ const ModerationQueue = () => {
             resolvedAt: new Date()
           });
         }
+      }
+      
+      // Log admin action
+      const logResult = await logAdminAction(
+        user?.uid || '',
+        user?.email || '',
+        user?.role as 'Admin' | 'JuniorAdmin' || 'JuniorAdmin',
+        action === 'approve' ? AdminActionType.ARTICLE_APPROVE : AdminActionType.ARTICLE_REJECT,
+        'article',
+        selectedArticle.id,
+        {
+          previousStatus: selectedArticle.moderationStatus,
+          newStatus,
+          notes,
+          flagCount: selectedArticle.flags?.length || 0,
+          flagCategories: selectedArticle.flags?.map(flag => flag.category) || []
+        }
+      );
+      
+      if (!logResult.success) {
+        console.warn('Failed to log admin action:', logResult.error);
+        // Continue with the operation even if logging fails
       }
       
       toast({

@@ -23,7 +23,8 @@ import {
   FiFileText, 
   FiSettings, 
   FiAlertTriangle,
-  FiHome
+  FiHome,
+  FiActivity
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { createLogger, LogCategory } from '../../utils/logger';
@@ -241,6 +242,22 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => {
               >
                 <Icon as={FiAlertTriangle} mr={3} />
                 Content Moderation
+              </ChakraLink>
+            </Link>
+            
+            <Link href="/admin/activity-logs" passHref legacyBehavior>
+              <ChakraLink 
+                py={2} 
+                px={4} 
+                borderRadius="md" 
+                w="full" 
+                display="flex"
+                alignItems="center"
+                _hover={{ bg: 'gray.100', textDecoration: 'none' }}
+                bg={router.pathname === '/admin/activity-logs' ? 'gray.100' : 'transparent'}
+              >
+                <Icon as={FiActivity} mr={3} />
+                Activity Logs
               </ChakraLink>
             </Link>
             
