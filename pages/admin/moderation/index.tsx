@@ -65,67 +65,91 @@ const ModerationQueue = () => {
           articlesRef,
           where('flagCount', '>', 0),
           orderBy('flagCount', 'desc'),
-          orderBy('lastFlaggedAt', 'desc'),
           limit(50)
         );
       } else {
         articlesQuery = query(
           articlesRef,
           where('moderationStatus', '==', statusFilter),
-          orderBy('lastFlaggedAt', 'desc'),
           limit(50)
         );
       }
 
-      const articlesSnapshot = await getDocs(articlesQuery);
-      const articles: FlaggedArticle[] = [];
+      try {
+        const articlesSnapshot = await getDocs(articlesQuery);
+        const articles: FlaggedArticle[] = [];
 
-      // For each flagged article, get its flags
-      for (const articleDoc of articlesSnapshot.docs) {
-        const articleData = articleDoc.data();
-        
-        // Skip deleted articles
-        if (articleData.isDeleted) continue;
-        
-        // Get flags for this article
-        const flagsRef = collection(db, 'flags');
-        const flagsQuery = query(
-          flagsRef,
-          where('articleId', '==', articleDoc.id),
-          orderBy('timestamp', 'desc')
-        );
-        
-        const flagsSnapshot = await getDocs(flagsQuery);
-        const flags: Flag[] = flagsSnapshot.docs.map(flagDoc => {
-          const flagData = flagDoc.data() as Omit<Flag, 'id'>;
-          return {
-            id: flagDoc.id,
-            articleId: flagData.articleId,
-            reportedBy: flagData.reportedBy,
-            reason: flagData.reason,
-            category: flagData.category,
-            timestamp: flagData.timestamp,
-            status: flagData.status,
-            resolvedBy: flagData.resolvedBy,
-            resolvedAt: flagData.resolvedAt,
-            reviewedBy: flagData.reviewedBy,
-            reviewNotes: flagData.reviewNotes
-          };
-        });
-        
-        articles.push({
-          id: articleDoc.id,
-          title: articleData.title,
-          author: articleData.author || articleData.authorId,
-          authorId: articleData.authorId,
-          flagCount: articleData.flagCount || 0,
-          moderationStatus: articleData.moderationStatus || 'active',
-          lastFlaggedAt: articleData.lastFlaggedAt?.toDate() || new Date(),
-          flags
+        // For each flagged article, get its flags
+        for (const articleDoc of articlesSnapshot.docs) {
+          const articleData = articleDoc.data();
+          
+          // Skip deleted articles
+          if (articleData.isDeleted) continue;
+          
+          // Get flags for this article
+          const flagsRef = collection(db, 'flags');
+          const flagsQuery = query(
+            flagsRef,
+            where('articleId', '==', articleDoc.id),
+            limit(20) // Limit to 20 most recent flags
+          );
+          
+          try {
+            const flagsSnapshot = await getDocs(flagsQuery);
+            const flags: Flag[] = flagsSnapshot.docs.map(flagDoc => {
+              const flagData = flagDoc.data() as Omit<Flag, 'id'>;
+              return {
+                id: flagDoc.id,
+                articleId: flagData.articleId,
+                reportedBy: flagData.reportedBy,
+                reason: flagData.reason,
+                category: flagData.category,
+                timestamp: flagData.timestamp,
+                status: flagData.status,
+                resolvedBy: flagData.resolvedBy,
+                resolvedAt: flagData.resolvedAt,
+                reviewedBy: flagData.reviewedBy,
+                reviewNotes: flagData.reviewNotes
+              };
+            });
+            
+            articles.push({
+              id: articleDoc.id,
+              title: articleData.title || 'Untitled Article',
+              author: articleData.author || articleData.authorId || 'Unknown Author',
+              authorId: articleData.authorId || '',
+              flagCount: articleData.flagCount || 0,
+              moderationStatus: articleData.moderationStatus || 'active',
+              lastFlaggedAt: articleData.lastFlaggedAt?.toDate() || new Date(),
+              flags
+            });
+          } catch (flagError) {
+            console.error('Error fetching flags for article:', articleDoc.id, flagError);
+            // Continue with next article even if flags fetch fails
+            articles.push({
+              id: articleDoc.id,
+              title: articleData.title || 'Untitled Article',
+              author: articleData.author || articleData.authorId || 'Unknown Author',
+              authorId: articleData.authorId || '',
+              flagCount: articleData.flagCount || 0,
+              moderationStatus: articleData.moderationStatus || 'active',
+              lastFlaggedAt: articleData.lastFlaggedAt?.toDate() || new Date(),
+              flags: []
+            });
+          }
+        }
+
+        setFlaggedArticles(articles);
+      } catch (queryError) {
+        console.error('Error executing Firestore query:', queryError);
+        toast({
+          title: 'Error',
+          description: 'Failed to load moderation queue',
+          status: 'error',
+          duration: 5000,
+          isClosable: true
         });
       }
-
-      setFlaggedArticles(articles);
     } catch (error) {
       console.error('Error fetching flagged articles:', error);
       toast({
@@ -288,7 +312,7 @@ const ModerationQueue = () => {
                           aria-label="View article details"
                           icon={<FiEye />}
                           size="sm"
-                          onClick={() => window.open(`/admin/moderation/article/${article.id}`, '_blank')}
+                          onClick={() => handleViewArticle(article)}
                         />
                       </Tooltip>
                       

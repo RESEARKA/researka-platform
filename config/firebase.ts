@@ -2,7 +2,9 @@ import { initializeApp, FirebaseApp, getApps } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
-import { isClientSide } from '../utils/imageOptimizer';
+
+// Helper function to check if code is running on client side
+export const isClientSide = () => typeof window !== 'undefined';
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {
@@ -51,7 +53,6 @@ class FirebaseInstance {
   public initialize(): boolean {
     // Only run on client side
     if (!isClientSide()) {
-      console.log('Firebase: Cannot initialize in server environment');
       return false;
     }
     
@@ -63,21 +64,16 @@ class FirebaseInstance {
     
     // If already initialized successfully, return true
     if (this._isInitialized && this._app && this._auth && this._db) {
-      console.log('Firebase: Already initialized successfully');
       return true;
     }
     
     this._initializationAttempts++;
     
     try {
-      console.log(`Firebase: Initialization attempt ${this._initializationAttempts}/${this.MAX_INITIALIZATION_ATTEMPTS}`);
-      
       // Check if Firebase app is already initialized
       if (!getApps().length) {
-        console.log('Firebase: Creating new app instance');
         this._app = initializeApp(firebaseConfig);
       } else {
-        console.log('Firebase: Reusing existing app instance');
         this._app = getApps()[0];
       }
       
@@ -91,7 +87,6 @@ class FirebaseInstance {
           isSupported().then(supported => {
             if (supported && this._app) {
               this._analytics = getAnalytics(this._app);
-              console.log('Firebase: Analytics initialized');
             }
           }).catch(err => {
             console.error('Firebase: Analytics initialization error:', err);
@@ -99,11 +94,9 @@ class FirebaseInstance {
         }
         
         this._isInitialized = true;
-        console.log('Firebase: Initialization successful');
         return true;
       }
       
-      console.error('Firebase: App initialization failed');
       return false;
     } catch (error) {
       console.error('Firebase: Initialization error:', error);
@@ -125,8 +118,6 @@ class FirebaseInstance {
    * but it runs any registered cleanup functions and resets the initialization state
    */
   public cleanup(): void {
-    console.log('Firebase: Running cleanup');
-    
     // Run all registered cleanup functions
     this._cleanupFunctions.forEach(fn => {
       try {
@@ -178,69 +169,20 @@ const firebaseInstance = FirebaseInstance.getInstance();
 /**
  * Initialize Firebase on the client side with singleton pattern and retry logic
  * Enhanced with better error handling and detailed logging
- * @param options Optional configuration options
  * @returns boolean - True if initialization was successful
  */
-export const initializeFirebase = (options: { 
-  logDetails?: boolean;
-  maxRetries?: number;
-  retryDelayMs?: number;
-} = {}): boolean => {
-  // Default options
-  const { 
-    logDetails = false,
-    maxRetries = 3,
-    retryDelayMs = 1000
-  } = options;
-  
+export const initializeFirebase = (): boolean => {
   // Only run on client side
   if (!isClientSide()) {
-    console.log('Firebase: Cannot initialize in server environment');
     return false;
   }
   
   try {
-    // Performance tracking
-    const startTime = performance.now();
-    
-    // Detailed logging if enabled
-    if (logDetails) {
-      console.log('Firebase: Starting initialization with options:', {
-        logDetails,
-        maxRetries,
-        retryDelayMs,
-        environment: isClientSide() ? 'client' : 'server',
-        existingApps: getApps().length
-      });
-    }
-    
     // Initialize using the singleton instance
     const result = firebaseInstance.initialize();
-    
-    // Log performance metrics
-    const duration = Math.round(performance.now() - startTime);
-    console.log(`Firebase: Initialization ${result ? 'successful' : 'failed'} in ${duration}ms`);
-    
     return result;
   } catch (error) {
-    // Enhanced error logging
     console.error('Firebase: Critical initialization error:', error);
-    
-    // Log additional diagnostic information
-    console.error('Firebase: Diagnostic information:', {
-      environment: isClientSide() ? 'client' : 'server',
-      userAgent: isClientSide() ? window.navigator.userAgent : 'N/A',
-      existingApps: getApps().length,
-      // Check for memory info in a type-safe way
-      memoryInfo: isClientSide() && 
-                 (performance as any)?.memory ? {
-                   // @ts-ignore - Access memory metrics with a type assertion
-                   totalJSHeapSize: (performance as any).memory.totalJSHeapSize,
-                   // @ts-ignore - Access memory metrics with a type assertion
-                   usedJSHeapSize: (performance as any).memory.usedJSHeapSize
-                 } : 'Not available'
-    });
-    
     return false;
   }
 };
@@ -253,30 +195,21 @@ export const initializeFirebase = (options: {
  */
 export const getFirebaseAuth = (): Auth | null => {
   if (!isClientSide()) {
-    console.log('Firebase: Cannot get Auth in server environment');
     return null;
   }
   
   try {
     // Check if Firebase is initialized
     if (!firebaseInstance.isInitialized) {
-      console.log('Firebase: Not initialized, initializing now before getting Auth...');
       const initialized = initializeFirebase();
       
       if (!initialized) {
-        console.error('Firebase: Failed to initialize before getting Auth');
         return null;
       }
     }
     
     // Get Auth instance
-    const auth = firebaseInstance.auth;
-    
-    if (!auth) {
-      console.error('Firebase: Auth instance is null after initialization');
-    }
-    
-    return auth;
+    return firebaseInstance.auth;
   } catch (error) {
     console.error('Firebase: Error getting Auth instance:', error);
     return null;
@@ -291,30 +224,21 @@ export const getFirebaseAuth = (): Auth | null => {
  */
 export const getFirebaseFirestore = (): Firestore | null => {
   if (!isClientSide()) {
-    console.log('Firebase: Cannot get Firestore in server environment');
     return null;
   }
   
   try {
     // Check if Firebase is initialized
     if (!firebaseInstance.isInitialized) {
-      console.log('Firebase: Not initialized, initializing now before getting Firestore...');
       const initialized = initializeFirebase();
       
       if (!initialized) {
-        console.error('Firebase: Failed to initialize before getting Firestore');
         return null;
       }
     }
     
     // Get Firestore instance
-    const db = firebaseInstance.db;
-    
-    if (!db) {
-      console.error('Firebase: Firestore instance is null after initialization');
-    }
-    
-    return db;
+    return firebaseInstance.db;
   } catch (error) {
     console.error('Firebase: Error getting Firestore instance:', error);
     return null;
@@ -332,7 +256,6 @@ export const getFirebaseApp = (): FirebaseApp | null => {
   }
   
   if (!firebaseInstance.isInitialized) {
-    console.log('Firebase: Not initialized, initializing now...');
     firebaseInstance.initialize();
   }
   return firebaseInstance.app;
@@ -372,7 +295,6 @@ export const cleanupFirebase = (): void => {
 
 // Initialize Firebase on client side only
 if (isClientSide()) {
-  console.log('Firebase: Client-side environment detected, initializing...');
   initializeFirebase();
 }
 

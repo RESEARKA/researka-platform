@@ -4,10 +4,6 @@ import React, { ReactNode, useState, useEffect } from 'react';
 import { Box, Spinner, Text, VStack, Center, Alert, AlertIcon, AlertTitle, AlertDescription, Button } from '@chakra-ui/react';
 import { FiRefreshCw } from 'react-icons/fi';
 import useFirebaseInitialized from '../hooks/useFirebaseInitialized';
-import { createLogger, LogCategory } from '../utils/logger';
-
-// Create a logger instance for this component
-const logger = createLogger('FirebaseClientOnly');
 
 interface FirebaseClientOnlyProps {
   children: ReactNode;
@@ -19,8 +15,6 @@ interface FirebaseClientOnlyProps {
 /**
  * Component that ensures children are only rendered on the client side after Firebase has been initialized
  * This prevents hydration errors and Firebase-related errors
- * 
- * Using the dedicated useFirebaseInitialized hook for better initialization management
  */
 const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
   children,
@@ -37,17 +31,7 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
   // Set isClient to true once the component is mounted
   useEffect(() => {
     setIsClient(true);
-    
-    // Log Firebase initialization status for debugging
-    logger.debug('Firebase initialization status', {
-      context: {
-        initialized,
-        hasError: !!error,
-        isTimedOut
-      },
-      category: LogCategory.SYSTEM
-    });
-  }, [initialized, error, isTimedOut]);
+  }, []);
 
   // If we're not on the client yet, show the fallback
   if (!isClient) {
