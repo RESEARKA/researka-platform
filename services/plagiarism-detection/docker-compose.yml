@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  jplag:
+    container_name: jplag_container
+    build: .
+    volumes:
+      - ./data:/data
+      - ./results:/results
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

@@ -15,7 +15,8 @@ import {
   AlertDescription,
   Checkbox,
   FormControl,
-  FormHelperText
+  FormHelperText,
+  Progress
 } from '@chakra-ui/react';
 import { FiDownload, FiCheck } from 'react-icons/fi';
 import { useAuth } from '../hooks/useAuth';
@@ -27,6 +28,7 @@ import { ArticlePreview } from '../components/ArticlePreview';
 import { SectionEditor } from '../components/SectionEditor';
 import { ReferenceFormatGuide } from '../components/ReferenceFormatGuide';
 import NavBar from '../components/NavBar';
+import PlagiarismReportModal from '../components/PlagiarismReportModal';
 
 // Define the Article interface based on our standardized template
 interface Article {
@@ -133,6 +135,9 @@ export default function StandardizedSubmitPage() {
   const [currentEditingSection, setCurrentEditingSection] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState('');
+  const [plagiarismResults, setPlagiarismResults] = useState<any>(null);
+  const [showPlagiarismModal, setShowPlagiarismModal] = useState(false);
   
   // Effect to populate author information from user profile
   useEffect(() => {
@@ -365,6 +370,96 @@ export default function StandardizedSubmitPage() {
       
       setIsSubmitting(true);
       
+      // Run plagiarism check before submission
+      setSubmissionStatus('Checking for plagiarism...');
+      
+      // Combine all text content for plagiarism check
+      const fullContent = [
+        article.title,
+        article.abstract,
+        article.introduction,
+        article.literatureReview,
+        article.methods,
+        article.results,
+        article.discussion,
+        article.conclusion,
+        article.acknowledgments
+      ].filter(Boolean).join('\n\n');
+      
+      try {
+        const plagiarismResponse = await fetch('/api/plagiarism/check', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${await user?.getIdToken()}`
+          },
+          body: JSON.stringify({
+            text: fullContent,
+            articleId: 'temp-' + Date.now() // Temporary ID for checking
+          })
+        });
+        
+        if (!plagiarismResponse.ok) {
+          throw new Error('Plagiarism check failed');
+        }
+        
+        const plagiarismData = await plagiarismResponse.json();
+        
+        // Check if plagiarism was detected
+        if (plagiarismData.results.overallSimilarity > 30) {
+          // High similarity - reject submission
+          setIsSubmitting(false);
+          setSubmissionStatus('');
+          
+          toast({
+            title: 'Plagiarism Detected',
+            description: `Your submission contains ${plagiarismData.results.overallSimilarity.toFixed(1)}% similarity with existing content. Please revise your article.`,
+            status: 'error',
+            duration: 10000,
+            isClosable: true
+          });
+          
+          // Show plagiarism details
+          setPlagiarismResults(plagiarismData.results);
+          setShowPlagiarismModal(true);
+          return;
+        } else if (plagiarismData.results.overallSimilarity > 10) {
+          // Moderate similarity - warn but allow
+          toast({
+            title: 'Potential Similarity Detected',
+            description: `Your submission contains ${plagiarismData.results.overallSimilarity.toFixed(1)}% similarity with existing content. You may proceed, but consider reviewing the highlighted sections.`,
+            status: 'warning',
+            duration: 10000,
+            isClosable: true
+          });
+          
+          // Show plagiarism details
+          setPlagiarismResults(plagiarismData.results);
+          setShowPlagiarismModal(true);
+        } else {
+          // Low similarity - proceed normally
+          toast({
+            title: 'Plagiarism Check Passed',
+            description: 'Your submission passed the plagiarism check.',
+            status: 'success',
+            duration: 3000,
+            isClosable: true
+          });
+        }
+      } catch (error) {
+        logger.error('Plagiarism check error:', error);
+        toast({
+          title: 'Plagiarism Check Error',
+          description: 'Could not complete plagiarism check. Proceeding with submission.',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true
+        });
+      }
+      
+      // Proceed with submission
+      setSubmissionStatus('Submitting article...');
+      
       // TODO: Implement actual submission logic here
       // This would typically involve an API call to your backend
       
@@ -392,6 +487,7 @@ export default function StandardizedSubmitPage() {
       });
     } finally {
       setIsSubmitting(false);
+      setSubmissionStatus('');
     }
   };
   
@@ -489,16 +585,18 @@ export default function StandardizedSubmitPage() {
   // Render submission section
   const renderSubmission = () => (
     <Box p={6} borderWidth={1} borderRadius="md" bg="white" shadow="sm">
-      <Heading size="md" mb={4}>Step 4: Submit Your Article</Heading>
+      <Heading size="md" mb={4}>Step 4: Submit Article</Heading>
+      
+      <Text mb={4}>
+        Please review your article before submission. Once submitted, your article will be checked for plagiarism and then reviewed by our editorial team.
+      </Text>
       
       <FormControl mb={4}>
         <Checkbox 
-          isChecked={acceptedTerms}
+          isChecked={acceptedTerms} 
           onChange={(e) => setAcceptedTerms(e.target.checked)}
-          isInvalid={!!validationErrors.terms}
         >
-          I confirm that this article is my original work and I have the right to publish it.
-          I agree to the terms and conditions of DecentraJournal.
+          I accept the terms and conditions and confirm this is my original work
         </Checkbox>
         {validationErrors.terms && (
           <FormHelperText color="red.500">{validationErrors.terms}</FormHelperText>
@@ -506,16 +604,22 @@ export default function StandardizedSubmitPage() {
       </FormControl>
       
       <Button
-        colorScheme="green"
+        colorScheme="blue"
         size="lg"
-        leftIcon={<FiCheck />}
+        rightIcon={<FiCheck />}
         onClick={handleSubmit}
         isLoading={isSubmitting}
-        loadingText="Submitting"
-        isDisabled={!isDocumentUploaded || !acceptedTerms}
+        loadingText={submissionStatus || "Submitting..."}
+        isDisabled={!acceptedTerms}
       >
         Submit Article
       </Button>
+      {submissionStatus && (
+        <Box mt={4}>
+          <Text mb={2}>{submissionStatus}</Text>
+          <Progress value={50} isIndeterminate />
+        </Box>
+      )}
     </Box>
   );
   
@@ -534,6 +638,11 @@ export default function StandardizedSubmitPage() {
           {renderDocumentUpload()}
           {isDocumentUploaded && renderArticlePreview()}
           {isDocumentUploaded && renderSubmission()}
+          <PlagiarismReportModal 
+            isOpen={showPlagiarismModal}
+            onClose={() => setShowPlagiarismModal(false)}
+            results={plagiarismResults}
+          />
         </VStack>
       </Container>
     </>

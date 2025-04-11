@@ -22,8 +22,10 @@ import {
 
 import { EditorToolbar } from './components/EditorToolbar';
 import { CitationPanel } from './components/CitationPanel';
+import { PlagiarismIndicator } from './components/PlagiarismIndicator';
 import { CitationExtension } from './extensions/citationExtension';
 import { useCitations } from './hooks/useCitations';
+import { usePlagiarismDetection } from './hooks/usePlagiarismDetection';
 import { Citation } from './types/citation';
 import { createLogger } from '../../utils/logger';
 
@@ -32,17 +34,21 @@ const logger = createLogger('enhanced-editor');
 interface EnhancedEditorProps {
   initialContent?: string;
   initialCitations?: Citation[];
+  articleId: string;
   onSave: (content: string, citations: Citation[]) => void;
   placeholder?: string;
   autoSaveInterval?: number; // in milliseconds
+  enablePlagiarismCheck?: boolean;
 }
 
 export const EnhancedEditor: React.FC<EnhancedEditorProps> = ({ 
   initialContent = '', 
   initialCitations = [],
+  articleId,
   onSave,
   placeholder = 'Begin writing your article...',
-  autoSaveInterval = 30000 // 30 seconds
+  autoSaveInterval = 30000, // 30 seconds
+  enablePlagiarismCheck = true
 }) => {
   const [showCitationPanel, setShowCitationPanel] = useState(false);
   const [wordCount, setWordCount] = useState({ words: 0, characters: 0 });
@@ -60,6 +66,20 @@ export const EnhancedEditor: React.FC<EnhancedEditorProps> = ({
     citationFormat,
     setCitationFormat
   } = useCitations(initialCitations);
+  
+  const {
+    isLoading: isPlagiarismLoading,
+    isChecked: isPlagiarismChecked,
+    overallSimilarity,
+    matches: plagiarismMatches,
+    status: plagiarismStatus,
+    error: plagiarismError,
+    checkPlagiarism,
+    checkPlagiarismNow
+  } = usePlagiarismDetection({
+    articleId,
+    autoCheck: enablePlagiarismCheck
+  });
   
   // Auto-save timer
   useEffect(() => {
@@ -116,6 +136,11 @@ export const EnhancedEditor: React.FC<EnhancedEditorProps> = ({
         words: text.split(/\s+/).filter(word => word.length > 0).length,
         characters: text.length
       });
+      
+      // Check for plagiarism when content changes
+      if (enablePlagiarismCheck) {
+        checkPlagiarism(text);
+      }
     }
   });
   
@@ -158,6 +183,12 @@ export const EnhancedEditor: React.FC<EnhancedEditorProps> = ({
     }
   }, [editor, citationFormat]);
 
+  const handleCheckPlagiarismNow = useCallback(() => {
+    if (editor) {
+      checkPlagiarismNow(editor.getText());
+    }
+  }, [editor, checkPlagiarismNow]);
+
   if (!editor) {
     return null;
   }
@@ -182,19 +213,32 @@ export const EnhancedEditor: React.FC<EnhancedEditorProps> = ({
           <EditorContent editor={editor} />
         </Box>
         
-        {showCitationPanel && (
-          <CitationPanel
-            citations={citations}
-            onAddCitation={addCitation}
-            onRemoveCitation={removeCitation}
-            onInsertCitation={handleInsertCitation}
-            fetchCitationByDOI={fetchCitationByDOI}
-            fetchCitationByURL={fetchCitationByURL}
-            createCitation={createCitation}
-            citationFormat={citationFormat}
-            setCitationFormat={setCitationFormat}
-          />
-        )}
+        <VStack align="stretch" spacing={4} w="300px">
+          {showCitationPanel && (
+            <CitationPanel
+              citations={citations}
+              onAddCitation={addCitation}
+              onRemoveCitation={removeCitation}
+              onInsertCitation={handleInsertCitation}
+              fetchCitationByDOI={fetchCitationByDOI}
+              fetchCitationByURL={fetchCitationByURL}
+              createCitation={createCitation}
+              citationFormat={citationFormat}
+              setCitationFormat={setCitationFormat}
+            />
+          )}
+          
+          {enablePlagiarismCheck && (
+            <PlagiarismIndicator 
+              isLoading={isPlagiarismLoading}
+              isChecked={isPlagiarismChecked}
+              overallSimilarity={overallSimilarity}
+              matches={plagiarismMatches}
+              status={plagiarismStatus}
+              onCheckNow={handleCheckPlagiarismNow}
+            />
+          )}
+        </VStack>
       </HStack>
       
       <Flex justify="space-between" align="center">

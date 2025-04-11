@@ -3,10 +3,13 @@ import { Container, Box, Heading, Text, VStack, useToast } from '@chakra-ui/reac
 import { EnhancedEditor } from '../components/editor/EnhancedEditor';
 import { Citation } from '../components/editor/types/citation';
 
-const EditorDemo = () => {
+const EditorDemo: React.FC = () => {
   const [content, setContent] = useState<string>('');
   const [citations, setCitations] = useState<Citation[]>([]);
   const toast = useToast();
+
+  // Sample article ID for demo purposes
+  const demoArticleId = 'demo-article-123';
 
   const handleSave = (newContent: string, newCitations: Citation[]) => {
     setContent(newContent);
@@ -40,9 +43,12 @@ const EditorDemo = () => {
 
         <EnhancedEditor
           initialContent=""
+          initialCitations={[]}
+          articleId={demoArticleId}
           onSave={handleSave}
           placeholder="Start writing your article here..."
           autoSaveInterval={60000} // Auto-save every minute
+          enablePlagiarismCheck={true}
         />
       </VStack>
     </Container>
