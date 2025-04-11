@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "realtime": {
+      "activities": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'Admin' || root.child('users').child(auth.uid).child('role').val() === 'JuniorAdmin')",
+        ".write": "auth != null",
+        "$activity": {
+          ".validate": "newData.hasChildren(['userId', 'activityType', 'timestamp']) && newData.child('userId').isString() && newData.child('activityType').isString() && newData.child('timestamp').isNumber()"
+        }
+      },
+      "activeUsers": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'Admin' || root.child('users').child(auth.uid).child('role').val() === 'JuniorAdmin')",
+        ".write": "auth != null",
+        "$userId": {
+          ".validate": "newData.hasChildren(['connected', 'lastActive']) && newData.child('connected').isBoolean() && newData.child('lastActive').isNumber()"
+        }
+      },
+      "counters": {
+        ".read": "auth != null",
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'Admin' || root.child('users').child(auth.uid).child('role').val() === 'JuniorAdmin')",
+        "activeUsers": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        }
+      }
+    }
+  }
+}
