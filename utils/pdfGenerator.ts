@@ -30,43 +30,53 @@ function generateArticlePdf(options: GeneratePdfOptions): jsPDF {
     author,
     subject: abstract.substring(0, 100),
     keywords: categories.join(', '),
-    creator: 'Researka Platform'
+    creator: 'DecentraJournal'
   });
   
+  // Set font and margins
+  const margin = 20; // mm
+  let yPosition = margin;
+  
   // Add title
-  pdf.setFontSize(22);
-  pdf.text(title, 20, 30);
+  pdf.setFontSize(18);
+  pdf.setFont('helvetica', 'bold');
   
-  // Add date
-  pdf.setFontSize(10);
-  pdf.text(`Date: ${date}`, 20, 40);
+  // Split title into multiple lines if needed
+  const titleLines = pdf.splitTextToSize(title, 170);
+  pdf.text(titleLines, margin, yPosition);
+  yPosition += 10 * titleLines.length;
   
-  // Add author
-  pdf.text(`Author: ${author}`, 20, 45);
+  // Add author and date
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(`Author: ${author}`, margin, yPosition);
+  yPosition += 7;
+  pdf.text(`Date: ${date}`, margin, yPosition);
+  yPosition += 10;
   
   // Add categories if available
   if (categories.length > 0) {
-    pdf.text(`Categories: ${categories.join(', ')}`, 20, 50);
+    pdf.text(`Categories: ${categories.join(', ')}`, margin, yPosition);
+    yPosition += 10;
   }
   
-  // Add abstract
+  // Add abstract if available
   if (abstract) {
-    pdf.setFontSize(12);
-    pdf.text('Abstract', 20, 60);
-    pdf.setFontSize(10);
-    
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Abstract', margin, yPosition);
+    yPosition += 7;
+    pdf.setFont('helvetica', 'normal');
     const abstractLines = pdf.splitTextToSize(abstract, 170);
-    pdf.text(abstractLines, 20, 65);
+    pdf.text(abstractLines, margin, yPosition);
+    yPosition += 7 * abstractLines.length;
   }
   
-  // Add content
-  const contentStartY = abstract ? 75 + (pdf.splitTextToSize(abstract, 170).length * 5) : 65;
-  pdf.setFontSize(12);
-  pdf.text('Full Text', 20, contentStartY);
-  pdf.setFontSize(10);
-  
-  const contentLines = pdf.splitTextToSize(content || 'No content available', 170);
-  pdf.text(contentLines, 20, contentStartY + 5);
+  // Add main content
+  if (content) {
+    yPosition += 5;
+    const contentLines = pdf.splitTextToSize(content, 170);
+    pdf.text(contentLines, margin, yPosition);
+  }
   
   return pdf;
 }
@@ -81,12 +91,13 @@ export function downloadArticlePdf(options: GeneratePdfOptions, filename?: strin
     const pdf = generateArticlePdf(options);
     
     // Create a sanitized filename if not provided
-    const safeFilename = filename || options.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const safeFilename = filename || options.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.pdf';
     
     // Download the PDF
-    pdf.save(`${safeFilename}.pdf`);
+    pdf.save(safeFilename);
   } catch (error) {
     console.error('Error generating PDF:', error);
-    throw new Error('Failed to generate PDF');
+    // Show error message to user
+    alert('Failed to generate PDF. Please try again later.');
   }
 }
