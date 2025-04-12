@@ -568,11 +568,16 @@ export default function StandardizedSubmitPage() {
         
         // Create article document in Firestore
         const articleData = {
-          ...article,
-          userId: user?.uid || 'anonymous',
+          author: article.authorName || user?.displayName || 'Anonymous',
+          authorId: user?.uid || 'anonymous',
           status: 'pending_review',
-          submittedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          date: new Date().toISOString().split('T')[0],
+          reviewCount: 0,
+          views: 0,
+          compensation: 'none',
+          ...article,
         };
         
         // Save to Firestore
