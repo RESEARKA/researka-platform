@@ -8,15 +8,18 @@ import {
   Text,
   VStack,
   HStack,
-  useToast,
+  Flex,
+  Divider,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription,
   Checkbox,
   FormControl,
-  FormHelperText,
-  Progress
+  FormErrorMessage,
+  Progress,
+  SimpleGrid,
+  useToast
 } from '@chakra-ui/react';
 import { FiDownload, FiCheck } from 'react-icons/fi';
 import { useAuth } from '../hooks/useAuth';
@@ -254,35 +257,121 @@ export default function StandardizedSubmitPage() {
    * Handle section save
    */
   const handleSectionSave = (section: string, content: string) => {
-    setArticle(prev => {
-      if (section.includes('.')) {
+    try {
+      if (section === 'authorInfo') {
+        // Parse the author information JSON
+        const authorData = JSON.parse(content);
+        
+        // Update the article state with author information
+        const updatedArticle = {
+          ...article,
+          authorName: authorData.name?.trim() || '',
+          authorEmail: authorData.email?.trim() || '',
+          authorAffiliation: authorData.affiliation?.trim() || '',
+          isCorrespondingAuthor: authorData.isCorresponding !== false
+        };
+        
+        // Set the updated article state
+        setArticle(updatedArticle);
+        
+        // Run validation immediately to update any error states
+        const errors: Record<string, string> = {};
+        
+        if (!updatedArticle.authorName) {
+          errors.authorName = 'Author name is required';
+        }
+        
+        if (!updatedArticle.authorEmail) {
+          errors.authorEmail = 'Author email is required';
+        }
+        
+        if (!updatedArticle.authorAffiliation) {
+          errors.authorAffiliation = 'Author affiliation is required';
+        }
+        
+        // Update only the author-related validation errors
+        setValidationErrors(prev => ({
+          ...prev,
+          authorName: errors.authorName || '',
+          authorEmail: errors.authorEmail || '',
+          authorAffiliation: errors.authorAffiliation || ''
+        }));
+        
+      } else if (section === 'title') {
+        // Direct handling for title to ensure it's saved properly
+        setArticle(prev => ({
+          ...prev,
+          title: content
+        }));
+        
+        // Clear any title validation errors if content is valid
+        if (content && content.split(/\s+/).filter(Boolean).length >= 5) {
+          setValidationErrors(prev => ({
+            ...prev,
+            title: ''
+          }));
+          
+          // Also remove any title-related warnings from document warnings
+          setDocumentWarnings(prev => 
+            prev.filter(warning => !warning.toLowerCase().includes('title'))
+          );
+        }
+      } else if (section === 'metadata') {
+        try {
+          // Parse the metadata JSON
+          const metaData = JSON.parse(content);
+          setArticle(prev => ({
+            ...prev,
+            category: metaData.category || prev.category || '',
+            license: metaData.license || prev.license || ''
+          }));
+        } catch (e) {
+          logger.error('Error parsing metadata:', e);
+          toast({
+            title: 'Error updating category and license',
+            description: 'There was a problem processing the metadata.',
+            status: 'error',
+            duration: 3000,
+            isClosable: true
+          });
+        }
+      } else if (section.includes('.')) {
         // Handle nested properties like declarations.ethics
         const [parent, child] = section.split('.');
-        return {
+        setArticle(prev => ({
           ...prev,
           [parent]: {
             ...prev[parent as keyof Article],
             [child]: content
           }
-        };
+        }));
       } else {
         // Handle regular properties
-        return {
+        setArticle(prev => ({
           ...prev,
           [section]: content
-        };
+        }));
       }
-    });
-    
-    setCurrentEditingSection(null);
-    
-    toast({
-      title: 'Section updated',
-      description: `The ${section} section has been updated.`,
-      status: 'success',
-      duration: 3000,
-      isClosable: true
-    });
+      
+      setCurrentEditingSection(null);
+      
+      toast({
+        title: 'Section updated',
+        description: `The ${section} section has been updated.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+    } catch (error) {
+      logger.error(`Error saving section ${section}:`, error);
+      toast({
+        title: 'Error saving changes',
+        description: 'There was a problem updating this section. Please try again.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true
+      });
+    }
   };
   
   /**
@@ -305,6 +394,12 @@ export default function StandardizedSubmitPage() {
       if (config.wordLimits && typeof article[key as keyof Article] === 'string') {
         const content = article[key as keyof Article] as string;
         const wordCount = content.split(/\s+/).filter(Boolean).length;
+        
+        // Special handling for title to ensure it's not showing an error incorrectly
+        if (key === 'title' && wordCount >= config.wordLimits.min) {
+          // Title has enough words, don't add an error
+          continue;
+        }
         
         if (wordCount < config.wordLimits.min) {
           errors[key] = `${config.label} should have at least ${config.wordLimits.min} words (currently ${wordCount})`;
@@ -591,15 +686,63 @@ export default function StandardizedSubmitPage() {
         Please review your article before submission. Once submitted, your article will be checked for plagiarism and then reviewed by our editorial team.
       </Text>
       
-      <FormControl mb={4}>
+      <VStack spacing={4} align="stretch" mb={6}>
+        {/* Author Information Summary */}
+        <Box borderWidth={1} borderRadius="md" p={4} bg="gray.50">
+          <Heading size="sm" mb={3}>Author Information Summary</Heading>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+            <Box>
+              <Text fontWeight="bold">Name:</Text>
+              <Text>{article.authorName || 'Not provided'}</Text>
+              {validationErrors.authorName && (
+                <Text color="red.500" fontSize="sm">{validationErrors.authorName}</Text>
+              )}
+            </Box>
+            <Box>
+              <Text fontWeight="bold">Email:</Text>
+              <Text>{article.authorEmail || 'Not provided'}</Text>
+              {validationErrors.authorEmail && (
+                <Text color="red.500" fontSize="sm">{validationErrors.authorEmail}</Text>
+              )}
+            </Box>
+            <Box>
+              <Text fontWeight="bold">Affiliation:</Text>
+              <Text>{article.authorAffiliation || 'Not provided'}</Text>
+              {validationErrors.authorAffiliation && (
+                <Text color="red.500" fontSize="sm">{validationErrors.authorAffiliation}</Text>
+              )}
+            </Box>
+            <Box>
+              <Text fontWeight="bold">Corresponding Author:</Text>
+              <Text>{article.isCorrespondingAuthor ? 'Yes' : 'No'}</Text>
+            </Box>
+          </SimpleGrid>
+          
+          {(validationErrors.authorName || validationErrors.authorEmail || validationErrors.authorAffiliation) && (
+            <Button 
+              size="sm" 
+              colorScheme="red" 
+              variant="outline" 
+              mt={3}
+              onClick={() => handleSectionEdit('authorInfo')}
+            >
+              Fix Author Information
+            </Button>
+          )}
+        </Box>
+      </VStack>
+      
+      <FormControl mb={6} isInvalid={!!validationErrors.terms}>
         <Checkbox 
           isChecked={acceptedTerms} 
           onChange={(e) => setAcceptedTerms(e.target.checked)}
+          size="lg"
+          colorScheme="blue"
         >
           I accept the terms and conditions and confirm this is my original work
         </Checkbox>
         {validationErrors.terms && (
-          <FormHelperText color="red.500">{validationErrors.terms}</FormHelperText>
+          <FormErrorMessage>{validationErrors.terms}</FormErrorMessage>
         )}
       </FormControl>
       

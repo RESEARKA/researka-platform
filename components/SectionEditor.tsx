@@ -13,7 +13,9 @@ import {
   Text,
   Flex,
   Badge,
-  useColorModeValue
+  useColorModeValue,
+  Switch,
+  Select
 } from '@chakra-ui/react';
 
 interface SectionEditorProps {
@@ -35,6 +37,16 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   // State for the edited content
   const [editedContent, setEditedContent] = useState<string>('');
   const [wordCount, setWordCount] = useState<number>(0);
+  
+  // States for author information
+  const [authorName, setAuthorName] = useState<string>('');
+  const [authorEmail, setAuthorEmail] = useState<string>('');
+  const [authorAffiliation, setAuthorAffiliation] = useState<string>('');
+  const [isCorrespondingAuthor, setIsCorrespondingAuthor] = useState<boolean>(true);
+  
+  // States for category and license
+  const [category, setCategory] = useState<string>('');
+  const [license, setLicense] = useState<string>('');
   
   // Background color for the editor
   const bgColor = useColorModeValue('blue.50', 'blue.900');
@@ -87,14 +99,43 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   
   // Initialize edited content
   useEffect(() => {
-    if (typeof content === 'string') {
-      setEditedContent(content || '');
-    } else if (Array.isArray(content)) {
-      setEditedContent(content.join('\n'));
+    if (section === 'authorInfo') {
+      // Parse author information from content
+      try {
+        const authorData = JSON.parse(content as string || '{}');
+        setAuthorName(authorData.name || '');
+        setAuthorEmail(authorData.email || '');
+        setAuthorAffiliation(authorData.affiliation || '');
+        setIsCorrespondingAuthor(authorData.isCorresponding !== false);
+      } catch (e) {
+        // Fallback if parsing fails
+        setAuthorName('');
+        setAuthorEmail('');
+        setAuthorAffiliation('');
+        setIsCorrespondingAuthor(true);
+      }
+    } else if (section === 'metadata') {
+      // Parse metadata from content
+      try {
+        const metaData = JSON.parse(content as string || '{}');
+        setCategory(metaData.category || '');
+        setLicense(metaData.license || '');
+      } catch (e) {
+        // Fallback if parsing fails
+        setCategory('');
+        setLicense('');
+      }
     } else {
-      setEditedContent('');
+      // Regular content handling
+      if (typeof content === 'string') {
+        setEditedContent(content || '');
+      } else if (Array.isArray(content)) {
+        setEditedContent(content.join('\n'));
+      } else {
+        setEditedContent('');
+      }
     }
-  }, [content]);
+  }, [content, section]);
   
   // Update word count when content changes
   useEffect(() => {
@@ -112,7 +153,35 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   
   // Handle save
   const handleSave = () => {
-    onSave(section, editedContent);
+    if (section === 'authorInfo') {
+      // Serialize author information
+      const authorData = JSON.stringify({
+        name: authorName.trim(),
+        email: authorEmail.trim(),
+        affiliation: authorAffiliation.trim(),
+        isCorresponding: isCorrespondingAuthor
+      });
+      
+      // Log the data being saved for debugging
+      console.log('Saving author information:', {
+        name: authorName.trim(),
+        email: authorEmail.trim(),
+        affiliation: authorAffiliation.trim(),
+        isCorresponding: isCorrespondingAuthor
+      });
+      
+      onSave(section, authorData);
+    } else if (section === 'metadata') {
+      // Serialize metadata
+      const metaData = JSON.stringify({
+        category: category,
+        license: license
+      });
+      onSave(section, metaData);
+    } else {
+      // Regular content saving
+      onSave(section, editedContent);
+    }
   };
   
   // Get word limit status
@@ -145,6 +214,101 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   
   const wordLimitStatus = getWordLimitStatus();
   
+  // Check if author information is valid
+  const isAuthorInfoValid = () => {
+    return authorName.trim() !== '' && 
+           authorEmail.trim() !== '' && 
+           authorAffiliation.trim() !== '';
+  };
+  
+  // Check if metadata is valid
+  const isMetadataValid = () => {
+    return category.trim() !== '' && license.trim() !== '';
+  };
+  
+  // Render author information form
+  const renderAuthorInfoForm = () => (
+    <VStack spacing={4} align="stretch">
+      <FormControl isRequired>
+        <FormLabel>Author Name</FormLabel>
+        <Input 
+          value={authorName}
+          onChange={(e) => setAuthorName(e.target.value)}
+          placeholder="Enter your full name"
+        />
+      </FormControl>
+      
+      <FormControl isRequired>
+        <FormLabel>Email</FormLabel>
+        <Input 
+          value={authorEmail}
+          onChange={(e) => setAuthorEmail(e.target.value)}
+          placeholder="Enter your email address"
+          type="email"
+        />
+      </FormControl>
+      
+      <FormControl isRequired>
+        <FormLabel>Affiliation</FormLabel>
+        <Input 
+          value={authorAffiliation}
+          onChange={(e) => setAuthorAffiliation(e.target.value)}
+          placeholder="Enter your institutional affiliation"
+        />
+      </FormControl>
+      
+      <FormControl display="flex" alignItems="center">
+        <FormLabel htmlFor="is-corresponding" mb="0">
+          Corresponding Author
+        </FormLabel>
+        <Switch 
+          id="is-corresponding"
+          isChecked={isCorrespondingAuthor}
+          onChange={(e) => setIsCorrespondingAuthor(e.target.checked)}
+        />
+      </FormControl>
+    </VStack>
+  );
+  
+  // Render metadata form
+  const renderMetadataForm = () => (
+    <VStack spacing={4} align="stretch">
+      <FormControl isRequired>
+        <FormLabel>Category</FormLabel>
+        <Select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="Select category"
+        >
+          <option value="Computer Science">Computer Science</option>
+          <option value="Biology">Biology</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="Physics">Physics</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Medicine">Medicine</option>
+          <option value="Economics">Economics</option>
+          <option value="Psychology">Psychology</option>
+          <option value="Sociology">Sociology</option>
+          <option value="Other">Other</option>
+        </Select>
+      </FormControl>
+      
+      <FormControl isRequired>
+        <FormLabel>License</FormLabel>
+        <Select
+          value={license}
+          onChange={(e) => setLicense(e.target.value)}
+          placeholder="Select license"
+        >
+          <option value="cc-by-4.0">CC BY 4.0 - Attribution</option>
+          <option value="cc-by-sa-4.0">CC BY-SA 4.0 - Attribution-ShareAlike</option>
+          <option value="cc-by-nc-4.0">CC BY-NC 4.0 - Attribution-NonCommercial</option>
+          <option value="cc-by-nc-sa-4.0">CC BY-NC-SA 4.0 - Attribution-NonCommercial-ShareAlike</option>
+        </Select>
+      </FormControl>
+    </VStack>
+  );
+  
   return (
     <Box p={4} borderWidth={1} borderRadius="md" bg={bgColor}>
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
@@ -160,30 +324,36 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         </Heading>
       </Flex>
       
-      <FormControl>
-        {section === 'title' ? (
-          <Input
-            value={editedContent}
-            onChange={handleContentChange}
-            placeholder="Enter title"
-            size="lg"
-            mb={2}
-          />
-        ) : (
-          <Textarea
-            value={editedContent}
-            onChange={handleContentChange}
-            placeholder={`Enter ${getSectionLabel(section)} content`}
-            size="lg"
-            minH="200px"
-            mb={2}
-          />
-        )}
-        
-        <FormHelperText color={wordLimitStatus.isValid ? 'gray.500' : 'red.500'}>
-          {wordLimitStatus.message}
-        </FormHelperText>
-      </FormControl>
+      {section === 'authorInfo' ? (
+        renderAuthorInfoForm()
+      ) : section === 'metadata' ? (
+        renderMetadataForm()
+      ) : (
+        <FormControl>
+          {section === 'title' ? (
+            <Input
+              value={editedContent}
+              onChange={handleContentChange}
+              placeholder="Enter title"
+              size="lg"
+              mb={2}
+            />
+          ) : (
+            <Textarea
+              value={editedContent}
+              onChange={handleContentChange}
+              placeholder={`Enter ${getSectionLabel(section)} content`}
+              size="lg"
+              minH="200px"
+              mb={2}
+            />
+          )}
+          
+          <FormHelperText color={wordLimitStatus.isValid ? 'gray.500' : 'red.500'}>
+            {wordLimitStatus.message}
+          </FormHelperText>
+        </FormControl>
+      )}
       
       <HStack spacing={4} mt={4} justifyContent="flex-end">
         <Button onClick={onCancel} variant="outline">
@@ -192,7 +362,11 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         <Button 
           colorScheme="blue" 
           onClick={handleSave}
-          isDisabled={!wordLimitStatus.isValid && section !== 'title'}
+          isDisabled={
+            (section === 'authorInfo' && !isAuthorInfoValid()) ||
+            (section === 'metadata' && !isMetadataValid()) ||
+            (!['authorInfo', 'metadata'].includes(section) && !wordLimitStatus.isValid && section !== 'title')
+          }
         >
           Save Changes
         </Button>
