@@ -556,37 +556,34 @@ export default function StandardizedSubmitPage() {
       setSubmissionStatus('Submitting article...');
       
       try {
-        // Submit the article to the API
-        const response = await fetch('/api/articles/submit', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${user?.getIdToken ? await user.getIdToken() : ''}`
-          },
-          body: JSON.stringify({
-            ...article,
-            submittedAt: new Date().toISOString()
-          })
-        });
+        // Import Firebase
+        const { getFirebaseFirestore } = await import('../config/firebase');
+        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
         
-        if (!response.ok) {
-          throw new Error(`Submission failed: ${response.statusText}`);
+        // Get Firestore instance
+        const firestore = getFirebaseFirestore();
+        if (!firestore) {
+          throw new Error('Firestore is not initialized');
         }
         
-        toast({
-          title: 'Article submitted successfully',
-          description: 'Your article has been submitted for review.',
-          status: 'success',
-          duration: 5000,
-          isClosable: true
-        });
+        // Create article document in Firestore
+        const articleData = {
+          ...article,
+          userId: user?.uid || 'anonymous',
+          status: 'pending_review',
+          submittedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
         
-        // Redirect to home page instead of dashboard (which might not exist)
-        router.push('/');
-      } catch (error) {
-        logger.error('Error in article submission API call:', error);
+        // Save to Firestore
+        const articlesCollection = collection(firestore, 'articles');
+        const docRef = await addDoc(articlesCollection, articleData);
         
-        // Show success message anyway since we've already told the user we're proceeding
+        logger.info(`Article submitted successfully with ID: ${docRef.id}`);
+        
+        // Store article ID in localStorage for reference
+        localStorage.setItem('lastSubmittedArticleId', docRef.id);
+        
         toast({
           title: 'Article submitted successfully',
           description: 'Your article has been submitted for review.',
@@ -597,6 +594,16 @@ export default function StandardizedSubmitPage() {
         
         // Redirect to home page
         router.push('/');
+      } catch (error) {
+        logger.error('Error submitting article to Firestore:', error);
+        
+        toast({
+          title: 'Error submitting article',
+          description: 'There was a problem submitting your article. Please try again later.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true
+        });
       }
     } catch (error) {
       logger.error('Error submitting article:', error);
