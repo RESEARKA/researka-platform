@@ -125,6 +125,14 @@ const ArticleDetailPage: React.FC = () => {
                 default: return 'pending';
               }
             })() as 'pending' | 'under_review' | 'accepted' | 'rejected',
+            introduction: fetchedArticle.introduction || '',
+            literatureReview: fetchedArticle.literatureReview || '',
+            methods: fetchedArticle.methods || '',
+            results: fetchedArticle.results || '',
+            discussion: fetchedArticle.discussion || '',
+            conclusion: fetchedArticle.conclusion || '',
+            acknowledgments: fetchedArticle.acknowledgments || '',
+            references: Array.isArray(fetchedArticle.references) ? fetchedArticle.references : [],
           };
           setArticle(formattedArticle);
           setReviews(articleReviews);
@@ -271,49 +279,123 @@ const ArticleDetailPage: React.FC = () => {
                 <Heading as="h2" size="md" mb={4}>
                   Full Text
                 </Heading>
-                <Text color="gray.600" mb={4}>
-                  This is a placeholder for the full text of the article. In a real application, this would contain the complete content of the research paper, potentially with sections, figures, tables, and references.
-                </Text>
-                <Button 
-                  leftIcon={<FiDownload />} 
-                  colorScheme="blue"
-                  onClick={() => {
-                    try {
-                      // Log that we're generating the PDF
-                      console.log('Generating PDF for article:', article.title);
-                      
-                      // Generate and download the PDF using the available properties in the Article interface
-                      downloadArticlePdf({
-                        title: article.title || 'Untitled Article',
-                        author: article.authorId || 'Unknown Author',
-                        abstract: article.abstract || '',
-                        content: 'This is a placeholder for the full text of the article. In a real application, this would contain the complete content of the research paper, potentially with sections, figures, tables, and references.',
-                        date: article.publishedDate || new Date().toLocaleDateString(),
-                        categories: article.categories || []
-                      });
-                      
-                      toast({
-                        title: 'PDF Downloaded',
-                        description: 'Your PDF has been successfully generated and downloaded.',
-                        status: 'success',
-                        duration: 3000,
-                        isClosable: true,
-                      });
-                    } catch (error) {
-                      console.error('Error downloading PDF:', error);
-                      toast({
-                        title: 'Download Failed',
-                        description: 'There was an error generating the PDF. Please try again.',
-                        status: 'error',
-                        duration: 3000,
-                        isClosable: true,
-                      });
-                    }
-                  }}
-                >
-                  Download PDF
-                </Button>
+                
+                {/* Display all article sections according to the standardized template */}
+                <VStack spacing={6} align="stretch">
+                  {article.introduction && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Introduction</Heading>
+                      <Text whiteSpace="pre-wrap">{article.introduction}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.literatureReview && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Literature Review/Background</Heading>
+                      <Text whiteSpace="pre-wrap">{article.literatureReview}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.methods && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Methods</Heading>
+                      <Text whiteSpace="pre-wrap">{article.methods}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.results && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Results</Heading>
+                      <Text whiteSpace="pre-wrap">{article.results}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.discussion && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Discussion</Heading>
+                      <Text whiteSpace="pre-wrap">{article.discussion}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.conclusion && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Conclusion</Heading>
+                      <Text whiteSpace="pre-wrap">{article.conclusion}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.acknowledgments && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>Acknowledgments</Heading>
+                      <Text whiteSpace="pre-wrap">{article.acknowledgments}</Text>
+                    </Box>
+                  )}
+                  
+                  {article.references && article.references.length > 0 && (
+                    <Box>
+                      <Heading as="h3" size="sm" mb={2}>References</Heading>
+                      <VStack align="stretch" spacing={1}>
+                        {article.references.map((reference, index) => (
+                          <Text key={index}>{reference}</Text>
+                        ))}
+                      </VStack>
+                    </Box>
+                  )}
+                </VStack>
               </Box>
+              
+              <Button 
+                leftIcon={<FiDownload />} 
+                colorScheme="blue"
+                mt={6}
+                onClick={() => {
+                  try {
+                    // Log that we're generating the PDF
+                    console.log('Generating PDF for article:', article.title);
+                    
+                    // Prepare full content by combining all sections
+                    const fullContent = [
+                      `${article.introduction || ''}`,
+                      article.literatureReview && `## Literature Review/Background\n${article.literatureReview}`,
+                      article.methods && `## Methods\n${article.methods}`,
+                      article.results && `## Results\n${article.results}`,
+                      article.discussion && `## Discussion\n${article.discussion}`,
+                      article.conclusion && `## Conclusion\n${article.conclusion}`,
+                      article.acknowledgments && `## Acknowledgments\n${article.acknowledgments}`,
+                      article.references && article.references.length > 0 && `## References\n${article.references.join('\n')}`
+                    ].filter(Boolean).join('\n\n');
+                    
+                    // Generate and download the PDF using the available properties in the Article interface
+                    downloadArticlePdf({
+                      title: article.title || 'Untitled Article',
+                      author: article.authorId || 'Unknown Author',
+                      abstract: article.abstract || '',
+                      content: fullContent,
+                      date: article.publishedDate || new Date().toLocaleDateString(),
+                      categories: article.categories || []
+                    });
+                    
+                    toast({
+                      title: 'PDF Downloaded',
+                      description: 'Your PDF has been successfully generated and downloaded.',
+                      status: 'success',
+                      duration: 3000,
+                      isClosable: true,
+                    });
+                  } catch (error) {
+                    console.error('Error downloading PDF:', error);
+                    toast({
+                      title: 'Download Failed',
+                      description: 'There was an error generating the PDF. Please try again.',
+                      status: 'error',
+                      duration: 3000,
+                      isClosable: true,
+                    });
+                  }
+                }}
+              >
+                Download PDF
+              </Button>
               
               <Flex justify="space-between" mb={4}>
                 <Button leftIcon={<FiShare2 />} variant="outline">

@@ -35,20 +35,24 @@ function generateArticlePdf(options: GeneratePdfOptions): jsPDF {
   
   // Set font and margins
   const margin = 20; // mm
+  const pageWidth = 210; // A4 width in mm
+  const pageHeight = 297; // A4 height in mm
+  const contentWidth = pageWidth - (margin * 2);
+  const maxY = pageHeight - margin; // Maximum Y position before new page
   let yPosition = margin;
   
-  // Add title
+  // Add title - using a heavier font for better bold appearance
   pdf.setFontSize(18);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont('times', 'bold');
   
   // Split title into multiple lines if needed
-  const titleLines = pdf.splitTextToSize(title, 170);
+  const titleLines = pdf.splitTextToSize(title, contentWidth);
   pdf.text(titleLines, margin, yPosition);
   yPosition += 10 * titleLines.length;
   
   // Add author and date
   pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont('times', 'normal');
   pdf.text(`Author: ${author}`, margin, yPosition);
   yPosition += 7;
   pdf.text(`Date: ${date}`, margin, yPosition);
@@ -62,20 +66,128 @@ function generateArticlePdf(options: GeneratePdfOptions): jsPDF {
   
   // Add abstract if available
   if (abstract) {
-    pdf.setFont('helvetica', 'bold');
+    // Use times font for better bold appearance
+    pdf.setFont('times', 'bold');
+    pdf.setFontSize(14);
     pdf.text('Abstract', margin, yPosition);
-    yPosition += 7;
-    pdf.setFont('helvetica', 'normal');
-    const abstractLines = pdf.splitTextToSize(abstract, 170);
+    yPosition += 8;
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(12);
+    const abstractLines = pdf.splitTextToSize(abstract, contentWidth);
+    
+    // Check if we need a new page
+    if (yPosition + (7 * abstractLines.length) > maxY) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+    
     pdf.text(abstractLines, margin, yPosition);
-    yPosition += 7 * abstractLines.length;
+    yPosition += 7 * abstractLines.length + 5;
   }
   
-  // Add main content
+  // Add main content with section handling
   if (content) {
-    yPosition += 5;
-    const contentLines = pdf.splitTextToSize(content, 170);
-    pdf.text(contentLines, margin, yPosition);
+    // Process content sections (markdown-like)
+    const sections = content.split(/\n## /);
+    
+    // Process the main content or first section if no ## markers
+    let mainContent = sections[0];
+    
+    // If the content starts with ## (common in markdown), adjust the first section
+    if (content.startsWith('## ')) {
+      mainContent = sections[0].substring(3); // Remove the ## prefix
+      sections.shift(); // Remove the first section as we'll handle it separately
+    }
+    
+    // Process main content if it exists
+    if (mainContent.trim()) {
+      // Check if we need a new page
+      if (yPosition + 15 > maxY) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+      
+      // Always add a bold Introduction title for the first section
+      // Use times font for better bold appearance
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(14);
+      pdf.text('Introduction', margin, yPosition);
+      yPosition += 8;
+      pdf.setFontSize(12);
+      pdf.setFont('times', 'normal');
+      
+      const contentLines = pdf.splitTextToSize(mainContent, contentWidth);
+      
+      // Check if we need a new page
+      if (yPosition + (5 * contentLines.length) > maxY) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+      
+      pdf.text(contentLines, margin, yPosition);
+      yPosition += 5 * contentLines.length + 5; // Reduced spacing after content
+    }
+    
+    // Process each section
+    for (let i = 0; i < sections.length; i++) {
+      const sectionParts = sections[i].split('\n');
+      const sectionTitle = sectionParts[0];
+      const sectionContent = sectionParts.slice(1).join('\n');
+      
+      // Check if we need a new page for section title
+      if (yPosition + 15 > maxY) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+      
+      // Add section title with bold formatting and larger font
+      // Use times font for better bold appearance
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(14);
+      pdf.text(sectionTitle, margin, yPosition);
+      yPosition += 8;
+      
+      // Reset to normal text for content
+      pdf.setFontSize(12);
+      pdf.setFont('times', 'normal');
+      
+      if (sectionContent.trim()) {
+        const sectionLines = pdf.splitTextToSize(sectionContent, contentWidth);
+        
+        // Calculate if content fits on current page
+        const contentHeight = 5 * sectionLines.length;
+        
+        // Check if we need a new page for section content
+        if (yPosition + contentHeight > maxY) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        // Add content with pagination
+        let remainingLines = [...sectionLines];
+        
+        while (remainingLines.length > 0) {
+          // Calculate how many lines fit on the current page
+          const availableHeight = maxY - yPosition;
+          const linesPerPage = Math.floor(availableHeight / 5);
+          const linesToRender = remainingLines.slice(0, Math.max(1, linesPerPage));
+          
+          pdf.text(linesToRender, margin, yPosition);
+          
+          // Update position and remaining lines
+          yPosition += 5 * linesToRender.length;
+          remainingLines = remainingLines.slice(linesToRender.length);
+          
+          // If we have more lines, add a new page
+          if (remainingLines.length > 0) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+        }
+        
+        yPosition += 5; // Reduced spacing after section
+      }
+    }
   }
   
   return pdf;
@@ -97,7 +209,6 @@ export function downloadArticlePdf(options: GeneratePdfOptions, filename?: strin
     pdf.save(safeFilename);
   } catch (error) {
     console.error('Error generating PDF:', error);
-    // Show error message to user
-    alert('Failed to generate PDF. Please try again later.');
+    throw error; // Rethrow to allow caller to handle the error
   }
 }
