@@ -293,13 +293,16 @@ const ArticleDetailPage: React.FC = () => {
             authors={authors.map(a => {
               // Split the name into given and family parts
               const nameParts = a.name ? a.name.split(' ') : ['', ''];
+              // For the given name, use the first part if available
               const given = nameParts.length > 1 ? nameParts[0] : '';
+              // For the family name, use the rest of the parts, or the full name if only one part
               const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name || '';
               
+              // Create a proper author object with all required fields
               return { 
                 id: a.userId || a.name || 'Unknown Author',
-                given, 
-                family,
+                given: given || 'Unknown', // Ensure given name is never empty
+                family: family || 'Author', // Ensure family name is never empty
                 orcid: a.orcid 
               };
             })} 

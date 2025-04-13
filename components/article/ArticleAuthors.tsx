@@ -60,7 +60,6 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
           const authorId = `${author.family}-${author.given}`;
           const isCorresponding = correspondingAuthor === authorId;
           const affiliation = affiliations[authorId] || affiliations[`${author.given} ${author.family}`];
-          const displayName = (author.given && author.family) ? `${author.given} ${author.family}` : '';
           
           return (
             <Box key={`${authorId}-${index}`} pb={3} borderBottomWidth={index < authors.length - 1 ? '1px' : 0} borderColor="gray.200">
@@ -70,10 +69,10 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                   {author.id}
                 </Text>
                 
-                {/* Author Name (if available) */}
-                {displayName && displayName !== author.id && (
+                {/* Author Name (if available and different from ID) */}
+                {author.given && author.family && (
                   <Text fontSize="md" mb={1}>
-                    Name: {displayName}
+                    Name: {author.given} {author.family}
                   </Text>
                 )}
                 
