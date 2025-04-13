@@ -63,45 +63,55 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
           
           return (
             <Box key={`${authorId}-${index}`} pb={3} borderBottomWidth={index < authors.length - 1 ? '1px' : 0} borderColor="gray.200">
-              <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'flex-start', md: 'center' }}>
-                <Box mb={{ base: 2, md: 0 }}>
+              <Flex direction="column" justify="flex-start" align="flex-start">
+                {/* Author ID */}
+                <Text fontWeight="medium" mb={1}>
+                  {author.id || `${author.given} ${author.family}`}
+                </Text>
+                
+                {/* Author Name (if different from ID) */}
+                {author.id && author.given && author.family && (
+                  <Text fontSize="md" mb={1}>
+                    Name: {author.given} {author.family}
+                  </Text>
+                )}
+                
+                {/* Affiliation/University */}
+                {affiliation && (
+                  <Text fontSize="sm" color="gray.600" mb={1}>
+                    Affiliation: {affiliation}
+                  </Text>
+                )}
+                
+                {/* Corresponding Author */}
+                {isCorresponding && (
                   <HStack mb={1}>
-                    <Text fontWeight="medium">{author.given} {author.family}</Text>
-                    {isCorresponding && (
-                      <HStack ml={2}>
-                        <Icon as={FiMail} color="blue.500" />
-                        <Text fontSize="sm" color="blue.500">(Corresponding Author)</Text>
-                      </HStack>
-                    )}
+                    <Icon as={FiMail} color="blue.500" />
+                    <Text fontSize="sm" color="blue.500">(Corresponding Author)</Text>
                   </HStack>
-                  
-                  {affiliation && (
-                    <Text fontSize="sm" color="gray.600" mb={1}>
-                      {affiliation}
-                    </Text>
-                  )}
-                  
-                  {author.orcid ? (
-                    <HStack mt={1} spacing={1}>
-                      <OrcidIcon color="#A6CE39" boxSize={4} />
-                      <Link 
-                        href={`https://orcid.org/${author.orcid}`}
-                        isExternal
-                        fontSize="sm"
-                        color="gray.600"
-                        display="flex"
-                        alignItems="center"
-                      >
-                        {author.orcid}
-                        <Icon as={FiExternalLink} ml={1} boxSize={3} />
-                      </Link>
-                    </HStack>
-                  ) : (
-                    <Text fontSize="sm" color="gray.500">
-                      (ORCID ID: Pending)
-                    </Text>
-                  )}
-                </Box>
+                )}
+                
+                {/* ORCID */}
+                {author.orcid ? (
+                  <HStack mt={1} spacing={1}>
+                    <OrcidIcon color="#A6CE39" boxSize={4} />
+                    <Link 
+                      href={`https://orcid.org/${author.orcid}`}
+                      isExternal
+                      fontSize="sm"
+                      color="gray.600"
+                      display="flex"
+                      alignItems="center"
+                    >
+                      {author.orcid}
+                      <Icon as={FiExternalLink} ml={1} boxSize={3} />
+                    </Link>
+                  </HStack>
+                ) : (
+                  <Text fontSize="sm" color="gray.500">
+                    (ORCID ID: Pending)
+                  </Text>
+                )}
               </Flex>
             </Box>
           );

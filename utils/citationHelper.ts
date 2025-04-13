@@ -21,6 +21,7 @@ export interface AuthorInfo {
   email?: string;
   affiliation?: string;
   isCorresponding?: boolean;
+  userId?: string;
 }
 
 /**

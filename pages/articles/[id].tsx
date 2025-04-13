@@ -112,7 +112,8 @@ const ArticleDetailPage: React.FC = () => {
                   orcid: authorData.orcid || undefined,
                   email: authorData.email,
                   affiliation: authorData.affiliation || authorData.institution,
-                  isCorresponding: true
+                  isCorresponding: true,
+                  userId: fetchedArticle.authorId
                 });
                 
                 // Check for co-authors if available
@@ -126,7 +127,8 @@ const ArticleDetailPage: React.FC = () => {
                           name: coAuthorData.displayName || coAuthorId,
                           orcid: coAuthorData.orcid || undefined,
                           email: coAuthorData.email,
-                          affiliation: coAuthorData.affiliation || coAuthorData.institution
+                          affiliation: coAuthorData.affiliation || coAuthorData.institution,
+                          userId: coAuthorId
                         });
                       }
                     } catch (error) {
@@ -144,7 +146,8 @@ const ArticleDetailPage: React.FC = () => {
           if (authorInfos.length === 0) {
             authorInfos = [{ 
               name: fetchedArticle.authorId || 'Unknown Author',
-              orcid: undefined
+              orcid: undefined,
+              userId: fetchedArticle.authorId
             }];
           }
           
@@ -293,6 +296,7 @@ const ArticleDetailPage: React.FC = () => {
               const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
               
               return { 
+                id: a.userId || a.name, // Use userId if available, otherwise use name
                 given, 
                 family,
                 orcid: a.orcid 
