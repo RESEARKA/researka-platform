@@ -17,6 +17,8 @@ import {
   Switch,
   Select
 } from '@chakra-ui/react';
+import OrcidConnectButton from './auth/OrcidConnectButton';
+import { formatOrcidId } from '../utils/orcidHelper';
 
 interface SectionEditorProps {
   section: string;
@@ -42,6 +44,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const [authorName, setAuthorName] = useState<string>('');
   const [authorEmail, setAuthorEmail] = useState<string>('');
   const [authorAffiliation, setAuthorAffiliation] = useState<string>('');
+  const [authorOrcidId, setAuthorOrcidId] = useState<string>('');
   const [isCorrespondingAuthor, setIsCorrespondingAuthor] = useState<boolean>(true);
   
   // States for category and license
@@ -106,12 +109,14 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         setAuthorName(authorData.name || '');
         setAuthorEmail(authorData.email || '');
         setAuthorAffiliation(authorData.affiliation || '');
+        setAuthorOrcidId(authorData.orcidId || '');
         setIsCorrespondingAuthor(authorData.isCorresponding !== false);
       } catch (e) {
         // Fallback if parsing fails
         setAuthorName('');
         setAuthorEmail('');
         setAuthorAffiliation('');
+        setAuthorOrcidId('');
         setIsCorrespondingAuthor(true);
       }
     } else if (section === 'metadata') {
@@ -159,6 +164,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         name: authorName.trim(),
         email: authorEmail.trim(),
         affiliation: authorAffiliation.trim(),
+        orcidId: authorOrcidId.trim(),
         isCorresponding: isCorrespondingAuthor
       });
       
@@ -167,6 +173,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         name: authorName.trim(),
         email: authorEmail.trim(),
         affiliation: authorAffiliation.trim(),
+        orcidId: authorOrcidId.trim(),
         isCorresponding: isCorrespondingAuthor
       });
       
@@ -255,6 +262,27 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
           onChange={(e) => setAuthorAffiliation(e.target.value)}
           placeholder="Enter your institutional affiliation"
         />
+      </FormControl>
+      
+      <FormControl>
+        <FormLabel>ORCID iD</FormLabel>
+        <HStack spacing={3} align="flex-start">
+          <Input 
+            value={authorOrcidId}
+            onChange={(e) => setAuthorOrcidId(e.target.value)}
+            placeholder="Enter your ORCID iD"
+            maxW="300px"
+          />
+          {authorOrcidId && (
+            <Text fontSize="sm" color="green.600">
+              {formatOrcidId(authorOrcidId)}
+            </Text>
+          )}
+        </HStack>
+        <Text fontSize="sm" color="gray.600" mt={2} mb={3}>
+          Connect your ORCID iD to display your researcher identifier with your article.
+        </Text>
+        <OrcidConnectButton size="sm" onConnect={(orcidId: string) => setAuthorOrcidId(orcidId)} />
       </FormControl>
       
       <FormControl display="flex" alignItems="center">

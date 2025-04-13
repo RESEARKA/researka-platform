@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { firestore } from '../../../utils/firebase';
+import { db as firestore } from '../../../utils/firebase-admin';
 import { auth } from '../../../utils/firebase-admin';
 import logger from '../../../utils/logger';
 

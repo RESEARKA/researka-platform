@@ -16,13 +16,15 @@ import {
   InputGroup,
   InputRightElement,
   IconButton,
-  useOutsideClick
+  useOutsideClick,
+  Divider
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { createLogger, LogCategory } from '../../utils/logger';
 import { useRouter } from 'next/router';
 import { useProfileData } from '../../hooks/useProfileData';
+import OrcidConnectButton from './OrcidConnectButton';
 
 // Create a logger instance for this component
 const logger = createLogger('SimpleSignupForm');
@@ -494,6 +496,17 @@ const SimpleSignupForm = ({
               placeholder="Your email is set from your account"
             />
           </FormControl>
+          
+          <Divider my={4} />
+          
+          <Box width="full">
+            <Text mb={2} fontWeight="medium">Connect your ORCID iD</Text>
+            <Text fontSize="sm" color="gray.600" mb={4}>
+              ORCID provides a persistent digital identifier that distinguishes you from other researchers
+              and supports automated linkages between you and your professional activities.
+            </Text>
+            <OrcidConnectButton isFullWidth variant="outline" />
+          </Box>
           
           <Button
             mt={6}

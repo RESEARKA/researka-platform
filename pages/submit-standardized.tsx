@@ -19,9 +19,10 @@ import {
   FormErrorMessage,
   Progress,
   SimpleGrid,
-  useToast
+  useToast,
+  Badge
 } from '@chakra-ui/react';
-import { FiDownload, FiCheck } from 'react-icons/fi';
+import { FiDownload, FiCheck, FiExternalLink } from 'react-icons/fi';
 import { useAuth } from '../hooks/useAuth';
 import DocumentUploader from '../components/DocumentUploader';
 import logger from '../utils/logger';
@@ -32,6 +33,8 @@ import { SectionEditor } from '../components/SectionEditor';
 import { ReferenceFormatGuide } from '../components/ReferenceFormatGuide';
 import NavBar from '../components/NavBar';
 import PlagiarismReportModal from '../components/PlagiarismReportModal';
+import OrcidConnectButton from '../components/auth/OrcidConnectButton';
+import { formatOrcidId } from '../utils/orcidHelper';
 
 // Define the Article interface based on our standardized template
 interface Article {
@@ -56,6 +59,7 @@ interface Article {
   authorName: string;
   authorEmail: string;
   authorAffiliation: string;
+  authorOrcidId?: string;  // Add ORCID iD field
   isCorrespondingAuthor: boolean;
   category: string;
   license: string;
@@ -149,7 +153,8 @@ export default function StandardizedSubmitPage() {
         ...prev,
         authorName: user.displayName || '',
         authorEmail: user.email || '',
-        authorAffiliation: user.profile?.affiliation || ''
+        authorAffiliation: user.profile?.affiliation || '',
+        authorOrcidId: user.profile?.orcid || ''
       }));
     }
   }, [user, authLoading]);
@@ -256,122 +261,58 @@ export default function StandardizedSubmitPage() {
   /**
    * Handle section save
    */
-  const handleSectionSave = (section: string, content: string) => {
-    try {
+  const handleSectionSave = (section: string, content: string | string[] | boolean | Record<string, string>) => {
+    // Update article state with edited content
+    setArticle(prev => {
       if (section === 'authorInfo') {
-        // Parse the author information JSON
-        const authorData = JSON.parse(content);
-        
-        // Update the article state with author information
-        const updatedArticle = {
-          ...article,
-          authorName: authorData.name?.trim() || '',
-          authorEmail: authorData.email?.trim() || '',
-          authorAffiliation: authorData.affiliation?.trim() || '',
-          isCorrespondingAuthor: authorData.isCorresponding !== false
+        // Handle author info section separately
+        const authorInfo = content as Record<string, string | boolean>;
+        return {
+          ...prev,
+          authorName: authorInfo.authorName as string || prev.authorName,
+          authorEmail: authorInfo.authorEmail as string || prev.authorEmail,
+          authorAffiliation: authorInfo.authorAffiliation as string || prev.authorAffiliation,
+          authorOrcidId: authorInfo.authorOrcidId as string || prev.authorOrcidId,
+          isCorrespondingAuthor: authorInfo.isCorrespondingAuthor as boolean || prev.isCorrespondingAuthor
         };
-        
-        // Set the updated article state
-        setArticle(updatedArticle);
-        
-        // Run validation immediately to update any error states
-        const errors: Record<string, string> = {};
-        
-        if (!updatedArticle.authorName) {
-          errors.authorName = 'Author name is required';
-        }
-        
-        if (!updatedArticle.authorEmail) {
-          errors.authorEmail = 'Author email is required';
-        }
-        
-        if (!updatedArticle.authorAffiliation) {
-          errors.authorAffiliation = 'Author affiliation is required';
-        }
-        
-        // Update only the author-related validation errors
-        setValidationErrors(prev => ({
-          ...prev,
-          authorName: errors.authorName || '',
-          authorEmail: errors.authorEmail || '',
-          authorAffiliation: errors.authorAffiliation || ''
-        }));
-        
-      } else if (section === 'title') {
-        // Direct handling for title to ensure it's saved properly
-        setArticle(prev => ({
-          ...prev,
-          title: content
-        }));
-        
-        // Clear any title validation errors if content is valid
-        if (content && content.split(/\s+/).filter(Boolean).length >= 5) {
-          setValidationErrors(prev => ({
-            ...prev,
-            title: ''
-          }));
-          
-          // Also remove any title-related warnings from document warnings
-          setDocumentWarnings(prev => 
-            prev.filter(warning => !warning.toLowerCase().includes('title'))
-          );
-        }
-      } else if (section === 'metadata') {
-        try {
-          // Parse the metadata JSON
-          const metaData = JSON.parse(content);
-          setArticle(prev => ({
-            ...prev,
-            category: metaData.category || prev.category || '',
-            license: metaData.license || prev.license || ''
-          }));
-        } catch (e) {
-          logger.error('Error parsing metadata:', e);
-          toast({
-            title: 'Error updating category and license',
-            description: 'There was a problem processing the metadata.',
-            status: 'error',
-            duration: 3000,
-            isClosable: true
-          });
-        }
-      } else if (section.includes('.')) {
-        // Handle nested properties like declarations.ethics
-        const [parent, child] = section.split('.');
-        setArticle(prev => ({
-          ...prev,
-          [parent]: {
-            ...prev[parent as keyof Article],
-            [child]: content
-          }
-        }));
-      } else {
-        // Handle regular properties
-        setArticle(prev => ({
-          ...prev,
-          [section]: content
-        }));
       }
       
-      setCurrentEditingSection(null);
+      // Handle other sections
+      if (section.includes('.')) {
+        // Handle nested fields (e.g., declarations.ethics)
+        const [parentField, childField] = section.split('.');
+        return {
+          ...prev,
+          [parentField]: {
+            ...prev[parentField as keyof Article],
+            [childField]: content
+          }
+        };
+      }
       
-      toast({
-        title: 'Section updated',
-        description: `The ${section} section has been updated.`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true
-      });
-    } catch (error) {
-      logger.error(`Error saving section ${section}:`, error);
-      toast({
-        title: 'Error saving changes',
-        description: 'There was a problem updating this section. Please try again.',
-        status: 'error',
-        duration: 3000,
-        isClosable: true
-      });
-    }
+      // Handle regular fields
+      return {
+        ...prev,
+        [section]: content
+      };
+    });
+    
+    // Clear validation errors for the section
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[section];
+      
+      if (section === 'authorInfo') {
+        delete newErrors.authorName;
+        delete newErrors.authorEmail;
+        delete newErrors.authorAffiliation;
+      }
+      
+      return newErrors;
+    });
+    
+    // Reset current editing section
+    setCurrentEditingSection(null);
   };
   
   /**
@@ -749,6 +690,32 @@ export default function StandardizedSubmitPage() {
               <Text>{article.authorAffiliation || 'Not provided'}</Text>
               {validationErrors.authorAffiliation && (
                 <Text color="red.500" fontSize="sm">{validationErrors.authorAffiliation}</Text>
+              )}
+            </Box>
+            <Box>
+              <Text fontWeight="bold">ORCID iD:</Text>
+              {article.authorOrcidId ? (
+                <HStack spacing={2} mt={1}>
+                  <Badge colorScheme="green" display="flex" alignItems="center">
+                    <FiCheck size={14} style={{ marginRight: '4px' }} />
+                    <Text as="span">{formatOrcidId(article.authorOrcidId)}</Text>
+                  </Badge>
+                  <Button 
+                    as="a" 
+                    href={`https://orcid.org/${article.authorOrcidId}`} 
+                    target="_blank"
+                    size="xs" 
+                    rightIcon={<FiExternalLink />} 
+                    variant="outline"
+                  >
+                    View
+                  </Button>
+                </HStack>
+              ) : (
+                <HStack spacing={2} mt={1}>
+                  <Text color="gray.500">(ORCID iD: Pending)</Text>
+                  <OrcidConnectButton size="xs" />
+                </HStack>
               )}
             </Box>
             <Box>

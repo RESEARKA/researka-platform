@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Text, Center, Spinner, useToast } from '@chakra-ui/react';
+import { Box, Container, Text, Center, Spinner, useToast, VStack } from '@chakra-ui/react';
 import Layout from '../components/Layout';
 import SimpleSignupForm from '../components/auth/SimpleSignupForm';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 import { getUserProfile } from '../services/profileService';
 import { createLogger, LogCategory } from '../utils/logger';
+import OrcidProfileSection from '../components/profile/OrcidProfileSection';
 
 // Create a logger instance for this page
 const logger = createLogger('SimpleProfilePage');
@@ -132,7 +133,14 @@ const SimpleProfilePage: React.FC = () => {
   return (
     <Layout>
       <Container maxW="container.md" py={10}>
-        <SimpleSignupForm existingProfile={existingProfile} onComplete={handleProfileComplete} />
+        {existingProfile ? (
+          <VStack spacing={8} align="stretch">
+            <SimpleSignupForm existingProfile={existingProfile} onComplete={handleProfileComplete} />
+            <OrcidProfileSection />
+          </VStack>
+        ) : (
+          <SimpleSignupForm existingProfile={existingProfile} onComplete={handleProfileComplete} />
+        )}
       </Container>
     </Layout>
   );
