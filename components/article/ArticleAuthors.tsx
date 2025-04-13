@@ -69,26 +69,11 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                   {author.id}
                 </Text>
                 
-                {/* Author Name (if available and different from ID) */}
-                {author.given && author.family && (
-                  <Text fontSize="md" mb={1}>
-                    Name: {author.given} {author.family}
-                  </Text>
-                )}
-                
                 {/* Affiliation/University */}
                 {affiliation && (
                   <Text fontSize="sm" color="gray.600" mb={1}>
                     Affiliation: {affiliation}
                   </Text>
-                )}
-                
-                {/* Corresponding Author */}
-                {isCorresponding && (
-                  <HStack mb={1}>
-                    <Icon as={FiMail} color="blue.500" />
-                    <Text fontSize="sm" color="blue.500">(Corresponding Author)</Text>
-                  </HStack>
                 )}
                 
                 {/* ORCID */}
@@ -111,6 +96,14 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                   <Text fontSize="sm" color="gray.500">
                     (ORCID ID: Pending)
                   </Text>
+                )}
+                
+                {/* Corresponding Author */}
+                {isCorresponding && (
+                  <HStack mb={1}>
+                    <Icon as={FiMail} color="blue.500" />
+                    <Text fontSize="sm" color="blue.500">(Corresponding Author)</Text>
+                  </HStack>
                 )}
               </Flex>
             </Box>
