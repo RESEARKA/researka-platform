@@ -58,7 +58,7 @@
     "chart.js": "^4.4.0",
     "citation-js": "^0.7.18",
     "date-fns": "^4.1.0",
-    "ethers": "^5.7.2",
+    "ethers": "5.7.2",
     "firebase": "^11.4.0",
     "firebase-admin": "^13.2.0",
     "framer-motion": "^10.18.0",
@@ -107,7 +107,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
-    "@typechain/ethers-v5": "^11.1.1",
+    "@typechain/ethers-v5": "10.2.0",
     "@typechain/ethers-v6": "^0.4.0",
     "@typechain/hardhat": "^8.0.0",
     "@types/chai": "^4.3.5",
@@ -164,6 +164,8 @@
   "author": "Researka Team",
   "license": "MIT",
   "resolutions": {
-    "ethers": "5.7.2"
+    "ethers": "5.7.2",
+    "@nomicfoundation/hardhat-ethers": "2.0.0",
+    "@typechain/ethers-v6": "0.4.0"
   }
 }
