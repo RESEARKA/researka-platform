@@ -108,7 +108,7 @@ const ArticleDetailPage: React.FC = () => {
                 const authorData = authorDoc.data();
                 // Add main author
                 authorInfos.push({
-                  name: authorData.displayName || fetchedArticle.authorId,
+                  name: authorData.displayName || authorData.name || fetchedArticle.authorId,
                   orcid: authorData.orcid || undefined,
                   email: authorData.email,
                   affiliation: authorData.affiliation || authorData.institution,
@@ -124,7 +124,7 @@ const ArticleDetailPage: React.FC = () => {
                       if (coAuthorDoc.exists()) {
                         const coAuthorData = coAuthorDoc.data();
                         authorInfos.push({
-                          name: coAuthorData.displayName || coAuthorId,
+                          name: coAuthorData.displayName || coAuthorData.name || coAuthorId,
                           orcid: coAuthorData.orcid || undefined,
                           email: coAuthorData.email,
                           affiliation: coAuthorData.affiliation || coAuthorData.institution,

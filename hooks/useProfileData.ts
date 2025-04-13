@@ -25,6 +25,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   name: string;
+  displayName?: string;
   role: string;
   institution?: string;
   department?: string;
@@ -294,6 +295,7 @@ export function useProfileData() {
             uid: currentUser.uid,
             email: currentUser.email || '',
             name: currentUser.displayName || '',
+            displayName: currentUser.displayName || '',
             role: 'reader',
             institution: '',
             department: '',
@@ -460,6 +462,29 @@ export function useProfileData() {
         updatedData.uid = currentUser.uid;
         updatedData.email = currentUser.email || '';
         updatedData.createdAt = new Date().toISOString();
+      }
+      
+      // IMPORTANT: Also update the displayName field to ensure compatibility
+      if (updatedProfile.name) {
+        updatedData.displayName = updatedProfile.name;
+        
+        // Also update the Firebase Auth user profile
+        try {
+          const { updateUserProfile } = require('../contexts/AuthContext').useAuth();
+          if (updateUserProfile) {
+            await updateUserProfile({ displayName: updatedProfile.name });
+            logger.debug('Updated Firebase Auth displayName', {
+              context: { name: updatedProfile.name },
+              category: LogCategory.AUTH
+            });
+          }
+        } catch (authError) {
+          logger.error('Failed to update Firebase Auth displayName', {
+            context: { error: authError },
+            category: LogCategory.ERROR
+          });
+          // Continue with Firestore update even if Auth update fails
+        }
       }
       
       // Try direct Firestore update first (simpler approach)
