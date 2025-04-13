@@ -69,6 +69,13 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                   {author.id}
                 </Text>
                 
+                {/* Author Name (if available) */}
+                {author.given && author.family && (
+                  <Text fontSize="md" mb={1}>
+                    Name: {author.given} {author.family}
+                  </Text>
+                )}
+                
                 {/* Affiliation/University */}
                 {affiliation && (
                   <Text fontSize="sm" color="gray.600" mb={1}>
@@ -87,6 +94,7 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                       color="gray.600"
                       display="flex"
                       alignItems="center"
+                      aria-label={`ORCID profile for ${author.given} ${author.family}`}
                     >
                       {author.orcid}
                       <Icon as={FiExternalLink} ml={1} boxSize={3} />

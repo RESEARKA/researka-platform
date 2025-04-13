@@ -291,10 +291,15 @@ const ArticleDetailPage: React.FC = () => {
           {/* Display author information with ORCID */}
           <ArticleAuthors 
             authors={authors.map(a => {
+              // Split the name into given and family parts if available
+              const nameParts = a.name ? a.name.split(' ') : ['', ''];
+              const given = nameParts.length > 1 ? nameParts[0] : '';
+              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name || '';
+              
               return { 
                 id: a.userId || a.name || 'Unknown Author',
-                given: '',  
-                family: '', 
+                given, 
+                family,
                 orcid: a.orcid 
               };
             })} 
