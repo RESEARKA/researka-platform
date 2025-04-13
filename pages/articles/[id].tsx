@@ -18,11 +18,16 @@ import {
   useColorModeValue,
   useToast,
 } from '@chakra-ui/react';
-import { FiArrowLeft, FiCalendar, FiDownload, FiEye, FiFileText, FiUser, FiShare2 } from 'react-icons/fi';
+import { FiArrowLeft, FiCalendar, FiDownload, FiEye, FiFileText, FiShare2 } from 'react-icons/fi';
+import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
+import { db } from '../../utils/firebase';
 import { Article } from '../../utils/recommendationEngine';
 import { getAllResearchFields } from '../../utils/researchTaxonomy';
+import { articleToCitation, AuthorInfo } from '../../utils/citationHelper';
 import ArticleReviewStatus from '../../components/ArticleReviewStatus';
 import ArticleReviewers from '../../components/ArticleReviewers';
+import { ArticleAuthors } from '../../components/article/ArticleAuthors';
+import { ArticleCitation } from '../../components/article/ArticleCitation';
 import { downloadArticlePdf } from '../../utils/pdfGenerator';
 import FlagArticleButton from '../../components/moderation/FlagArticleButton';
 import { useArticleViewTracking } from '../../hooks/useActivityTracking';
@@ -37,6 +42,7 @@ const ArticleDetailPage: React.FC = () => {
   const [reviews, setReviews] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [allFields, setAllFields] = useState<Record<string, string>>({});
+  const [authors, setAuthors] = useState<AuthorInfo[]>([]);
   const toast = useToast();
   
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -65,42 +71,85 @@ const ArticleDetailPage: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     
-    // Create a map of field IDs to their names for display
-    const fields = getAllResearchFields();
-    const fieldMap = fields.reduce((acc, field) => {
-      acc[field.id] = field.name;
-      return acc;
-    }, {} as Record<string, string>);
-    setAllFields(fieldMap);
-    
-    // Fetch the real article data from Firebase
     const fetchArticle = async () => {
       try {
         setIsLoading(true);
-        // Use the updated articleServiceV2 instead of the old service
-        const { getArticleById } = await import('../../services/articleServiceV2');
-        const fetchedArticle = await getArticleById(id as string);
         
-        if (fetchedArticle) {
-          console.log('Fetched article:', fetchedArticle);
+        // Fetch research fields for category names
+        const fields = await getAllResearchFields();
+        // Convert fields array to a record for easier lookup
+        const fieldMap = fields.reduce((acc: Record<string, string>, field: any) => {
+          acc[field.id] = field.name;
+          return acc;
+        }, {});
+        setAllFields(fieldMap);
+        
+        // Fetch article data from Firestore
+        const articleDoc = await getDoc(doc(db, 'articles', id as string));
+        
+        if (articleDoc.exists()) {
+          const fetchedArticle = articleDoc.data();
           
           // Fetch reviews for this article
-          let articleReviews: any[] = [];
-          try {
-            const { getReviewsForArticle } = await import('../../services/reviewService');
-            articleReviews = await getReviewsForArticle(id as string);
-            console.log('Fetched reviews:', articleReviews);
-          } catch (reviewError) {
-            console.error('Error fetching reviews:', reviewError);
-            // Continue without reviews if there's an error
-            toast({
-              title: 'Warning',
-              description: 'Unable to load reviews for this article',
-              status: 'warning',
-              duration: 3000,
-              isClosable: true,
-            });
+          const reviewsSnapshot = await getDocs(
+            query(collection(db, 'reviews'), where('articleId', '==', id))
+          );
+          const articleReviews = reviewsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // Fetch author information if available
+          let authorInfos: AuthorInfo[] = [];
+          if (fetchedArticle.authorId) {
+            try {
+              const authorDoc = await getDoc(doc(db, 'users', fetchedArticle.authorId));
+              if (authorDoc.exists()) {
+                const authorData = authorDoc.data();
+                // Add main author
+                authorInfos.push({
+                  name: authorData.displayName || fetchedArticle.authorId,
+                  orcid: authorData.orcid || undefined,
+                  email: authorData.email,
+                  affiliation: authorData.affiliation || authorData.institution,
+                  isCorresponding: true
+                });
+                
+                // Check for co-authors if available
+                if (fetchedArticle.coAuthors && Array.isArray(fetchedArticle.coAuthors)) {
+                  for (const coAuthorId of fetchedArticle.coAuthors) {
+                    try {
+                      const coAuthorDoc = await getDoc(doc(db, 'users', coAuthorId));
+                      if (coAuthorDoc.exists()) {
+                        const coAuthorData = coAuthorDoc.data();
+                        authorInfos.push({
+                          name: coAuthorData.displayName || coAuthorId,
+                          orcid: coAuthorData.orcid || undefined,
+                          email: coAuthorData.email,
+                          affiliation: coAuthorData.affiliation || coAuthorData.institution
+                        });
+                      }
+                    } catch (error) {
+                      console.error('Error fetching co-author:', error);
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching author information:', error);
+            }
           }
+          
+          // If no author information was found, create a placeholder
+          if (authorInfos.length === 0) {
+            authorInfos = [{ 
+              name: fetchedArticle.authorId || 'Unknown Author',
+              orcid: undefined
+            }];
+          }
+          
+          // Set authors state
+          setAuthors(authorInfos);
           
           // Convert to the format expected by the component
           const formattedArticle: Article = {
@@ -215,12 +264,8 @@ const ArticleDetailPage: React.FC = () => {
             {article.title}
           </Heading>
           
+          {/* Display article metadata */}
           <Flex wrap="wrap" gap={4} mb={6} align="center">
-            <HStack>
-              <Icon as={FiUser} color="gray.500" />
-              <Text color="gray.600">Author ID: {article.authorId}</Text>
-            </HStack>
-            
             <HStack>
               <Icon as={FiCalendar} color="gray.500" />
               <Text color="gray.600">
@@ -238,6 +283,25 @@ const ArticleDetailPage: React.FC = () => {
               <Text color="gray.600">{article.citations} citations</Text>
             </HStack>
           </Flex>
+          
+          {/* Display author information with ORCID */}
+          <ArticleAuthors 
+            authors={authors.map(a => {
+              const nameParts = a.name.split(' ');
+              const given = nameParts.length > 1 ? nameParts[0] : '';
+              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name;
+              return { 
+                given, 
+                family,
+                orcid: a.orcid 
+              };
+            })} 
+            correspondingAuthor={authors.find(a => a.isCorresponding)?.name}
+            affiliations={authors.reduce((acc, a) => {
+              if (a.affiliation) acc[a.name] = a.affiliation;
+              return acc;
+            }, {} as Record<string, string>)}
+          />
           
           <Flex gap={2} flexWrap="wrap" mb={6}>
             {article.keywords.map((keyword) => (
@@ -267,6 +331,9 @@ const ArticleDetailPage: React.FC = () => {
                 </Heading>
                 <Text>{article.abstract}</Text>
               </Box>
+              
+              {/* Add citation information with ORCID */}
+              <ArticleCitation citation={articleToCitation(article, authors)} />
               
               <Box 
                 bg={bgColor} 

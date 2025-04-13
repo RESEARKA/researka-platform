@@ -19,7 +19,12 @@ export const AuthorDisplay: React.FC<AuthorDisplayProps> = ({
   const authorName = `${author.given} ${author.family}`;
   
   if (!author.orcid) {
-    return <Text>{authorName}</Text>;
+    return (
+      <HStack spacing={1}>
+        <Text>{authorName}</Text>
+        <Text fontSize="sm" color="gray.500">(ORCID ID: Pending)</Text>
+      </HStack>
+    );
   }
   
   const authorLink = (
