@@ -10,6 +10,11 @@ interface FirebaseClientOnlyProps {
   fallback?: ReactNode;
   loadingFallback?: ReactNode;
   errorFallback?: ReactNode;
+  options?: {
+    timeoutMs?: number;
+    maxAttempts?: number;
+    enableLogging?: boolean;
+  };
 }
 
 /**
@@ -20,13 +25,18 @@ const FirebaseClientOnly: React.FC<FirebaseClientOnlyProps> = ({
   children,
   fallback = null,
   loadingFallback = null,
-  errorFallback = null
+  errorFallback = null,
+  options = {}
 }) => {
   // Track if we're on the client side to prevent hydration errors
   const [isClient, setIsClient] = useState(false);
   
   // Use our enhanced dedicated hook to ensure Firebase is initialized
-  const { initialized, error, isTimedOut } = useFirebaseInitialized();
+  const { initialized, error, isTimedOut } = useFirebaseInitialized({
+    timeoutMs: options?.timeoutMs,
+    maxAttempts: options?.maxAttempts,
+    enableLogging: options?.enableLogging
+  });
   
   // Set isClient to true once the component is mounted
   useEffect(() => {

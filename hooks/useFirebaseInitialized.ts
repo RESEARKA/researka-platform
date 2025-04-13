@@ -12,6 +12,13 @@ export interface FirebaseInitStatus {
   isTimedOut: boolean;
 }
 
+// Define options interface for the hook
+export interface FirebaseInitOptions {
+  timeoutMs?: number;
+  maxAttempts?: number;
+  enableLogging?: boolean;
+}
+
 // Safely check if we're on the client side
 const isClientSide = () => typeof window !== 'undefined';
 
@@ -22,7 +29,7 @@ export let db: any;
 export let analytics: any;
 let isInitialized = false;
 
-export function initializeFirebase(): { success: boolean; error: Error | null } {
+export function initializeFirebase(options?: FirebaseInitOptions): { success: boolean; error: Error | null } {
   // Only run on client side
   if (!isClientSide()) {
     return { success: false, error: new Error('Cannot initialize Firebase on server side') };
@@ -32,8 +39,14 @@ export function initializeFirebase(): { success: boolean; error: Error | null } 
     if (!isInitialized) {
       if (getApps().length === 0) {
         app = initializeApp(firebaseConfig);
+        if (options?.enableLogging) {
+          console.log('Firebase app initialized');
+        }
       } else {
         app = getApps()[0];
+        if (options?.enableLogging) {
+          console.log('Using existing Firebase app');
+        }
       }
       auth = getAuth(app);
       db = getFirestore(app);
@@ -61,7 +74,7 @@ export function initializeFirebase(): { success: boolean; error: Error | null } 
   }
 }
 
-export function useFirebaseInitialized(): FirebaseInitStatus {
+export function useFirebaseInitialized(options?: FirebaseInitOptions): FirebaseInitStatus {
   const [status, setStatus] = useState<FirebaseInitStatus>({
     initialized: isClientSide() ? isInitialized : false,
     error: null,
@@ -75,12 +88,16 @@ export function useFirebaseInitialized(): FirebaseInitStatus {
     }
     
     // Set a timeout to detect slow initialization
+    const timeoutMs = options?.timeoutMs || 5000;
     const timeoutId = setTimeout(() => {
+      if (options?.enableLogging) {
+        console.log('Firebase initialization timed out after', timeoutMs, 'ms');
+      }
       setStatus(prev => ({ ...prev, isTimedOut: true }));
-    }, 5000);
+    }, timeoutMs);
 
     try {
-      const result = initializeFirebase();
+      const result = initializeFirebase(options);
       setStatus({
         initialized: result.success,
         error: result.error,
