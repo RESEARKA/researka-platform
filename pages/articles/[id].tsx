@@ -153,6 +153,7 @@ const ArticleDetailPage: React.FC = () => {
           
           // Set authors state
           setAuthors(authorInfos);
+          console.log('Author information:', authorInfos);
           
           // Convert to the format expected by the component
           const formattedArticle: Article = {
@@ -292,11 +293,11 @@ const ArticleDetailPage: React.FC = () => {
             authors={authors.map(a => {
               // Split the name into given and family parts
               const nameParts = a.name ? a.name.split(' ') : ['', ''];
-              const given = nameParts.length > 1 ? nameParts[0] : a.name || '';
-              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+              const given = nameParts.length > 1 ? nameParts[0] : '';
+              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name || '';
               
               return { 
-                id: a.userId || a.name, // Use userId if available, otherwise use name
+                id: a.userId || a.name || 'Unknown Author',
                 given, 
                 family,
                 orcid: a.orcid 
@@ -306,7 +307,7 @@ const ArticleDetailPage: React.FC = () => {
             affiliations={authors.reduce((acc, a) => {
               if (a.affiliation) {
                 // Add affiliation with both full name and split name formats as keys
-                acc[a.name] = a.affiliation;
+                acc[a.name || ''] = a.affiliation;
                 if (a.name) {
                   const nameParts = a.name.split(' ');
                   const given = nameParts.length > 1 ? nameParts[0] : '';
