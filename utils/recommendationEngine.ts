@@ -20,6 +20,15 @@ export interface Article {
   citations?: number;
   reviewCount: number;
   status: 'pending' | 'under_review' | 'accepted' | 'rejected';
+  // Standardized template fields
+  introduction?: string;
+  literatureReview?: string;
+  methods?: string;
+  results?: string;
+  discussion?: string;
+  conclusion?: string;
+  acknowledgments?: string;
+  references?: string[];
 }
 
 // User interface
