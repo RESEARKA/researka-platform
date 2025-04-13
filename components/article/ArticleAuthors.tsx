@@ -18,7 +18,6 @@ import {
 } from '@chakra-ui/react';
 import { FiMail, FiExternalLink } from 'react-icons/fi';
 import { Author } from '../editor/types/citation';
-import { AuthorDisplay } from '../editor/AuthorDisplay';
 import { OrcidIcon } from '../common/OrcidIcon';
 
 interface ArticleAuthorsProps {
@@ -60,14 +59,14 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
         {authors.map((author, index) => {
           const authorId = `${author.family}-${author.given}`;
           const isCorresponding = correspondingAuthor === authorId;
-          const affiliation = affiliations[authorId];
+          const affiliation = affiliations[authorId] || affiliations[`${author.given} ${author.family}`];
           
           return (
             <Box key={`${authorId}-${index}`} pb={3} borderBottomWidth={index < authors.length - 1 ? '1px' : 0} borderColor="gray.200">
               <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'flex-start', md: 'center' }}>
                 <Box mb={{ base: 2, md: 0 }}>
                   <HStack mb={1}>
-                    <AuthorDisplay author={author} />
+                    <Text fontWeight="medium">{author.given} {author.family}</Text>
                     {isCorresponding && (
                       <HStack ml={2}>
                         <Icon as={FiMail} color="blue.500" />
@@ -77,12 +76,12 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                   </HStack>
                   
                   {affiliation && (
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="gray.600" mb={1}>
                       {affiliation}
                     </Text>
                   )}
                   
-                  {author.orcid && (
+                  {author.orcid ? (
                     <HStack mt={1} spacing={1}>
                       <OrcidIcon color="#A6CE39" boxSize={4} />
                       <Link 
@@ -97,6 +96,10 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                         <Icon as={FiExternalLink} ml={1} boxSize={3} />
                       </Link>
                     </HStack>
+                  ) : (
+                    <Text fontSize="sm" color="gray.500">
+                      (ORCID ID: Pending)
+                    </Text>
                   )}
                 </Box>
               </Flex>

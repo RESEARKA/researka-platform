@@ -287,9 +287,11 @@ const ArticleDetailPage: React.FC = () => {
           {/* Display author information with ORCID */}
           <ArticleAuthors 
             authors={authors.map(a => {
-              const nameParts = a.name.split(' ');
-              const given = nameParts.length > 1 ? nameParts[0] : '';
-              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name;
+              // Split the name into given and family parts
+              const nameParts = a.name ? a.name.split(' ') : ['', ''];
+              const given = nameParts.length > 1 ? nameParts[0] : a.name || '';
+              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+              
               return { 
                 given, 
                 family,
@@ -298,7 +300,16 @@ const ArticleDetailPage: React.FC = () => {
             })} 
             correspondingAuthor={authors.find(a => a.isCorresponding)?.name}
             affiliations={authors.reduce((acc, a) => {
-              if (a.affiliation) acc[a.name] = a.affiliation;
+              if (a.affiliation) {
+                // Add affiliation with both full name and split name formats as keys
+                acc[a.name] = a.affiliation;
+                if (a.name) {
+                  const nameParts = a.name.split(' ');
+                  const given = nameParts.length > 1 ? nameParts[0] : '';
+                  const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name;
+                  acc[`${family}-${given}`] = a.affiliation;
+                }
+              }
               return acc;
             }, {} as Record<string, string>)}
           />
