@@ -29,6 +29,9 @@ export interface Article {
   conclusion?: string;
   acknowledgments?: string;
   references?: string[];
+  // Additional fields for author information
+  content?: string;
+  coAuthors?: string[];
 }
 
 // User interface
