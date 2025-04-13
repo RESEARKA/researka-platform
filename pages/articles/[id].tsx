@@ -301,9 +301,16 @@ const ArticleDetailPage: React.FC = () => {
             correspondingAuthor={authors.find(a => a.isCorresponding)?.name}
             affiliations={authors.reduce((acc, a) => {
               if (a.affiliation) {
-                // Add affiliation with both full name and split name formats as keys
-                acc[a.name || ''] = a.affiliation;
+                // Add affiliation with userId as key
+                if (a.userId) {
+                  acc[a.userId] = a.affiliation;
+                }
+                
+                // Add affiliation with name as key
                 if (a.name) {
+                  acc[a.name] = a.affiliation;
+                  
+                  // Also add with split name format
                   const nameParts = a.name.split(' ');
                   const given = nameParts.length > 1 ? nameParts[0] : '';
                   const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name;
