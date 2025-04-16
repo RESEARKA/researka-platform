@@ -16,7 +16,8 @@ const logger = createLogger('citation-helper');
  * Author information interface with ORCID support
  */
 export interface AuthorInfo {
-  name: string;
+  name?: string;
+  displayName?: string;
   orcid?: string;
   email?: string;
   affiliation?: string;
@@ -64,7 +65,7 @@ export function parseAuthorName(authorName: string): { given: string; family: st
 export function convertToAuthor(authorInfo: AuthorInfo): Author {
   try {
     const { name, orcid } = authorInfo;
-    const { given, family } = parseAuthorName(name);
+    const { given, family } = parseAuthorName(name || '');
     
     return {
       given,

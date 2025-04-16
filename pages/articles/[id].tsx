@@ -106,9 +106,14 @@ const ArticleDetailPage: React.FC = () => {
               const authorDoc = await getDoc(doc(db, 'users', fetchedArticle.authorId));
               if (authorDoc.exists()) {
                 const authorData = authorDoc.data();
-                // Add main author
+                
+                // Debug logging to see what data we're getting from Firestore
+                console.log('AUTHOR DATA RAW:', JSON.stringify(authorData, null, 2));
+                
+                // Add main author with both displayName and name fields
                 authorInfos.push({
-                  name: authorData.displayName || authorData.name || fetchedArticle.authorId,
+                  displayName: authorData.displayName,
+                  name: authorData.name,
                   orcid: authorData.orcid || undefined,
                   email: authorData.email,
                   affiliation: authorData.affiliation || authorData.institution,
@@ -124,7 +129,8 @@ const ArticleDetailPage: React.FC = () => {
                       if (coAuthorDoc.exists()) {
                         const coAuthorData = coAuthorDoc.data();
                         authorInfos.push({
-                          name: coAuthorData.displayName || coAuthorData.name || coAuthorId,
+                          displayName: coAuthorData.displayName,
+                          name: coAuthorData.name,
                           orcid: coAuthorData.orcid || undefined,
                           email: coAuthorData.email,
                           affiliation: coAuthorData.affiliation || coAuthorData.institution,
@@ -145,6 +151,7 @@ const ArticleDetailPage: React.FC = () => {
           // If no author information was found, create a placeholder
           if (authorInfos.length === 0) {
             authorInfos = [{ 
+              displayName: fetchedArticle.authorId || 'Unknown Author',
               name: fetchedArticle.authorId || 'Unknown Author',
               orcid: undefined,
               userId: fetchedArticle.authorId
@@ -291,18 +298,30 @@ const ArticleDetailPage: React.FC = () => {
           {/* Display author information with ORCID */}
           <ArticleAuthors 
             authors={authors.map(a => {
-              // Split the name into given and family parts if available
-              const nameParts = a.name ? a.name.split(' ') : ['', ''];
+              // Check if name looks like a wallet address
+              const isWalletAddress = (str?: string) => {
+                if (!str) return false;
+                return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+              };
+              
+              // Use displayName or name, but never show wallet addresses
+              let displayName = a.displayName || a.name;
+              if (!displayName || isWalletAddress(displayName)) {
+                displayName = 'Anonymous Author';
+              }
+              
+              // Split the name into given and family parts
+              const nameParts = displayName.split(' ');
               const given = nameParts.length > 1 ? nameParts[0] : '';
-              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name || '';
+              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
               
               return { 
-                id: a.userId || a.name || 'Unknown Author',
+                id: a.userId || 'anonymous',
                 given, 
                 family,
                 orcid: a.orcid 
               };
-            })} 
+            })}
             correspondingAuthor={authors.find(a => a.isCorresponding)?.name}
             affiliations={authors.reduce((acc, a) => {
               if (a.affiliation) {

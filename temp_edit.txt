@@ -1,0 +1,13 @@
+              const authorDoc = await getDoc(doc(db, 'users', fetchedArticle.authorId));
+              if (authorDoc.exists()) {
+                const authorData = authorDoc.data();
+                console.log('Author data check:', authorData);
+                // Add main author
+                authorInfos.push({
+                  name: authorData.displayName || authorData.name || fetchedArticle.authorId,
+                  orcid: authorData.orcid || undefined,
+                  email: authorData.email,
+                  affiliation: authorData.affiliation || authorData.institution,
+                  isCorresponding: true,
+                  userId: fetchedArticle.authorId
+                });

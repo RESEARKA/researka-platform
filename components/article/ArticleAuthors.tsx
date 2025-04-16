@@ -64,15 +64,14 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
           return (
             <Box key={`${authorId}-${index}`} pb={3} borderBottomWidth={index < authors.length - 1 ? '1px' : 0} borderColor="gray.200">
               <Flex direction="column" justify="flex-start" align="flex-start">
-                {/* Author ID */}
-                <Text fontWeight="medium" mb={1}>
-                  {author.id}
-                </Text>
-                
-                {/* Author Name (if available) */}
-                {author.given && author.family && (
-                  <Text fontSize="md" mb={1}>
-                    Name: {author.given} {author.family}
+                {/* Author Name */}
+                {(author.given || author.family) ? (
+                  <Text fontSize="md" fontWeight="medium" mb={1}>
+                    {author.given} {author.family}
+                  </Text>
+                ) : (
+                  <Text fontWeight="medium" mb={1} color="gray.500" fontSize="sm">
+                    Anonymous Author
                   </Text>
                 )}
                 

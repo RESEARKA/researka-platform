@@ -468,16 +468,14 @@ export function useProfileData() {
       if (updatedProfile.name) {
         updatedData.displayName = updatedProfile.name;
         
-        // Also update the Firebase Auth user profile
+        // Update Firebase Auth profile directly using the updateProfile function
         try {
-          const { updateUserProfile } = require('../contexts/AuthContext').useAuth();
-          if (updateUserProfile) {
-            await updateUserProfile({ displayName: updatedProfile.name });
-            logger.debug('Updated Firebase Auth displayName', {
-              context: { name: updatedProfile.name },
-              category: LogCategory.AUTH
-            });
-          }
+          const { updateProfile } = require('firebase/auth');
+          await updateProfile(currentUser, { displayName: updatedProfile.name });
+          logger.debug('Updated Firebase Auth displayName', {
+            context: { name: updatedProfile.name },
+            category: LogCategory.AUTH
+          });
         } catch (authError) {
           logger.error('Failed to update Firebase Auth displayName', {
             context: { error: authError },
