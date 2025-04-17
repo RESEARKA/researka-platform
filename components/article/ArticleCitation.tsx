@@ -57,7 +57,33 @@ export const ArticleCitation: React.FC<ArticleCitationProps> = ({ citation }) =>
         <Box>
           <Text fontWeight="bold" mb={2}>Citation:</Text>
           <Text>
-            {citation.authors.map(a => `${a.family}, ${a.given[0]}.`).join(', ')} 
+            {citation.authors.map(a => {
+              // Handle wallet addresses and ensure proper display names
+              const isWalletAddress = (str?: string) => {
+                if (!str) return false;
+                return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+              };
+              
+              // Use the author's name or a fallback
+              const displayName = a.displayName || 
+                (a.given && a.family ? `${a.given} ${a.family}` : 
+                (isWalletAddress(a.id) ? 'Anonymous Author' : a.id));
+              
+              // If we have a proper name, use it for citation
+              if (displayName && !isWalletAddress(displayName)) {
+                const nameParts = displayName.split(' ');
+                const given = nameParts.length > 1 ? nameParts[0] : '';
+                const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
+                return `${family}, ${given[0]}.`;
+              }
+              
+              // Fallback to existing format if we have family and given names
+              if (a.family && a.given) {
+                return `${a.family}, ${a.given[0]}.`;
+              }
+              
+              return 'Anonymous Author';
+            }).join(', ')} 
             ({citation.year}). {citation.title}. 
             <em>{citation.journal || 'DecentraJournal'}</em>
             {citation.volume && `, ${citation.volume}`}

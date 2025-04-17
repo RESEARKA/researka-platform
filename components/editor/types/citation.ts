@@ -7,6 +7,8 @@ export interface Author {
   family: string;
   orcid?: string;
   id?: string;
+  displayName?: string;
+  affiliation?: string;
 }
 
 export interface Citation {

@@ -57,28 +57,39 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
       
       <VStack spacing={4} align="stretch">
         {authors.map((author, index) => {
-          const authorId = `${author.family}-${author.given}`;
+          // Handle wallet addresses and ensure proper display names
+          const isWalletAddress = (str?: string) => {
+            if (!str) return false;
+            return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+          };
+          
+          // Use the author's name or a fallback
+          const displayName = author.displayName || 
+            (author.given && author.family ? `${author.given} ${author.family}` : 
+            (isWalletAddress(author.id) ? 'Anonymous Author' : author.id));
+          
+          const authorId = author.id || `${author.family}-${author.given}`;
           const isCorresponding = correspondingAuthor === authorId;
-          const affiliation = affiliations[authorId] || affiliations[`${author.given} ${author.family}`] || (author.id ? affiliations[author.id] : undefined);
+          
+          // Get affiliation from multiple possible sources
+          const affiliation = author.affiliation || 
+            affiliations[authorId] || 
+            affiliations[`${author.given} ${author.family}`] || 
+            (author.id ? affiliations[author.id] : undefined);
           
           return (
             <Box key={`${authorId}-${index}`} pb={3} borderBottomWidth={index < authors.length - 1 ? '1px' : 0} borderColor="gray.200">
               <Flex direction="column" justify="flex-start" align="flex-start">
                 {/* Author Name */}
-                {(author.given || author.family) ? (
-                  <Text fontSize="md" fontWeight="medium" mb={1}>
-                    {author.given} {author.family}
-                  </Text>
-                ) : (
-                  <Text fontWeight="medium" mb={1} color="gray.500" fontSize="sm">
-                    Anonymous Author
-                  </Text>
-                )}
+                <Text fontSize="md" fontWeight="medium" mb={1}>
+                  {displayName && !isWalletAddress(displayName) ? displayName : 
+                   (author.given && author.family ? `${author.given} ${author.family}` : 'Anonymous Author')}
+                </Text>
                 
                 {/* Affiliation/University */}
                 {affiliation && (
                   <Text fontSize="sm" color="gray.600" mb={1}>
-                    Affiliation: {affiliation}
+                    {affiliation}
                   </Text>
                 )}
                 
