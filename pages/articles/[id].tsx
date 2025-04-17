@@ -32,6 +32,10 @@ import { downloadArticlePdf } from '../../utils/pdfGenerator';
 import FlagArticleButton from '../../components/moderation/FlagArticleButton';
 import { useArticleViewTracking } from '../../hooks/useActivityTracking';
 import { createLogger, LogCategory } from '../../utils/logger';
+import ReadCountDisplay from '../../components/article/ReadCountDisplay';
+import CitationBadge from '../../components/article/CitationBadge';
+import SocialShareMetrics from '../../components/article/SocialShareMetrics';
+import { useArticleMetrics } from '../../hooks/useArticleMetrics';
 
 const logger = createLogger('article-detail');
 
@@ -44,6 +48,7 @@ const ArticleDetailPage: React.FC = () => {
   const [allFields, setAllFields] = useState<Record<string, string>>({});
   const [authors, setAuthors] = useState<AuthorInfo[]>([]);
   const toast = useToast();
+  const { metrics, recordShare } = useArticleMetrics(id as string);
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -298,7 +303,7 @@ const ArticleDetailPage: React.FC = () => {
           {/* Display author information with ORCID */}
           <ArticleAuthors 
             authors={authors.map(a => {
-              // Check if name looks like a wallet address
+              // Check if name looks like a wallet address using our utility function
               const isWalletAddress = (str?: string) => {
                 if (!str) return false;
                 return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
@@ -315,30 +320,53 @@ const ArticleDetailPage: React.FC = () => {
               const given = nameParts.length > 1 ? nameParts[0] : '';
               const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
               
+              // Debug what we're sending to ArticleAuthors
+              console.log('Author data being sent to ArticleAuthors:', {
+                id: a.userId || 'anonymous',
+                given, 
+                family,
+                orcid: a.orcid,
+                affiliation: a.affiliation
+              });
+              
               return { 
                 id: a.userId || 'anonymous',
                 given, 
                 family,
-                orcid: a.orcid 
+                orcid: a.orcid,
+                affiliation: a.affiliation // Add affiliation directly to author object
               };
             })}
-            correspondingAuthor={authors.find(a => a.isCorresponding)?.name}
+            correspondingAuthor={authors.find(a => a.isCorresponding)?.userId}
             affiliations={authors.reduce((acc, a) => {
+              // Redefine isWalletAddress here to avoid scope issues
+              const isWalletAddress = (str?: string) => {
+                if (!str) return false;
+                return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+              };
+              
               if (a.affiliation) {
                 // Add affiliation with userId as key
                 if (a.userId) {
                   acc[a.userId] = a.affiliation;
                 }
                 
+                // Add affiliation with displayName as key
+                if (a.displayName && !isWalletAddress(a.displayName)) {
+                  acc[a.displayName] = a.affiliation;
+                }
+                
                 // Add affiliation with name as key
-                if (a.name) {
+                if (a.name && !isWalletAddress(a.name)) {
                   acc[a.name] = a.affiliation;
                   
                   // Also add with split name format
                   const nameParts = a.name.split(' ');
-                  const given = nameParts.length > 1 ? nameParts[0] : '';
-                  const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : a.name;
-                  acc[`${family}-${given}`] = a.affiliation;
+                  if (nameParts.length > 1) {
+                    const given = nameParts[0];
+                    const family = nameParts.slice(1).join(' ');
+                    acc[`${family}-${given}`] = a.affiliation;
+                  }
                 }
               }
               return acc;
@@ -507,11 +535,22 @@ const ArticleDetailPage: React.FC = () => {
               </Button>
               
               <Flex justify="space-between" mb={4}>
-                <Button leftIcon={<FiShare2 />} variant="outline">
+                <Button 
+                  leftIcon={<FiShare2 />} 
+                  variant="outline" 
+                  onClick={() => recordShare('twitter')}
+                >
                   Share
                 </Button>
                 <FlagArticleButton articleId={article.id || id as string} />
               </Flex>
+              
+              {/* Article Metrics Display */}
+              <HStack spacing={4} mt={4} mb={6}>
+                <ReadCountDisplay count={metrics.viewCount} showLabel={true} />
+                <CitationBadge count={metrics.citationCount} />
+                <SocialShareMetrics shares={metrics.shareCount} />
+              </HStack>
             </GridItem>
             
             <GridItem>

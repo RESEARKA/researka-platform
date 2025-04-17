@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Text, Center, Spinner, useToast, VStack } from '@chakra-ui/react';
+import { Box, Container, Text, Center, Spinner, useToast, VStack, Divider } from '@chakra-ui/react';
 import Layout from '../components/Layout';
 import SimpleSignupForm from '../components/auth/SimpleSignupForm';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,9 @@ import { useRouter } from 'next/router';
 import { getUserProfile } from '../services/profileService';
 import { createLogger, LogCategory } from '../utils/logger';
 import OrcidProfileSection from '../components/profile/OrcidProfileSection';
+import ProfileCompleteness from '../components/profile/ProfileCompleteness';
+import OrcidImport from '../components/profile/OrcidImport';
+import { useProfileCompleteness } from '../hooks/useProfileCompleteness';
 
 // Create a logger instance for this page
 const logger = createLogger('SimpleProfilePage');
@@ -25,6 +28,9 @@ const SimpleProfilePage: React.FC = () => {
   // State for profile checking
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [existingProfile, setExistingProfile] = useState<any>(null);
+  
+  // Get profile completeness data
+  const { completionPercentage, fieldStatus, importFromOrcid, isLoading: isProfileCompletenessLoading } = useProfileCompleteness();
   
   // Get the return URL from query parameters (where to redirect after completion)
   const returnUrl = router.query.returnUrl as string || '/';
@@ -130,17 +136,64 @@ const SimpleProfilePage: React.FC = () => {
     );
   }
   
+  // If user has a profile, show the profile page with completeness indicator
+  if (existingProfile) {
+    return (
+      <Layout>
+        <Container maxW="container.md" py={8}>
+          <VStack spacing={8} align="stretch">
+            <Box>
+              <Text fontSize="2xl" fontWeight="bold" mb={4}>
+                Your Profile
+              </Text>
+              
+              {/* Profile Completeness Indicator */}
+              {!isProfileCompletenessLoading && (
+                <ProfileCompleteness profile={existingProfile} />
+              )}
+              
+              <Divider my={6} />
+              
+              {/* ORCID Import Section */}
+              <Box mb={6}>
+                <Text fontSize="lg" fontWeight="medium" mb={3}>
+                  Import Data from ORCID
+                </Text>
+                <Text fontSize="sm" color="gray.600" mb={4}>
+                  Update your profile with information from your ORCID account
+                </Text>
+                
+                <OrcidImport 
+                  orcidId={existingProfile.orcidId || ''} 
+                  onImportComplete={importFromOrcid} 
+                />
+              </Box>
+            </Box>
+            
+            <SimpleSignupForm
+              existingProfile={existingProfile}
+              onComplete={() => {
+                toast({
+                  title: "Profile Updated",
+                  description: "Your profile has been successfully updated.",
+                  status: "success",
+                  duration: 5000,
+                  isClosable: true,
+                });
+              }}
+            />
+            
+            <OrcidProfileSection />
+          </VStack>
+        </Container>
+      </Layout>
+    );
+  }
+  
   return (
     <Layout>
       <Container maxW="container.md" py={10}>
-        {existingProfile ? (
-          <VStack spacing={8} align="stretch">
-            <SimpleSignupForm existingProfile={existingProfile} onComplete={handleProfileComplete} />
-            <OrcidProfileSection />
-          </VStack>
-        ) : (
-          <SimpleSignupForm existingProfile={existingProfile} onComplete={handleProfileComplete} />
-        )}
+        <SimpleSignupForm existingProfile={existingProfile} onComplete={handleProfileComplete} />
       </Container>
     </Layout>
   );
