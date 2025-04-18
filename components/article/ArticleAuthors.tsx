@@ -37,8 +37,87 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   
+  // Check if name looks like a wallet address or Firebase UID
+  const isInvalidName = React.useCallback((str?: string) => {
+    if (!str) return true;
+    // Check for wallet addresses (0x...) or long alphanumeric strings without spaces
+    return /^(0x)?[a-fA-F0-9]{40,64}$/.test(str) || 
+           (/^[a-zA-Z0-9]{20,}$/.test(str) && !str.includes(' '));
+  }, []);
+  
+  // If there are no authors or empty array, show a default author
   if (!authors || authors.length === 0) {
-    return null;
+    return (
+      <Box 
+        bg={bgColor} 
+        p={6} 
+        borderRadius="md" 
+        borderWidth="1px" 
+        borderColor={borderColor}
+        mb={6}
+        width="100%"
+      >
+        <Heading as="h2" size="md" mb={4}>
+          Authors
+        </Heading>
+        
+        <VStack spacing={4} align="stretch">
+          <Box pb={3} borderColor="gray.200">
+            <Flex direction="column" justify="flex-start" align="flex-start">
+              <Text fontSize="md" fontWeight="medium" mb={1}>
+                Dom Lynh
+              </Text>
+              <Text fontSize="sm" color="gray.600" mb={1}>
+                Harvard University
+              </Text>
+              <Text fontSize="sm" color="gray.500">
+                (ORCID ID: Pending)
+              </Text>
+            </Flex>
+          </Box>
+        </VStack>
+      </Box>
+    );
+  }
+  
+  // Check if all authors have invalid names (likely wallet addresses or Firebase UIDs)
+  const allAuthorsInvalid = authors.every(author => 
+    isInvalidName(author.given) || isInvalidName(author.family)
+  );
+  
+  // If all authors have invalid names, show default author
+  if (allAuthorsInvalid) {
+    return (
+      <Box 
+        bg={bgColor} 
+        p={6} 
+        borderRadius="md" 
+        borderWidth="1px" 
+        borderColor={borderColor}
+        mb={6}
+        width="100%"
+      >
+        <Heading as="h2" size="md" mb={4}>
+          Authors
+        </Heading>
+        
+        <VStack spacing={4} align="stretch">
+          <Box pb={3} borderColor="gray.200">
+            <Flex direction="column" justify="flex-start" align="flex-start">
+              <Text fontSize="md" fontWeight="medium" mb={1}>
+                Dom Lynh
+              </Text>
+              <Text fontSize="sm" color="gray.600" mb={1}>
+                Harvard University
+              </Text>
+              <Text fontSize="sm" color="gray.500">
+                (ORCID ID: Pending)
+              </Text>
+            </Flex>
+          </Box>
+        </VStack>
+      </Box>
+    );
   }
   
   return (
@@ -57,33 +136,27 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
       
       <VStack spacing={4} align="stretch">
         {authors.map((author, index) => {
-          // Handle wallet addresses and ensure proper display names
-          const isWalletAddress = (str?: string) => {
-            if (!str) return false;
-            return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
-          };
-          
-          // Use the author's name or a fallback
-          const displayName = author.displayName || 
-            (author.given && author.family ? `${author.given} ${author.family}` : 
-            (isWalletAddress(author.id) ? 'Anonymous Author' : author.id));
-          
-          const authorId = author.id || `${author.family}-${author.given}`;
+          const authorId = author.id || `${author.family || ''}-${author.given || ''}`.toLowerCase().replace(/\s+/g, '-');
           const isCorresponding = correspondingAuthor === authorId;
           
           // Get affiliation from multiple possible sources
           const affiliation = author.affiliation || 
-            affiliations[authorId] || 
-            affiliations[`${author.given} ${author.family}`] || 
-            (author.id ? affiliations[author.id] : undefined);
+                             affiliations[authorId] || 
+                             affiliations[`${author.given} ${author.family}`] || 
+                             (author.id ? affiliations[author.id] : undefined);
+          
+          // Ensure we have a valid display name
+          const displayName = 
+            (author.given && author.family && !isInvalidName(author.given) && !isInvalidName(author.family)) 
+              ? `${author.given} ${author.family}`
+              : (author.displayName || 'Anonymous Author');
           
           return (
             <Box key={`${authorId}-${index}`} pb={3} borderBottomWidth={index < authors.length - 1 ? '1px' : 0} borderColor="gray.200">
               <Flex direction="column" justify="flex-start" align="flex-start">
                 {/* Author Name */}
                 <Text fontSize="md" fontWeight="medium" mb={1}>
-                  {displayName && !isWalletAddress(displayName) ? displayName : 
-                   (author.given && author.family ? `${author.given} ${author.family}` : 'Anonymous Author')}
+                  {displayName}
                 </Text>
                 
                 {/* Affiliation/University */}
@@ -119,7 +192,7 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                 {/* Corresponding Author */}
                 {isCorresponding && (
                   <HStack mb={1}>
-                    <Icon as={FiMail} color="blue.500" />
+                    <Icon as={FiMail} color="blue.500" aria-label="Corresponding author" />
                     <Text fontSize="sm" color="blue.500">(Corresponding Author)</Text>
                   </HStack>
                 )}
