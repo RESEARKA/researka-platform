@@ -28,6 +28,7 @@ import ArticleReviewStatus from '../../components/ArticleReviewStatus';
 import ArticleReviewers from '../../components/ArticleReviewers';
 import { ArticleAuthors } from '../../components/article/ArticleAuthors';
 import { ArticleCitation } from '../../components/article/ArticleCitation';
+import SocialShareButtons, { SharePlatform } from '../../components/article/SocialShareButtons';
 import { downloadArticlePdf } from '../../utils/pdfGenerator';
 import FlagArticleButton from '../../components/moderation/FlagArticleButton';
 import { useArticleViewTracking } from '../../hooks/useActivityTracking';
@@ -42,20 +43,22 @@ const logger = createLogger('article-detail');
 const ArticleDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
+  const articleId = id ? (Array.isArray(id) ? id[0] : id) : '';
+
   const [article, setArticle] = useState<Article | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [allFields, setAllFields] = useState<Record<string, string>>({});
   const [authors, setAuthors] = useState<AuthorInfo[]>([]);
   const toast = useToast();
-  const { metrics, recordShare } = useArticleMetrics(id as string);
+  const { metrics, recordShare } = useArticleMetrics(articleId);
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   
   // Track article view when the page loads
   const trackingStatus = useArticleViewTracking(
-    typeof id === 'string' ? id : undefined,
+    articleId,
     article ? {
       category: article.categories?.[0] || 'unknown',
       keywords: article.keywords?.join(',') || '',
@@ -67,14 +70,14 @@ const ArticleDetailPage: React.FC = () => {
   useEffect(() => {
     if (!trackingStatus.success && trackingStatus.error) {
       logger.warn('Failed to track article view', {
-        context: { articleId: id, error: trackingStatus.error },
+        context: { articleId, error: trackingStatus.error },
         category: LogCategory.ERROR
       });
     }
-  }, [trackingStatus, id]);
+  }, [trackingStatus, articleId]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!articleId) return;
     
     const fetchArticle = async () => {
       try {
@@ -90,14 +93,14 @@ const ArticleDetailPage: React.FC = () => {
         setAllFields(fieldMap);
         
         // Fetch article data from Firestore
-        const articleDoc = await getDoc(doc(db, 'articles', id as string));
+        const articleDoc = await getDoc(doc(db, 'articles', articleId));
         
         if (articleDoc.exists()) {
           const fetchedArticle = articleDoc.data();
           
           // Fetch reviews for this article
           const reviewsSnapshot = await getDocs(
-            query(collection(db, 'reviews'), where('articleId', '==', id))
+            query(collection(db, 'reviews'), where('articleId', '==', articleId))
           );
           const articleReviews = reviewsSnapshot.docs.map(doc => ({
             id: doc.id,
@@ -202,7 +205,7 @@ const ArticleDetailPage: React.FC = () => {
           setArticle(formattedArticle);
           setReviews(articleReviews);
         } else {
-          console.error('Article not found with ID:', id);
+          console.error('Article not found with ID:', articleId);
           toast({
             title: 'Article not found',
             description: 'The requested article could not be found',
@@ -226,7 +229,7 @@ const ArticleDetailPage: React.FC = () => {
     };
     
     fetchArticle();
-  }, [id, toast]);
+  }, [articleId, toast]);
   
   // Get readable name for a field ID
   const getFieldName = (fieldId: string) => {
@@ -281,97 +284,64 @@ const ArticleDetailPage: React.FC = () => {
           </Heading>
           
           {/* Display article metadata */}
-          <Flex wrap="wrap" gap={4} mb={6} align="center">
-            <HStack>
-              <Icon as={FiCalendar} color="gray.500" />
-              <Text color="gray.600">
-                {article.publishedDate ? formatDate(article.publishedDate) : 'No date'}
-              </Text>
+          <Flex wrap="wrap" gap={4} mb={6} align="center" justify="space-between">
+            <HStack spacing={4}>
+              <HStack>
+                <Icon as={FiCalendar} color="gray.500" />
+                <Text color="gray.600">
+                  {article.publishedDate ? formatDate(article.publishedDate) : 'No date'}
+                </Text>
+              </HStack>
+              
+              <HStack>
+                <Icon as={FiEye} color="gray.500" />
+                <Text color="gray.600">{article.views} views</Text>
+              </HStack>
+              
+              <HStack>
+                <Icon as={FiFileText} color="gray.500" />
+                <Text color="gray.600">{article.citations} citations</Text>
+              </HStack>
             </HStack>
             
-            <HStack>
-              <Icon as={FiEye} color="gray.500" />
-              <Text color="gray.600">{article.views} views</Text>
-            </HStack>
-            
-            <HStack>
-              <Icon as={FiFileText} color="gray.500" />
-              <Text color="gray.600">{article.citations} citations</Text>
-            </HStack>
-          </Flex>
-          
-          {/* Display author information with ORCID */}
-          <ArticleAuthors 
-            authors={authors.map(a => {
-              // Check if name looks like a wallet address using our utility function
-              const isWalletAddress = (str?: string) => {
-                if (!str) return false;
-                return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
-              };
-              
-              // Use displayName or name, but never show wallet addresses
-              let displayName = a.displayName || a.name;
-              if (!displayName || isWalletAddress(displayName)) {
-                displayName = 'Anonymous Author';
-              }
-              
-              // Split the name into given and family parts
-              const nameParts = displayName.split(' ');
-              const given = nameParts.length > 1 ? nameParts[0] : '';
-              const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
-              
-              // Debug what we're sending to ArticleAuthors
-              console.log('Author data being sent to ArticleAuthors:', {
-                id: a.userId || 'anonymous',
-                given, 
-                family,
-                orcid: a.orcid,
-                affiliation: a.affiliation
-              });
-              
-              return { 
-                id: a.userId || 'anonymous',
-                given, 
-                family,
-                orcid: a.orcid,
-                affiliation: a.affiliation // Add affiliation directly to author object
-              };
-            })}
-            correspondingAuthor={authors.find(a => a.isCorresponding)?.userId}
-            affiliations={authors.reduce((acc, a) => {
-              // Redefine isWalletAddress here to avoid scope issues
-              const isWalletAddress = (str?: string) => {
-                if (!str) return false;
-                return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
-              };
-              
-              if (a.affiliation) {
-                // Add affiliation with userId as key
-                if (a.userId) {
-                  acc[a.userId] = a.affiliation;
-                }
-                
-                // Add affiliation with displayName as key
-                if (a.displayName && !isWalletAddress(a.displayName)) {
-                  acc[a.displayName] = a.affiliation;
-                }
-                
-                // Add affiliation with name as key
-                if (a.name && !isWalletAddress(a.name)) {
-                  acc[a.name] = a.affiliation;
-                  
-                  // Also add with split name format
-                  const nameParts = a.name.split(' ');
-                  if (nameParts.length > 1) {
-                    const given = nameParts[0];
-                    const family = nameParts.slice(1).join(' ');
-                    acc[`${family}-${given}`] = a.affiliation;
+            {/* Add Social Share Buttons */}
+            <Box>
+              <SocialShareButtons 
+                title={article.title}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                description={article.abstract}
+                compact={true}
+                showShareCount={true}
+                initialCounts={metrics?.shareCount}
+                articleId={articleId}
+                onShare={(platform: SharePlatform) => {
+                  // Track share event
+                  if (recordShare && platform !== 'copy' && platform !== 'instagram') {
+                    recordShare(platform as 'twitter' | 'linkedin' | 'facebook' | 'email');
+                  } else if (platform === 'instagram') {
+                    // For Instagram, show a special toast with instructions
+                    toast({
+                      title: "Instagram Sharing",
+                      description: "Instagram doesn't support direct web sharing. Take a screenshot and share it on your Instagram story or post.",
+                      status: "info",
+                      duration: 5000,
+                      isClosable: true,
+                    });
                   }
-                }
-              }
-              return acc;
-            }, {} as Record<string, string>)}
-          />
+                  
+                  // Show toast notification for other platforms
+                  if (platform !== 'instagram') {
+                    toast({
+                      title: `Shared on ${platform}`,
+                      status: "success",
+                      duration: 2000,
+                      isClosable: true,
+                    });
+                  }
+                }}
+              />
+            </Box>
+          </Flex>
           
           <Flex gap={2} flexWrap="wrap" mb={6}>
             {article.keywords.map((keyword) => (
@@ -401,6 +371,79 @@ const ArticleDetailPage: React.FC = () => {
                 </Heading>
                 <Text>{article.abstract}</Text>
               </Box>
+              
+              {/* Display author information with ORCID */}
+              <ArticleAuthors 
+                authors={authors.map(a => {
+                  // Check if name looks like a wallet address using our utility function
+                  const isWalletAddress = (str?: string) => {
+                    if (!str) return false;
+                    return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+                  };
+                  
+                  // Use displayName or name, but never show wallet addresses
+                  let displayName = a.displayName || a.name;
+                  if (!displayName || isWalletAddress(displayName)) {
+                    displayName = 'Anonymous Author';
+                  }
+                  
+                  // Split the name into given and family parts
+                  const nameParts = displayName.split(' ');
+                  const given = nameParts.length > 1 ? nameParts[0] : '';
+                  const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
+                  
+                  // Debug what we're sending to ArticleAuthors
+                  console.log('Author data being sent to ArticleAuthors:', {
+                    id: a.userId || 'anonymous',
+                    given, 
+                    family,
+                    orcid: a.orcid,
+                    affiliation: a.affiliation
+                  });
+                  
+                  return { 
+                    id: a.userId || 'anonymous',
+                    given, 
+                    family,
+                    orcid: a.orcid,
+                    affiliation: a.affiliation // Add affiliation directly to author object
+                  };
+                })}
+                correspondingAuthor={authors.find(a => a.isCorresponding)?.userId}
+                affiliations={authors.reduce((acc, a) => {
+                  // Redefine isWalletAddress here to avoid scope issues
+                  const isWalletAddress = (str?: string) => {
+                    if (!str) return false;
+                    return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+                  };
+                  
+                  if (a.affiliation) {
+                    // Add affiliation with userId as key
+                    if (a.userId) {
+                      acc[a.userId] = a.affiliation;
+                    }
+                    
+                    // Add affiliation with displayName as key
+                    if (a.displayName && !isWalletAddress(a.displayName)) {
+                      acc[a.displayName] = a.affiliation;
+                    }
+                    
+                    // Add affiliation with name as key
+                    if (a.name && !isWalletAddress(a.name)) {
+                      acc[a.name] = a.affiliation;
+                      
+                      // Also add with split name format
+                      const nameParts = a.name.split(' ');
+                      if (nameParts.length > 1) {
+                        const given = nameParts[0];
+                        const family = nameParts.slice(1).join(' ');
+                        acc[`${family}-${given}`] = a.affiliation;
+                      }
+                    }
+                  }
+                  return acc;
+                }, {} as Record<string, string>)}
+              />
               
               {/* Add citation information with ORCID */}
               <ArticleCitation citation={articleToCitation(article, authors)} />
@@ -542,7 +585,7 @@ const ArticleDetailPage: React.FC = () => {
                 >
                   Share
                 </Button>
-                <FlagArticleButton articleId={article.id || id as string} />
+                <FlagArticleButton articleId={article.id || articleId} />
               </Flex>
               
               {/* Article Metrics Display */}
@@ -562,7 +605,7 @@ const ArticleDetailPage: React.FC = () => {
                 
                 {article.status !== 'accepted' && article.status !== 'rejected' && (
                   <ArticleReviewers 
-                    articleId={article.id || id as string}
+                    articleId={article.id || articleId}
                     limit={3}
                     reviews={reviews}
                   />
@@ -570,6 +613,48 @@ const ArticleDetailPage: React.FC = () => {
               </VStack>
             </GridItem>
           </Grid>
+          
+          {/* Article actions */}
+          <Flex mt={8} mb={6} justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={4}>
+            <HStack spacing={4}>
+              <Button
+                leftIcon={<Icon as={FiDownload} />}
+                colorScheme="blue"
+                onClick={() => downloadArticlePdf(article)}
+              >
+                Download PDF
+              </Button>
+              
+              <FlagArticleButton articleId={articleId} />
+            </HStack>
+            
+            {/* Full social share buttons for desktop */}
+            <Box display={{ base: 'none', md: 'block' }}>
+              <SocialShareButtons 
+                title={article.title}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                description={article.abstract}
+                showShareCount={true}
+                initialCounts={metrics?.shareCount}
+                articleId={articleId}
+                onShare={(platform: SharePlatform) => {
+                  // Track share event
+                  if (recordShare && platform !== 'copy' && platform !== 'instagram') {
+                    recordShare(platform as 'twitter' | 'linkedin' | 'facebook' | 'email');
+                  } else if (platform === 'instagram') {
+                    // For Instagram, show a special toast with instructions
+                    toast({
+                      title: "Instagram Sharing",
+                      description: "Instagram doesn't support direct web sharing. Take a screenshot and share it on your Instagram story or post.",
+                      status: "info",
+                      duration: 5000,
+                      isClosable: true,
+                    });
+                  }
+                }}
+              />
+            </Box>
+          </Flex>
         </Box>
       ) : (
         <Box textAlign="center" py={10}>
