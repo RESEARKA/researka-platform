@@ -202,7 +202,7 @@ function NavBar({
             <ChakraLink _hover={{ textDecoration: 'none' }}>
               <Flex align="center">
                 <Heading as="h1" size="md" color="blue.600">
-                  DecentraJournal
+                  RESEARKA
                 </Heading>
               </Flex>
             </ChakraLink>
