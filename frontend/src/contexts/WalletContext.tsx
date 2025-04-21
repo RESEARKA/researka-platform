@@ -72,6 +72,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           console.error("Failed to initialize provider", error);
         }
       }
+      
+      // Ensure function always returns a value
+      return undefined;
     };
 
     initProvider();
@@ -99,77 +102,80 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             setSigner(provider.getSigner());
           }
         }
+        
+        // Ensure function always returns a value
+        return undefined;
       };
 
       // Handle chain changes
       const handleChainChanged = (chainIdHex: string) => {
         const newChainId = parseInt(chainIdHex, 16);
         setChainId(newChainId);
+        
+        // Ensure function always returns a value
+        return undefined;
       };
 
+      // Subscribe to events
       window.ethereum.on('accountsChanged', handleAccountsChanged);
       window.ethereum.on('chainChanged', handleChainChanged);
 
-      // Cleanup listeners on unmount
+      // Cleanup
       return () => {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        window.ethereum.removeListener('chainChanged', handleChainChanged);
+        if (window.ethereum.removeListener) {
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        }
       };
     }
   }, [account, provider]);
 
-  // Connect wallet function
+  // Connect wallet
   const connect = useCallback(async () => {
     if (!window.ethereum) {
-      window.open('https://metamask.io/download.html', '_blank');
-      return;
+      throw new Error('No Ethereum wallet detected. Please install MetaMask or another wallet.');
     }
 
+    setIsConnecting(true);
+
     try {
-      setIsConnecting(true);
-      
-      // Request accounts
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
+      const ethProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      const accounts = await ethProvider.send('eth_requestAccounts', []);
       
       if (accounts.length > 0) {
         setAccount(accounts[0]);
-        
-        // Get provider and signer
-        const ethProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-        setProvider(ethProvider);
         setSigner(ethProvider.getSigner());
         
-        // Get chain ID
         const network = await ethProvider.getNetwork();
         setChainId(network.chainId);
+        
+        setProvider(ethProvider);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting wallet:', error);
+      throw new Error(error.message || 'Failed to connect wallet');
     } finally {
       setIsConnecting(false);
     }
   }, []);
 
-  // Disconnect wallet function
+  // Disconnect wallet
   const disconnect = useCallback(() => {
     setAccount(null);
     setSigner(null);
-    // Note: We keep the provider instance for reconnection
   }, []);
 
   // Switch to zkSync network
   const switchToZkSync = useCallback(async () => {
-    if (!window.ethereum || !provider) return;
-    
-    const targetChainId = `0x${NETWORKS.ZKSYNC_MAINNET.toString(16)}`;
-    
+    if (!window.ethereum) {
+      throw new Error('No Ethereum wallet detected');
+    }
+
     try {
-      // Try to switch to the zkSync network
+      // Try to switch to zkSync Era
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: targetChainId }],
+        params: [{ chainId: `0x${NETWORKS.ZKSYNC_MAINNET.toString(16)}` }],
       });
     } catch (switchError: any) {
       // This error code indicates that the chain has not been added to MetaMask
@@ -179,8 +185,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             method: 'wallet_addEthereumChain',
             params: [
               {
-                chainId: targetChainId,
-                chainName: 'zkSync Mainnet',
+                chainId: `0x${NETWORKS.ZKSYNC_MAINNET.toString(16)}`,
+                chainName: 'zkSync Era Mainnet',
                 nativeCurrency: {
                   name: 'Ethereum',
                   symbol: 'ETH',
@@ -191,17 +197,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
               },
             ],
           });
-        } catch (addError) {
-          console.error('Error adding zkSync network to MetaMask:', addError);
+        } catch (addError: any) {
+          throw new Error(addError.message || 'Failed to add zkSync network');
         }
       } else {
-        console.error('Error switching to zkSync network:', switchError);
+        throw new Error(switchError.message || 'Failed to switch to zkSync network');
       }
     }
-  }, [provider]);
+  }, []);
 
-  // Create memoized context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
+  const value = {
     account,
     chainId,
     provider,
@@ -211,23 +216,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     switchToZkSync,
     isConnecting,
     isCorrectNetwork,
-  }), [
-    account,
-    chainId,
-    provider,
-    signer,
-    connect,
-    disconnect,
-    switchToZkSync,
-    isConnecting,
-    isCorrectNetwork,
-  ]);
+  };
 
-  return (
-    <WalletContext.Provider value={contextValue}>
-      {children}
-    </WalletContext.Provider>
-  );
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 };
 
 // Add this declaration to make window.ethereum available
