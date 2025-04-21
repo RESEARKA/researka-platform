@@ -1,4 +1,5 @@
 /**
+ * k i
  * Categories for logging
  */
 export enum LogCategory {
