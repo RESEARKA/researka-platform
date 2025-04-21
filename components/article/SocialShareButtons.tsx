@@ -1,10 +1,8 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { 
   HStack, 
   IconButton, 
   Tooltip,
-  useClipboard,
-  useToast,
   Box,
   Text,
   useColorModeValue,
@@ -29,12 +27,8 @@ import {
   FiFacebook,
   FiInstagram
 } from 'react-icons/fi';
-import { getShareMetrics, recordShareEvent, ShareMetrics } from '../../utils/shareMetrics';
-import { createLogger, LogCategory } from '../../utils/logger';
-
-const logger = createLogger('social-share-buttons');
-
-export type SharePlatform = 'twitter' | 'linkedin' | 'facebook' | 'email' | 'instagram' | 'copy';
+import { ShareMetrics } from '../../utils/shareMetrics';
+import { useShareLinks, SharePlatform } from '../../hooks';
 
 interface SocialShareButtonsProps {
   title: string;
@@ -72,162 +66,27 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
   initialCounts = {},
   articleId
 }) => {
-  const { hasCopied, onCopy } = useClipboard(url);
-  const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingPlatform, setLoadingPlatform] = useState<SharePlatform | null>(null);
   
-  // Initialize share counts with zeros or provided initial values
-  const [shareCounts, setShareCounts] = useState<ShareMetrics>({
-    twitter: initialCounts.twitter || 0,
-    linkedin: initialCounts.linkedin || 0,
-    facebook: initialCounts.facebook || 0,
-    email: initialCounts.email || 0,
-    instagram: initialCounts.instagram || 0,
-    total: initialCounts.total || 
-           (initialCounts.twitter || 0) + 
-           (initialCounts.linkedin || 0) + 
-           (initialCounts.facebook || 0) + 
-           (initialCounts.email || 0) + 
-           (initialCounts.instagram || 0)
+  // Use our custom hook for sharing logic
+  const {
+    shareCounts,
+    isLoading,
+    loadingPlatform,
+    hasCopied,
+    handleShare,
+    handleCopyLink
+  } = useShareLinks(title, url, {
+    description,
+    showShareCount,
+    onShare,
+    initialCounts,
+    articleId
   });
-  
-  // Fetch share metrics on mount if articleId is provided
-  useEffect(() => {
-    if (articleId && showShareCount) {
-      const fetchShareMetrics = async () => {
-        try {
-          const metrics = await getShareMetrics(articleId);
-          setShareCounts(metrics);
-        } catch (error) {
-          logger.error('Failed to fetch share metrics', {
-            context: { articleId, error },
-            category: LogCategory.DATA
-          });
-        }
-      };
-      
-      fetchShareMetrics();
-    }
-  }, [articleId, showShareCount]);
   
   // Colors for the UI
   const countBg = useColorModeValue('blue.50', 'blue.900');
   const countColor = useColorModeValue('blue.600', 'blue.200');
-  
-  // Extract URL generation to utility function
-  const getShareUrl = useCallback((platform: SharePlatform): string => {
-    const encodedUrl = encodeURIComponent(url);
-    const encodedTitle = encodeURIComponent(title);
-    const encodedDescription = encodeURIComponent(description);
-    
-    switch (platform) {
-      case 'twitter':
-        return `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`;
-      case 'linkedin':
-        return `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
-      case 'facebook':
-        return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
-      case 'email':
-        return `mailto:?subject=${encodedTitle}&body=${encodedDescription ? encodedDescription + '%0A%0A' : ''}${encodedUrl}`;
-      case 'instagram':
-        // Instagram doesn't have a direct web sharing API, so we'll open a new tab with instructions
-        return `https://www.instagram.com/`;
-      default:
-        return '';
-    }
-  }, [url, title, description]);
-  
-  const handleCopyLink = useCallback(() => {
-    setLoadingPlatform('copy');
-    onCopy();
-    
-    // Show toast notification regardless of mode for consistent feedback
-    toast({
-      title: "Link copied to clipboard",
-      status: "success",
-      duration: 2000,
-      isClosable: true,
-    });
-    
-    // Update local share count
-    if (showShareCount) {
-      setShareCounts(prev => ({
-        ...prev,
-        total: prev.total + 1
-      }));
-    }
-    
-    if (onShare) onShare('copy');
-    if (compact) onClose();
-    setLoadingPlatform(null);
-  }, [onCopy, toast, onShare, compact, onClose, showShareCount]);
-  
-  const handleShare = useCallback(async (platform: SharePlatform) => {
-    if (platform === 'copy') {
-      handleCopyLink();
-      return;
-    }
-    
-    setIsLoading(true);
-    setLoadingPlatform(platform);
-    
-    const shareUrl = getShareUrl(platform);
-    if (!shareUrl) {
-      setIsLoading(false);
-      setLoadingPlatform(null);
-      return;
-    }
-    
-    // Open in new window with proper security attributes
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
-    
-    // Record share event in production
-    if (articleId) {
-      try {
-        const updatedMetrics = await recordShareEvent(
-          articleId, 
-          platform as Exclude<SharePlatform, 'copy'>
-        );
-        
-        // Update local state with server response
-        if (showShareCount) {
-          setShareCounts(updatedMetrics);
-        }
-      } catch (error) {
-        logger.error('Failed to record share event', {
-          context: { articleId, platform, error },
-          category: LogCategory.DATA
-        });
-        
-        // Still update local state for better UX
-        if (showShareCount) {
-          setShareCounts(prev => ({
-            ...prev,
-            [platform]: prev[platform] + 1,
-            total: prev.total + 1
-          }));
-        }
-      }
-    } else if (showShareCount) {
-      // Local-only update if no articleId is provided
-      setShareCounts(prev => ({
-        ...prev,
-        [platform]: prev[platform] + 1,
-        total: prev.total + 1
-      }));
-    }
-    
-    // Call onShare callback if provided
-    if (onShare) onShare(platform);
-    
-    // Close popover if in compact mode
-    if (compact) onClose();
-    
-    setIsLoading(false);
-    setLoadingPlatform(null);
-  }, [getShareUrl, onShare, compact, onClose, showShareCount, articleId, handleCopyLink]);
   
   // ShareButton component to reduce repetition and improve performance
   const ShareButton = React.memo(({ 
@@ -293,7 +152,7 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
           aria-label={`Share on ${label}`}
           icon={isButtonLoading ? <Spinner size="sm" /> : icon}
           size={{ base: "md", md: "md" }}
-          colorScheme={platform === 'email' ? 'gray' : platform}
+          colorScheme={platform === 'email' ? 'gray' : 'green'}
           onClick={handleClick}
           position="relative"
           minW="40px"
@@ -354,7 +213,7 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
           <Button
             leftIcon={<FiShare2 />}
             size="sm"
-            colorScheme="blue"
+            colorScheme="green"
             variant="outline"
             aria-label="Share this article"
             px={4}
@@ -485,7 +344,7 @@ export const SocialShareButtons: React.FC<SocialShareButtonsProps> = ({
             aria-label="Copy Link"
             icon={loadingPlatform === 'copy' ? <Spinner size="sm" /> : <FiLink />}
             size={{ base: "md", md: "md" }}
-            colorScheme="blue"
+            colorScheme="green"
             onClick={handleCopyLink}
             minW="40px"
             height="40px"
