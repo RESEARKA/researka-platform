@@ -157,21 +157,25 @@ function NavBar({
         category: LogCategory.AUTH
       });
       
-      await logout();
-      
-      // Clear local state immediately
+      // Clear local state immediately before calling logout
       if (isMounted.current) {
         setIsLoggedInState(false);
         setUserProfile(null);
         setIsAdmin(false);
       }
       
+      // Call Firebase logout
+      await logout();
+      
       logger.info('Logout successful', {
         category: LogCategory.AUTH
       });
       
-      // Use Next.js router instead of direct window.location for better reliability
-      window.location.href = '/';
+      // Use client-side navigation instead of direct window.location
+      // This avoids the hydration error by ensuring we don't mix server and client rendering
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
     } catch (error) {
       logger.error('Error during logout', {
         context: { 
@@ -188,8 +192,10 @@ function NavBar({
         setIsAdmin(false);
       }
       
-      // Redirect anyway in case of error
-      window.location.href = '/';
+      // Redirect anyway in case of error, but with a slight delay
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
     }
   };
 
@@ -201,7 +207,7 @@ function NavBar({
           <Link href="/" passHref>
             <ChakraLink _hover={{ textDecoration: 'none' }}>
               <Flex align="center">
-                <Heading as="h1" size="md" color="blue.600">
+                <Heading as="h1" size="md" color="green.700">
                   RESEARKA
                 </Heading>
               </Flex>

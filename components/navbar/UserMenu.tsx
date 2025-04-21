@@ -28,13 +28,17 @@ function UserMenu({
   isAdmin, 
   onLogout 
 }: UserMenuProps) {
-  const handleLogout = async () => {
+  const handleLogout = async (e: React.MouseEvent) => {
+    // Prevent default to avoid any navigation before we're ready
+    e.preventDefault();
+    
     try {
       logger.info('User initiated logout', {
         context: { userId: userProfile?.id },
         category: LogCategory.AUTH
       });
       
+      // Call the onLogout function from props
       await onLogout();
     } catch (error) {
       logger.error('Error during logout', {
