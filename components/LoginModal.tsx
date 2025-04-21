@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   ModalOverlay,
   ModalContent,
   ModalHeader,
-  ModalFooter,
   ModalBody,
   ModalCloseButton,
   Button,
@@ -18,11 +17,9 @@ import {
   useToast,
   InputGroup,
   InputRightElement,
-  FormErrorMessage,
   Alert,
   AlertIcon,
-  Link,
-  Skeleton
+  Link
 } from '@chakra-ui/react';
 import { FaEthereum } from 'react-icons/fa';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
@@ -45,7 +42,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
   const [error, setError] = useState('');
   const toast = useToast();
   const router = useRouter();
-  const { login, signInAnonymousUser, updateUserData } = useAuth();
+  const { login } = useAuth();
   
   // Debug: Log the redirectPath value when component mounts or redirectPath changes
   React.useEffect(() => {
@@ -65,39 +62,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
     setError('');
     
     try {
-      // Use Firebase anonymous authentication for wallet users
-      // In a real app, you would integrate with MetaMask and create a custom token
-      
-      // Sign in anonymously
-      const result = await signInAnonymousUser();
-      
-      // Update the anonymous user's profile with wallet-specific data
-      await updateUserData({
-        name: 'Wallet User',
-        role: 'Researcher',
-        institution: 'Decentralized University',
-        walletConnected: true,
-        articles: 0,
-        reviews: 0,
-        reputation: 0,
-        profileComplete: getRedirectPath() === '/review'
-      });
-      
+      // Integrate with the wallet context instead of using anonymous authentication
+      // This will be implemented in the future when we integrate with the RESKA token system
       toast({
-        title: "Wallet connected",
-        description: "You've been successfully logged in",
-        status: "success",
+        title: "Wallet connection",
+        description: "Wallet connection will be available when the RESKA token system is integrated",
+        status: "info",
         duration: 3000,
         isClosable: true,
       });
       
-      onClose();
-      
-      // Use Next.js router for redirection
-      if (isClient) {
-        console.log('Redirecting to:', getRedirectPath());
-      }
-      router.push(getRedirectPath());
+      // For now, show an informational message
+      setError('Wallet connection is temporarily unavailable while we upgrade our token system. Please use email login.');
     } catch (err) {
       console.error('Wallet login error:', err);
       setError('Failed to connect wallet. Please try again.');
