@@ -5,8 +5,7 @@ import {
   Flex,
   Heading,
   Spacer,
-  Link as ChakraLink,
-  useDisclosure
+  Link as ChakraLink
 } from '@chakra-ui/react';
 import Link from 'next/link';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,144 +48,107 @@ interface UserProfileData {
  */
 function NavBar({ 
   activePage = 'home',
-  isLoggedIn: propIsLoggedIn = false,
-  onLoginClick = () => {},
-  onSignupClick = () => {}
+  isLoggedIn: propIsLoggedIn,
+  onLoginClick,
+  onSignupClick
 }: NavBarProps) {
-  // Use Firebase authentication
   const { 
     currentUser, 
     logout, 
     getUserProfile, 
     authIsInitialized, 
-    isLoading, 
-    persistentUsername 
+    isLoading
   } = useAuth();
   
   // Component state with proper typing
-  const [isLoggedIn, setIsLoggedIn] = useState(propIsLoggedIn);
+  const [isLoggedInState, setIsLoggedInState] = useState<boolean>(propIsLoggedIn || false);
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
   // Track if component is mounted to prevent state updates after unmount
   const isMounted = useRef(true);
   
-  // Log initial render
-  logger.debug('Initial render', {
+  // Log initial render with context
+  logger.debug('Initial render', { 
     context: { 
       propIsLoggedIn, 
-      activePage,
+      activePage, 
       currentUserExists: !!currentUser,
-      persistentUsername,
-      isLoggedInState: isLoggedIn,
+      isLoggedInState,
       authIsInitialized,
       isLoading
     },
     category: LogCategory.UI
   });
-  
+
+  // Track performance of authentication state updates
+  useEffect(() => {
+    logger.startPerformance('authStateUpdate');
+    
+    // Update login state based on props or context
+    const isAuthenticated = propIsLoggedIn !== undefined 
+      ? propIsLoggedIn 
+      : !!currentUser;
+    
+    setIsLoggedInState(!!isAuthenticated);
+    
+    // If user is logged in, fetch profile data
+    if (isAuthenticated && currentUser) {
+      // In a real implementation, this would fetch from an API or database
+      getUserProfile(currentUser.uid).then(profile => {
+        if (profile && isMounted.current) {
+          setUserProfile(profile);
+          
+          // Check if user is admin
+          if (profile.role === 'Admin') {
+            setIsAdmin(true);
+          }
+        }
+      });
+    } else {
+      setUserProfile(null);
+      setIsAdmin(false);
+    }
+    
+    logger.endPerformance('authStateUpdate', {
+      context: { 
+        isAuthenticated,
+        hasCurrentUser: !!currentUser
+      }
+    });
+  }, [currentUser, propIsLoggedIn, authIsInitialized, getUserProfile]);
+
   // Cleanup effect
   useEffect(() => {
     return () => {
       isMounted.current = false;
     };
   }, []);
-  
-  // Authentication effect
-  useEffect(() => {
-    logger.debug('Auth state changed', {
-      context: { 
-        currentUser: currentUser ? {
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          isAnonymous: currentUser.isAnonymous
-        } : 'null',
-        authIsInitialized,
-        isLoading,
-        currentUsername: persistentUsername
-      },
-      category: LogCategory.AUTH
+
+  // Handle login click with logging
+  const handleLoginClick = (redirectPath?: string) => {
+    logger.userAction('clicked_login', { 
+      context: { redirectPath },
+      category: LogCategory.USER_ACTION
     });
     
-    // Check if user is logged in with Firebase
-    if (currentUser && authIsInitialized && !isLoading) {
-      logger.info('User is authenticated', {
-        context: { userId: currentUser.uid },
-        category: LogCategory.AUTH
-      });
-      
-      if (isMounted.current) {
-        setIsLoggedIn(true);
-      }
-      
-      // Get user profile from Firestore only if we haven't already fetched it
-      if (!userProfile && isMounted.current) {
-        const getUserData = async () => {
-          try {
-            logger.debug('Fetching user profile', {
-              context: { userId: currentUser.uid },
-              category: LogCategory.DATA
-            });
-            
-            const profile = await getUserProfile(currentUser.uid);
-            
-            if (profile && isMounted.current) {
-              logger.debug('User profile fetched successfully', {
-                context: { 
-                  userId: currentUser.uid,
-                  hasName: !!profile.name,
-                  isComplete: profile.profileComplete
-                },
-                category: LogCategory.DATA
-              });
-              
-              setUserProfile(profile);
-              
-              // Check if user is admin
-              if (profile.role === 'Admin' && isMounted.current) {
-                logger.debug('User has admin role', {
-                  context: { userId: currentUser.uid },
-                  category: LogCategory.AUTH
-                });
-                
-                setIsAdmin(true);
-              }
-            }
-          } catch (error) {
-            logger.error('Error fetching user profile', {
-              context: { 
-                userId: currentUser.uid,
-                error: error instanceof Error ? error.message : String(error)
-              },
-              category: LogCategory.DATA
-            });
-          }
-        };
-        
-        getUserData();
-      }
-    } else {
-      logger.debug('User is not authenticated or auth not initialized', {
-        context: { 
-          authIsInitialized, 
-          isLoading 
-        },
-        category: LogCategory.AUTH
-      });
-      
-      if (isMounted.current) {
-        setIsLoggedIn(false);
-        
-        if (userProfile) {
-          setUserProfile(null);
-        }
-        
-        setIsAdmin(false);
-      }
+    if (onLoginClick) {
+      onLoginClick(redirectPath);
     }
-  }, [currentUser, getUserProfile, authIsInitialized, isLoading, persistentUsername, userProfile]);
-  
+  };
+
+  // Handle signup click with logging
+  const handleSignupClick = (redirectPath?: string) => {
+    logger.userAction('clicked_signup', { 
+      context: { redirectPath },
+      category: LogCategory.USER_ACTION
+    });
+    
+    if (onSignupClick) {
+      onSignupClick(redirectPath);
+    }
+  };
+
   // Handle logout with proper error handling
   const handleLogout = async () => {
     try {
@@ -199,7 +161,7 @@ function NavBar({
       
       // Clear local state immediately
       if (isMounted.current) {
-        setIsLoggedIn(false);
+        setIsLoggedInState(false);
         setUserProfile(null);
         setIsAdmin(false);
       }
@@ -221,7 +183,7 @@ function NavBar({
       
       // Force reset the auth state even if there was an error
       if (isMounted.current) {
-        setIsLoggedIn(false);
+        setIsLoggedInState(false);
         setUserProfile(null);
         setIsAdmin(false);
       }
@@ -230,32 +192,31 @@ function NavBar({
       window.location.href = '/';
     }
   };
-  
+
   return (
     <Box borderBottom="1px" borderColor="gray.200" py={2}>
       <Container maxW="container.xl">
-        <Flex 
-          justify="space-between" 
-          align="center"
-          direction={{ base: "column", md: "row" }}
-          gap={{ base: 4, md: 0 }}
-        >
-          {/* Logo */}
-          <Link href="/" passHref legacyBehavior>
+        <Flex align="center">
+          {/* Logo and site name */}
+          <Link href="/" passHref>
             <ChakraLink _hover={{ textDecoration: 'none' }}>
-              <Heading as="h1" size="lg" color="green.700">RESEARKA</Heading>
+              <Flex align="center">
+                <Heading as="h1" size="md" color="blue.600">
+                  DecentraJournal
+                </Heading>
+              </Flex>
             </ChakraLink>
           </Link>
           
           <Spacer display={{ base: "none", md: "block" }} />
           
           {/* Navigation Links */}
-          <NavLinks activePage={activePage} isLoggedIn={isLoggedIn} />
+          <NavLinks activePage={activePage} isLoggedIn={isLoggedInState} />
           
           <Spacer display={{ base: "none", md: "block" }} />
           
-          {/* Authentication */}
-          {isLoggedIn ? (
+          {/* User menu or auth buttons */}
+          {isLoggedInState ? (
             <UserMenu 
               userProfile={userProfile} 
               isAdmin={isAdmin} 
@@ -263,9 +224,9 @@ function NavBar({
             />
           ) : (
             <AuthButtons 
-              isLoggedIn={isLoggedIn} 
-              onLoginClick={onLoginClick} 
-              onSignupClick={onSignupClick}
+              isLoggedIn={isLoggedInState} 
+              onLoginClick={handleLoginClick} 
+              onSignupClick={handleSignupClick}
               onLogout={handleLogout} 
             />
           )}
