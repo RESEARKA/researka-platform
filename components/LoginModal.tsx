@@ -116,11 +116,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, redirectPath =
     } catch (err: any) {
       console.error('Email login error:', err);
       
-      // Handle specific Firebase auth errors
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      // Handle specific error categories (added in AuthContext)
+      if (err.category === 'network') {
+        setError('Network connection error. Please check your internet connection and try again.');
+      } else if (err.category === 'credentials') {
+        setError('Invalid email or password. Please try again.');
+      } else if (err.category === 'rate-limit') {
+        setError('Too many login attempts. Please try again later or reset your password.');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Invalid email or password');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed login attempts. Please try again later.');
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Network connection error. Please check your internet connection and try again.');
       } else {
         setError('Failed to login. Please try again.');
       }

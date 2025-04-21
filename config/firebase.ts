@@ -1,6 +1,6 @@
 import { initializeApp, FirebaseApp, getApps } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAuth, Auth, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore, Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
 
 // Helper function to check if code is running on client side
@@ -77,10 +77,32 @@ class FirebaseInstance {
         this._app = getApps()[0];
       }
       
-      // Initialize auth and firestore
+      // Initialize auth and firestore with persistence
       if (this._app) {
         this._auth = getAuth(this._app);
+        
+        // Set persistence to local to improve offline capabilities
+        if (this._auth) {
+          setPersistence(this._auth, browserLocalPersistence)
+            .catch(error => {
+              console.error('Firebase: Error setting persistence:', error);
+            });
+        }
+        
+        // Initialize Firestore with offline persistence
         this._db = getFirestore(this._app);
+        if (this._db) {
+          enableIndexedDbPersistence(this._db)
+            .catch(error => {
+              if (error.code === 'failed-precondition') {
+                console.warn('Firebase: Multiple tabs open, persistence can only be enabled in one tab at a time.');
+              } else if (error.code === 'unimplemented') {
+                console.warn('Firebase: The current browser does not support offline persistence.');
+              } else {
+                console.error('Firebase: Error enabling persistence:', error);
+              }
+            });
+        }
         
         // Initialize analytics only on client side and if supported
         if (isClientSide()) {

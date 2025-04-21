@@ -82,95 +82,131 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw error;
     }
     
-    try {
-      // Special case for admin account recovery
-      if (email === 'dominic@dominic.ac') {
-        try {
-          // Attempt to sign in
-          const userCredential = await signInWithEmailAndPassword(auth, email, password);
-          
-          // If login is successful, update the user document to ensure it's not deleted
-          if (db) {
-            const userDocRef = doc(db, 'users', userCredential.user.uid);
-            await setDoc(userDocRef, {
-              isDeleted: false,
-              isActive: true,
-              role: 'Admin',
-              updatedAt: new Date()
-            }, { merge: true });
-            
-            logger.info('Admin account recovery successful', {
-              context: { uid: userCredential.user.uid, email },
-              category: LogCategory.AUTH
-            });
-          }
-          
-          return userCredential.user;
-        } catch (adminRecoveryError) {
-          logger.error('Admin account recovery failed', {
-            context: { adminRecoveryError, email },
-            category: LogCategory.ERROR
-          });
-          // Continue with normal login flow
-        }
-      }
-      
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Check if the user is deleted or deactivated
+    // Add retry logic for network errors
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    const attemptLogin = async (): Promise<User> => {
       try {
-        const idToken = await userCredential.user.getIdToken();
-        const response = await fetch('/api/auth/check-user-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          }
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          
-          // If the user is deleted or deactivated, sign them out
-          if (errorData.code === 'account-deleted' || errorData.code === 'account-deactivated') {
-            await auth.signOut();
+        // Special case for admin account recovery
+        if (email === 'dominic@dominic.ac') {
+          try {
+            // Attempt to sign in
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
             
-            logger.warn(`User access denied: ${errorData.error}`, {
-              context: { 
-                uid: userCredential.user.uid,
-                email: userCredential.user.email,
-                code: errorData.code
-              },
-              category: LogCategory.AUTH
+            // If login is successful, update the user document to ensure it's not deleted
+            if (db) {
+              const userDocRef = doc(db, 'users', userCredential.user.uid);
+              await setDoc(userDocRef, {
+                isDeleted: false,
+                isActive: true,
+                role: 'Admin',
+                updatedAt: new Date()
+              }, { merge: true });
+              
+              logger.info('Admin account recovery successful', {
+                context: { uid: userCredential.user.uid, email },
+                category: LogCategory.AUTH
+              });
+            }
+            
+            return userCredential.user;
+          } catch (adminRecoveryError) {
+            logger.error('Admin account recovery failed', {
+              context: { adminRecoveryError, email },
+              category: LogCategory.ERROR
             });
-            
-            throw new Error(errorData.error);
+            // Continue with normal login flow
           }
-          
-          throw new Error('Failed to verify user status');
         }
-      } catch (statusError) {
-        // If there's an error checking the user status, sign them out and throw the error
-        await auth.signOut();
-        throw statusError;
+        
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Check if the user is deleted or deactivated
+        try {
+          const idToken = await userCredential.user.getIdToken();
+          const response = await fetch('/api/auth/check-user-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            
+            // If the user is deleted or deactivated, sign them out
+            if (errorData.code === 'account-deleted' || errorData.code === 'account-deactivated') {
+              await auth.signOut();
+              
+              logger.warn(`User access denied: ${errorData.error}`, {
+                context: { 
+                  uid: userCredential.user.uid,
+                  email: userCredential.user.email,
+                  code: errorData.code
+                },
+                category: LogCategory.AUTH
+              });
+              
+              throw new Error(errorData.error);
+            }
+            
+            throw new Error('Failed to verify user status');
+          }
+        } catch (statusError) {
+          // If there's an error checking the user status, sign them out and throw the error
+          await auth.signOut();
+          throw statusError;
+        }
+        
+        logger.info('Login successful', { 
+          context: { 
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            emailVerified: userCredential.user.emailVerified
+          },
+          category: LogCategory.AUTH
+        });
+        return userCredential.user;
+      } catch (error: any) {
+        // Handle network errors with retry logic
+        if (error.code === 'auth/network-request-failed' && retryCount < maxRetries) {
+          retryCount++;
+          logger.warn(`Network error during login, retrying (${retryCount}/${maxRetries})`, {
+            context: { email, retryCount, maxRetries },
+            category: LogCategory.AUTH
+          });
+          
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
+          return attemptLogin();
+        }
+        
+        // Add more context to the error
+        if (error.code === 'auth/network-request-failed') {
+          error.category = 'network';
+          error.message = 'Network connection error. Please check your internet connection and try again.';
+          error.retry = true;
+        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+          error.category = 'credentials';
+          error.message = 'Invalid email or password. Please try again.';
+          error.retry = false;
+        } else if (error.code === 'auth/too-many-requests') {
+          error.category = 'rate-limit';
+          error.message = 'Too many login attempts. Please try again later or reset your password.';
+          error.retry = false;
+        }
+        
+        logger.error('Login failed', {
+          context: { error, email },
+          category: LogCategory.ERROR
+        });
+        throw error;
       }
-      
-      logger.info('Login successful', { 
-        context: { 
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          emailVerified: userCredential.user.emailVerified
-        },
-        category: LogCategory.AUTH
-      });
-      return userCredential.user;
-    } catch (error) {
-      logger.error('Login failed', {
-        context: { error, email },
-        category: LogCategory.ERROR
-      });
-      throw handleError(error, 'Login failed');
-    }
+    };
+    
+    return attemptLogin();
   };
 
   // Function to sign up a user
