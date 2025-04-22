@@ -7,16 +7,13 @@ import {
   sendPasswordResetEmail, 
   sendEmailVerification, 
   updateProfile, 
-  onAuthStateChanged
+  onAuthStateChanged,
+  Auth
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseFirestore } from '../config/firebase';
 import { createLogger, LogCategory } from '../utils/logger';
 import { handleError } from '../utils/errorHandling';
-
-// Initialize Firebase services
-const db = getFirebaseFirestore();
-const auth = getFirebaseAuth();
 
 // Create a logger instance for authentication
 const logger = createLogger('auth');
@@ -37,6 +34,7 @@ interface AuthContextType {
   updateUserProfile: (profile: { displayName?: string, photoURL?: string }) => Promise<void>;
   getUserProfile: (userId?: string) => Promise<any>;
   updateUserData: (data: any, userId?: string) => Promise<void>;
+  firebaseInitError?: Error;
 }
 
 // Create the context with a default value
@@ -64,7 +62,10 @@ export function useAuth() {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authIsInitialized, setAuthIsInitialized] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Used throughout loading operations
+  const [auth, setAuth] = useState<Auth | null>(null);
+  const [db, setDb] = useState<Firestore | null>(null);
+  const [firebaseInitError, setFirebaseInitError] = useState<Error | null>(null);
 
   // Function to log in a user
   const login = async (email: string, password: string): Promise<User> => {
@@ -86,6 +87,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Special case for admin account recovery
       if (email === 'dominic@dominic.ac') {
         try {
+          if (!auth) {
+            throw new Error('Auth not initialized');
+          }
           // Attempt to sign in
           const userCredential = await signInWithEmailAndPassword(auth, email, password);
           
@@ -113,6 +117,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
           // Continue with normal login flow
         }
+      }
+      
+      if (!auth) {
+        throw new Error('Auth not initialized');
       }
       
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -190,6 +198,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     try {
+      if (!auth) {
+        throw new Error('Auth not initialized');
+      }
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
       // Update profile if display name is provided
@@ -211,30 +223,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Create a user document in Firestore
       try {
-        const db = getFirebaseFirestore();
-        if (db) {
-          const userDocRef = doc(db, 'users', userCredential.user.uid);
-          await setDoc(userDocRef, {
-            email: userCredential.user.email,
-            displayName: displayName || userCredential.user.displayName || '',
-            createdAt: new Date(),
-            lastLogin: new Date(),
-            role: 'User',
-            isActive: true,
-            articleCount: 0,
-            reviewCount: 0
-          });
-          
-          logger.info('User document created in Firestore', {
-            context: { uid: userCredential.user.uid },
-            category: LogCategory.DATA
-          });
-        } else {
-          logger.error('Failed to create user document - Firestore not initialized', {
-            context: { uid: userCredential.user.uid },
-            category: LogCategory.ERROR
-          });
+        if (!db) {
+          throw new Error('Firestore not initialized');
         }
+        
+        const userDocRef = doc(db, 'users', userCredential.user.uid);
+        await setDoc(userDocRef, {
+          email: userCredential.user.email,
+          displayName: displayName || userCredential.user.displayName || '',
+          createdAt: new Date(),
+          lastLogin: new Date(),
+          role: 'User',
+          isActive: true,
+          articleCount: 0,
+          reviewCount: 0
+        });
+        
+        logger.info('User document created in Firestore', {
+          context: { uid: userCredential.user.uid },
+          category: LogCategory.DATA
+        });
       } catch (firestoreError) {
         // Log error but don't fail the signup process
         logger.error('Failed to create user document in Firestore', {
@@ -263,19 +271,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Function to sign out
-  const signOut = async (): Promise<void> => {
+  const logout = async (): Promise<void> => {
     logger.info('Signout attempt', { 
       context: { uid: currentUser?.uid },
       category: LogCategory.AUTH
     });
     
     if (!auth) {
-      const error = new Error('Firebase Auth not initialized');
-      logger.error('Signout failed - Firebase Auth not initialized', {
-        context: { error },
+      logger.error('Logout failed - Firebase Auth not initialized', {
         category: LogCategory.ERROR
       });
-      throw error;
+      return;
     }
     
     try {
@@ -340,7 +346,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     
     try {
-      await sendEmailVerification(currentUser);
+      if (!auth || !auth.currentUser) {
+        throw new Error('Auth not initialized or no current user');
+      }
+      
+      await sendEmailVerification(auth.currentUser);
       logger.info('Verification email sent', { 
         context: { uid: currentUser.uid, email: currentUser.email },
         category: LogCategory.AUTH
@@ -407,12 +417,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return null;
     }
     
-    const db = getFirebaseFirestore();
     if (!db) {
-      logger.error('Cannot get user profile - Firestore not initialized', {
-        category: LogCategory.ERROR
-      });
-      return null;
+      throw new Error('Firestore not initialized');
     }
     
     try {
@@ -456,16 +462,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       logger.error('Cannot update user data - No user ID provided', {
         category: LogCategory.ERROR
       });
-      throw handleError(error, 'Cannot update user data');
+      throw error;
     }
     
-    const db = getFirebaseFirestore();
     if (!db) {
-      const error = new Error('Cannot update user data - Firestore not initialized');
-      logger.error('Cannot update user data - Firestore not initialized', {
-        category: LogCategory.ERROR
-      });
-      throw handleError(error, 'Cannot update user data');
+      throw new Error('Firestore not initialized');
     }
     
     try {
@@ -485,116 +486,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Effect for auth state changes
+  // Set up the Firebase auth observer and handle auth state changes
   useEffect(() => {
-    if (!auth) return;
-    
-    logger.info('Setting up auth state listener', {
-      category: LogCategory.AUTH
-    });
-    
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setIsLoading(true);
-      
+    const initializeFirebase = async () => {
       try {
-        if (user) {
-          logger.info('Auth state changed: user logged in', {
-            context: { 
-              uid: user.uid, 
-              email: user.email,
-              emailVerified: user.emailVerified 
-            },
-            category: LogCategory.AUTH
-          });
-          
-          // Check if the user is deleted or deactivated
-          try {
-            const idToken = await user.getIdToken();
-            const response = await fetch('/api/auth/check-user-status', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-              }
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              
-              // If the user is deleted or deactivated, sign them out
-              if (errorData.code === 'account-deleted' || errorData.code === 'account-deactivated') {
-                logger.warn(`User access denied: ${errorData.error}`, {
-                  context: { 
-                    uid: user.uid,
-                    email: user.email,
-                    code: errorData.code
-                  },
-                  category: LogCategory.AUTH
-                });
-                
-                await auth.signOut();
-                setCurrentUser(null);
-                setAuthIsInitialized(true);
-                setIsLoading(false);
-                return;
-              }
-            }
-          } catch (statusError) {
-            logger.error('Error checking user status on auth state change', {
-              context: { statusError, uid: user.uid },
-              category: LogCategory.ERROR
-            });
-            // Continue with the auth flow even if the status check fails
-            // The user will be checked again on the next auth state change
-          }
-          
-          // User is valid, update the state
-          setCurrentUser(user);
-        } else {
-          logger.info('Auth state changed: no user', {
-            category: LogCategory.AUTH
-          });
-          setCurrentUser(null);
+        // Initialize Firebase Auth and Firestore asynchronously
+        const authInstance = await getFirebaseAuth();
+        const dbInstance = await getFirebaseFirestore();
+        
+        setAuth(authInstance);
+        setDb(dbInstance);
+        
+        if (!authInstance) {
+          throw new Error('Firebase Auth could not be initialized');
         }
         
-        setIsLoading(false);
-        if (!authIsInitialized) {
-          logger.info('Auth initialized', {
-            category: LogCategory.LIFECYCLE
-          });
+        // Set up auth state listener after initialization
+        const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+          setCurrentUser(user);
           setAuthIsInitialized(true);
-        }
+        });
+        
+        // Clean up the observer on unmount
+        return () => unsubscribe();
       } catch (error) {
-        logger.error('Error handling auth state change', {
+        logger.error('Firebase initialization error', {
           context: { error },
           category: LogCategory.ERROR
         });
-        setIsLoading(false);
+        setFirebaseInitError(error as Error);
+        setAuthIsInitialized(true); // Still mark as initialized to avoid endless loading
+        return undefined; // Explicit return to fix the "not all code paths return a value" error
       }
-    });
-
-    // Cleanup subscription
-    return () => {
-      logger.info('Cleaning up auth state listener', {
-        category: LogCategory.LIFECYCLE
-      });
-      unsubscribe();
     };
-  }, [authIsInitialized]);
+    
+    initializeFirebase();
+  }, []);
 
+  // Create the value object that will be passed to consumers
   const value = {
     currentUser,
     authIsInitialized,
     isLoading,
     login,
     signup,
-    logout: signOut,
-    signOut,
+    logout,
+    signOut: logout,
     resetPassword,
     verifyEmail,
     updateUserProfile,
     getUserProfile,
-    updateUserData
+    updateUserData,
+    ...(firebaseInitError && { firebaseInitError }),
   };
 
   return (
