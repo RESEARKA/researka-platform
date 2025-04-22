@@ -166,6 +166,11 @@ class FirebaseInstance {
 // Create a singleton instance
 const firebaseInstance = FirebaseInstance.getInstance();
 
+// Helper: only use emulator when env flag is true *and* in dev mode
+const shouldUseEmulator =
+  process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true' &&
+  process.env.NODE_ENV === 'development';
+
 /**
  * Initialize Firebase on the client side with singleton pattern and retry logic
  * Enhanced with better error handling and detailed logging

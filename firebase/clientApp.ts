@@ -26,8 +26,15 @@ const auth = getAuth(app);
 const firestore = getFirestore(app);
 const storage = getStorage(app);
 
-// Use emulators in development environment
-if (process.env.NODE_ENV === 'development') {
+// Use emulators only when explicitly enabled
+const useEmulator =
+  process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true' &&
+  process.env.NODE_ENV === 'development' &&
+  (typeof window === 'undefined' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1');
+
+if (useEmulator) {
   try {
     logger.info('Using Firebase emulators for development', {
       category: LogCategory.SYSTEM
