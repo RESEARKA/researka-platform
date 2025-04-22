@@ -62,8 +62,8 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
 
   // Format share counts for SocialShareMetrics component
   const formattedShareCounts = {
-    total: Object.values(metrics.shareCount).reduce((a, b) => a + b, 0),
-    ...metrics.shareCount
+    total: metrics?.shareCount ? Object.values(metrics.shareCount).reduce((a, b) => a + b, 0) : 0,
+    ...(metrics?.shareCount || {})
   };
 
   // Generate citation data for ArticleCitation component
@@ -101,8 +101,8 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
           Article Metrics
         </Heading>
         <VStack spacing={4} align="stretch">
-          <ReadCountDisplay count={metrics.readCount} />
-          <CitationBadge count={metrics.citationCount} />
+          <ReadCountDisplay count={metrics?.readCount || 0} />
+          <CitationBadge count={metrics?.citationCount || 0} />
           <SocialShareMetrics shares={formattedShareCounts} />
         </VStack>
       </Box>
