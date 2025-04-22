@@ -335,7 +335,7 @@ export default function ArticlesPage() {
   const mutedColor = useColorModeValue('gray.600', 'gray.400');
 
   return (
-    <Layout title="Articles | Researka">
+    <Layout title="Articles | Researka" activePage="articles">
       <PageTransition>
         <Box maxW="1400px" mx="auto" px={4} py={8}>
           <Heading as="h1" size="2xl" mb={8} textAlign="center">
