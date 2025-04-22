@@ -273,6 +273,18 @@ export const isFirebaseInitialized = (): boolean => {
 };
 
 /**
+ * Simple utility to check if Firebase app has been initialized
+ * Alternative implementation that doesn't depend on firebaseInstance
+ */
+export function isFirebaseAppsInitialized(): boolean {
+  try {
+    return getApps().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Register a cleanup function to be called when Firebase resources are cleaned up
  * @param cleanupFn Function to call during cleanup
  */

@@ -15,9 +15,6 @@ import { getAuth } from 'firebase/auth';
 import logger, { LogCategory } from '../utils/logger';
 import { getFirebaseFirestore } from '../config/firebase';
 
-// Get Firestore instance from central Firebase config
-const db = getFirebaseFirestore();
-
 // Collections
 const ARTICLES_COLLECTION = 'articles';
 const REVIEWS_COLLECTION = 'reviews';
@@ -73,6 +70,7 @@ export async function submitArticle(articleData: Omit<Article, 'id' | 'createdAt
       throw new Error('User not authenticated');
     }
 
+    const db = getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -135,6 +133,7 @@ export async function getAllArticles(): Promise<Article[]> {
       category: LogCategory.DATA
     });
     
+    const db = getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -218,6 +217,7 @@ export async function getArticleById(articleId: string): Promise<Article | null>
       category: LogCategory.DATA
     });
     
+    const db = getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -315,6 +315,7 @@ export async function getArticlesForReview(): Promise<Article[]> {
       throw new Error('User not authenticated');
     }
 
+    const db = getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -441,6 +442,7 @@ export async function getUserArticles(): Promise<Article[]> {
       throw new Error('User not authenticated');
     }
 
+    const db = getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
