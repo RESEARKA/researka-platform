@@ -1,45 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
-  Box,
   Container,
-  Heading,
-  Text,
-  VStack,
-  HStack,
-  Badge,
-  Button,
-  Flex,
   Grid,
   GridItem,
-  Icon,
-  Skeleton,
-  SkeletonText,
-  useColorModeValue,
+  Box,
+  Button,
+  Text,
+  Heading,
   useToast,
 } from '@chakra-ui/react';
-import { FiArrowLeft, FiCalendar, FiDownload, FiEye, FiFileText, FiShare2 } from 'react-icons/fi';
 import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { db } from '../../utils/firebase';
+import Layout from '../../components/Layout';
+import { getFirebaseFirestore } from '../../config/firebase';
 import { Article } from '../../utils/recommendationEngine';
 import { getAllResearchFields } from '../../utils/researchTaxonomy';
-import { articleToCitation, AuthorInfo } from '../../utils/citationHelper';
-import ArticleReviewStatus from '../../components/ArticleReviewStatus';
-import ArticleReviewers from '../../components/ArticleReviewers';
-import { ArticleAuthors } from '../../components/article/ArticleAuthors';
-import { ArticleCitation } from '../../components/article/ArticleCitation';
-import SocialShareButtons, { SharePlatform } from '../../components/article/SocialShareButtons';
-import { downloadArticlePdf } from '../../utils/pdfGenerator';
-import FlagArticleButton from '../../components/moderation/FlagArticleButton';
+import { AuthorInfo } from '../../utils/citationHelper';
 import { useArticleViewTracking } from '../../hooks/useActivityTracking';
 import { createLogger, LogCategory } from '../../utils/logger';
-import ReadCountDisplay from '../../components/article/ReadCountDisplay';
-import CitationBadge from '../../components/article/CitationBadge';
-import SocialShareMetrics from '../../components/article/SocialShareMetrics';
 import { useArticleMetrics } from '../../hooks/useArticleMetrics';
+import { ArticleHeader, ArticleContent, ArticleSidebar } from '../../components/article/detail';
 
 const logger = createLogger('article-detail');
 
+/**
+ * ArticleDetailPage component displays a single article with its content,
+ * metadata, review status, and sharing options
+ */
 const ArticleDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
@@ -52,9 +39,6 @@ const ArticleDetailPage: React.FC = () => {
   const [authors, setAuthors] = useState<AuthorInfo[]>([]);
   const toast = useToast();
   const { metrics, recordShare } = useArticleMetrics(articleId);
-  
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
   
   // Track article view when the page loads
   const trackingStatus = useArticleViewTracking(
@@ -85,7 +69,6 @@ const ArticleDetailPage: React.FC = () => {
         
         // Fetch research fields for category names
         const fields = await getAllResearchFields();
-        // Convert fields array to a record for easier lookup
         const fieldMap = fields.reduce((acc: Record<string, string>, field: any) => {
           acc[field.id] = field.name;
           return acc;
@@ -93,132 +76,71 @@ const ArticleDetailPage: React.FC = () => {
         setAllFields(fieldMap);
         
         // Fetch article data from Firestore
+        const db = await getFirebaseFirestore();
+        if (!db) {
+          throw new Error('Firestore not initialized');
+        }
+        
         const articleDoc = await getDoc(doc(db, 'articles', articleId));
         
         if (articleDoc.exists()) {
-          const fetchedArticle = articleDoc.data();
+          const fetchedArticle = articleDoc.data() as Article;
+          fetchedArticle.id = articleDoc.id;
+          
+          // Map category IDs to names if possible
+          if (fetchedArticle.categories) {
+            fetchedArticle.categories = fetchedArticle.categories.map(
+              (catId) => fieldMap[catId] || catId
+            );
+          }
+          
+          setArticle(fetchedArticle);
+          
+          // Format author info for citation
+          if (fetchedArticle.authors) {
+            const authorInfo: AuthorInfo[] = fetchedArticle.authors.map((author) => ({
+              name: author.name || 'Unknown Author',
+              affiliations: author.affiliations || [],
+            }));
+            setAuthors(authorInfo);
+          }
           
           // Fetch reviews for this article
-          const reviewsSnapshot = await getDocs(
-            query(collection(db, 'reviews'), where('articleId', '==', articleId))
+          const reviewsQuery = query(
+            collection(db, 'reviews'),
+            where('articleId', '==', articleId)
           );
-          const articleReviews = reviewsSnapshot.docs.map(doc => ({
+          
+          const reviewsSnapshot = await getDocs(reviewsQuery);
+          const reviewsData = reviewsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           }));
           
-          // Fetch author information if available
-          let authorInfos: AuthorInfo[] = [];
-          if (fetchedArticle.authorId) {
-            try {
-              const authorDoc = await getDoc(doc(db, 'users', fetchedArticle.authorId));
-              if (authorDoc.exists()) {
-                const authorData = authorDoc.data();
-                
-                // Debug logging to see what data we're getting from Firestore
-                console.log('AUTHOR DATA RAW:', JSON.stringify(authorData, null, 2));
-                
-                // Add main author with both displayName and name fields
-                authorInfos.push({
-                  displayName: authorData.displayName,
-                  name: authorData.name,
-                  orcid: authorData.orcid || undefined,
-                  email: authorData.email,
-                  affiliation: authorData.affiliation || authorData.institution,
-                  isCorresponding: true,
-                  userId: fetchedArticle.authorId
-                });
-                
-                // Check for co-authors if available
-                if (fetchedArticle.coAuthors && Array.isArray(fetchedArticle.coAuthors)) {
-                  for (const coAuthorId of fetchedArticle.coAuthors) {
-                    try {
-                      const coAuthorDoc = await getDoc(doc(db, 'users', coAuthorId));
-                      if (coAuthorDoc.exists()) {
-                        const coAuthorData = coAuthorDoc.data();
-                        authorInfos.push({
-                          displayName: coAuthorData.displayName,
-                          name: coAuthorData.name,
-                          orcid: coAuthorData.orcid || undefined,
-                          email: coAuthorData.email,
-                          affiliation: coAuthorData.affiliation || coAuthorData.institution,
-                          userId: coAuthorId
-                        });
-                      }
-                    } catch (error) {
-                      console.error('Error fetching co-author:', error);
-                    }
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('Error fetching author information:', error);
-            }
-          }
-          
-          // If no author information was found, create a placeholder
-          if (authorInfos.length === 0) {
-            authorInfos = [{ 
-              displayName: fetchedArticle.authorId || 'Unknown Author',
-              name: fetchedArticle.authorId || 'Unknown Author',
-              orcid: undefined,
-              userId: fetchedArticle.authorId
-            }];
-          }
-          
-          // Set authors state
-          setAuthors(authorInfos);
-          console.log('Author information:', authorInfos);
-          
-          // Convert to the format expected by the component
-          const formattedArticle: Article = {
-            id: fetchedArticle.id || '',
-            title: fetchedArticle.title || 'Untitled Article',
-            abstract: fetchedArticle.abstract || 'No abstract available',
-            keywords: fetchedArticle.keywords || [],
-            categories: [fetchedArticle.category || 'Uncategorized'],
-            authorId: fetchedArticle.authorId || 'unknown',
-            publishedDate: fetchedArticle.date || new Date().toISOString().split('T')[0],
-            views: fetchedArticle.views || 0,
-            citations: 0,
-            reviewCount: articleReviews?.length || 0,
-            // Handle all possible article status values to prevent TypeScript errors
-            status: (() => {
-              // Convert backend status to UI status
-              switch(fetchedArticle.status) {
-                case 'pending_review': return 'under_review';
-                case 'published': return 'accepted';
-                case 'draft': 
-                case 'archived':
-                default: return 'pending';
-              }
-            })() as 'pending' | 'under_review' | 'accepted' | 'rejected',
-            introduction: fetchedArticle.introduction || '',
-            literatureReview: fetchedArticle.literatureReview || '',
-            methods: fetchedArticle.methods || '',
-            results: fetchedArticle.results || '',
-            discussion: fetchedArticle.discussion || '',
-            conclusion: fetchedArticle.conclusion || '',
-            acknowledgments: fetchedArticle.acknowledgments || '',
-            references: Array.isArray(fetchedArticle.references) ? fetchedArticle.references : [],
-          };
-          setArticle(formattedArticle);
-          setReviews(articleReviews);
+          setReviews(reviewsData);
         } else {
-          console.error('Article not found with ID:', articleId);
+          logger.warn('Article not found', {
+            context: { articleId },
+            category: LogCategory.ERROR
+          });
+          
           toast({
             title: 'Article not found',
-            description: 'The requested article could not be found',
+            description: 'The requested article does not exist or has been removed.',
             status: 'error',
             duration: 5000,
             isClosable: true,
           });
         }
       } catch (error) {
-        console.error('Error fetching article:', error);
+        logger.error('Failed to fetch article', {
+          context: { articleId, error },
+          category: LogCategory.ERROR
+        });
+        
         toast({
-          title: 'Error',
-          description: 'Failed to load article details',
+          title: 'Error loading article',
+          description: 'There was a problem loading the article. Please try again later.',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -230,449 +152,57 @@ const ArticleDetailPage: React.FC = () => {
     
     fetchArticle();
   }, [articleId, toast]);
-  
-  // Get readable name for a field ID
-  const getFieldName = (fieldId: string) => {
-    return allFields[fieldId] || fieldId;
-  };
-  
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-  
-  // Note: Reviewer invitation feature is disabled for now
-  // Will be implemented when the real reviewer system is fully integrated
-  
+
   return (
-    <Container maxW="container.xl" py={8}>
-      {/* Add navigation back button */}
-      <Box mb={4}>
-        <Button
-          leftIcon={<Icon as={FiArrowLeft} />}
-          variant="ghost"
-          size="md"
-          onClick={() => router.push('/articles')}
-        >
-          Back to Articles
-        </Button>
-      </Box>
-      
-      {isLoading ? (
-        <Box>
-          <Skeleton height="50px" width="80%" mb={4} />
-          <SkeletonText mt={2} noOfLines={4} spacing={4} />
-          <Grid templateColumns={{ base: '1fr', lg: '3fr 1fr' }} gap={8} mt={8}>
-            <GridItem>
-              <Skeleton height="200px" mb={8} />
-              <SkeletonText mt={4} noOfLines={10} spacing={4} />
-            </GridItem>
-            <GridItem>
-              <Skeleton height="300px" mb={6} />
-              <Skeleton height="400px" />
-            </GridItem>
-          </Grid>
-        </Box>
-      ) : article ? (
-        <Box>
-          <Heading as="h1" size="xl" mb={4}>
-            {article.title}
-          </Heading>
-          
-          {/* Display article metadata */}
-          <Flex wrap="wrap" gap={4} mb={6} align="center" justify="space-between">
-            <HStack spacing={4}>
-              <HStack>
-                <Icon as={FiCalendar} color="gray.500" />
-                <Text color="gray.600">
-                  {article.publishedDate ? formatDate(article.publishedDate) : 'No date'}
-                </Text>
-              </HStack>
-              
-              <HStack>
-                <Icon as={FiEye} color="gray.500" />
-                <Text color="gray.600">{article.views} views</Text>
-              </HStack>
-              
-              <HStack>
-                <Icon as={FiFileText} color="gray.500" />
-                <Text color="gray.600">{article.citations} citations</Text>
-              </HStack>
-            </HStack>
+    <Layout title={article?.title || 'Article'} activePage="articles">
+      <Container maxW="container.xl" mt={8} px={{ base: 4, md: 8 }}>
+        {article || isLoading ? (
+          <Box>
+            <ArticleHeader 
+              article={article} 
+              isLoading={isLoading} 
+            />
             
-            {/* Add Social Share Buttons */}
-            <Box>
-              <SocialShareButtons 
-                title={article.title}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                description={article.abstract}
-                compact={true}
-                showShareCount={true}
-                initialCounts={metrics?.shareCount}
-                articleId={articleId}
-                onShare={(platform: SharePlatform) => {
-                  // Track share event
-                  if (recordShare && platform !== 'copy' && platform !== 'instagram') {
-                    recordShare(platform as 'twitter' | 'linkedin' | 'facebook' | 'email');
-                  } else if (platform === 'instagram') {
-                    // For Instagram, show a special toast with instructions
-                    toast({
-                      title: "Instagram Sharing",
-                      description: "Instagram doesn't support direct web sharing. Take a screenshot and share it on your Instagram story or post.",
-                      status: "info",
-                      duration: 5000,
-                      isClosable: true,
-                    });
-                  }
-                  
-                  // Show toast notification for other platforms
-                  if (platform !== 'instagram') {
-                    toast({
-                      title: `Shared on ${platform}`,
-                      status: "success",
-                      duration: 2000,
-                      isClosable: true,
-                    });
-                  }
-                }}
-              />
-            </Box>
-          </Flex>
-          
-          <Flex gap={2} flexWrap="wrap" mb={6}>
-            {article.keywords.map((keyword) => (
-              <Badge key={keyword} colorScheme="blue" variant="subtle">
-                {getFieldName(keyword)}
-              </Badge>
-            ))}
-            {article.categories.map((category) => (
-              <Badge key={category} colorScheme="purple" variant="subtle">
-                {getFieldName(category)}
-              </Badge>
-            ))}
-          </Flex>
-          
-          <Grid templateColumns={{ base: '1fr', lg: '3fr 1fr' }} gap={8}>
-            <GridItem>
-              <Box 
-                bg={bgColor} 
-                p={6} 
-                borderRadius="md" 
-                borderWidth="1px" 
-                borderColor={borderColor}
-                mb={8}
-              >
-                <Heading as="h2" size="md" mb={4}>
-                  Abstract
-                </Heading>
-                <Text>{article.abstract}</Text>
-              </Box>
-              
-              {/* Display author information with ORCID */}
-              <ArticleAuthors 
-                authors={authors.map(a => {
-                  // Check if name looks like a wallet address using our utility function
-                  const isWalletAddress = (str?: string) => {
-                    if (!str) return false;
-                    return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
-                  };
-                  
-                  // Use displayName or name, but never show wallet addresses
-                  let displayName = a.displayName || a.name;
-                  if (!displayName || isWalletAddress(displayName)) {
-                    displayName = 'Anonymous Author';
-                  }
-                  
-                  // Split the name into given and family parts
-                  const nameParts = displayName.split(' ');
-                  const given = nameParts.length > 1 ? nameParts[0] : '';
-                  const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
-                  
-                  // Debug what we're sending to ArticleAuthors
-                  console.log('Author data being sent to ArticleAuthors:', {
-                    id: a.userId || 'anonymous',
-                    given, 
-                    family,
-                    orcid: a.orcid,
-                    affiliation: a.affiliation
-                  });
-                  
-                  return { 
-                    id: a.userId || 'anonymous',
-                    given, 
-                    family,
-                    orcid: a.orcid,
-                    affiliation: a.affiliation // Add affiliation directly to author object
-                  };
-                })}
-                correspondingAuthor={authors.find(a => a.isCorresponding)?.userId}
-                affiliations={authors.reduce((acc, a) => {
-                  // Redefine isWalletAddress here to avoid scope issues
-                  const isWalletAddress = (str?: string) => {
-                    if (!str) return false;
-                    return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
-                  };
-                  
-                  if (a.affiliation) {
-                    // Add affiliation with userId as key
-                    if (a.userId) {
-                      acc[a.userId] = a.affiliation;
-                    }
-                    
-                    // Add affiliation with displayName as key
-                    if (a.displayName && !isWalletAddress(a.displayName)) {
-                      acc[a.displayName] = a.affiliation;
-                    }
-                    
-                    // Add affiliation with name as key
-                    if (a.name && !isWalletAddress(a.name)) {
-                      acc[a.name] = a.affiliation;
-                      
-                      // Also add with split name format
-                      const nameParts = a.name.split(' ');
-                      if (nameParts.length > 1) {
-                        const given = nameParts[0];
-                        const family = nameParts.slice(1).join(' ');
-                        acc[`${family}-${given}`] = a.affiliation;
-                      }
-                    }
-                  }
-                  return acc;
-                }, {} as Record<string, string>)}
-              />
-              
-              {/* Add citation information with ORCID */}
-              <ArticleCitation citation={articleToCitation(article, authors)} />
-              
-              <Box 
-                bg={bgColor} 
-                p={6} 
-                borderRadius="md" 
-                borderWidth="1px" 
-                borderColor={borderColor}
-                mb={8}
-              >
-                <Heading as="h2" size="md" mb={4}>
-                  Full Text
-                </Heading>
-                
-                {/* Display all article sections according to the standardized template */}
-                <VStack spacing={6} align="stretch">
-                  {article.introduction && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Introduction</Heading>
-                      <Text whiteSpace="pre-wrap">{article.introduction}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.literatureReview && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Literature Review/Background</Heading>
-                      <Text whiteSpace="pre-wrap">{article.literatureReview}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.methods && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Methods</Heading>
-                      <Text whiteSpace="pre-wrap">{article.methods}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.results && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Results</Heading>
-                      <Text whiteSpace="pre-wrap">{article.results}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.discussion && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Discussion</Heading>
-                      <Text whiteSpace="pre-wrap">{article.discussion}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.conclusion && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Conclusion</Heading>
-                      <Text whiteSpace="pre-wrap">{article.conclusion}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.acknowledgments && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>Acknowledgments</Heading>
-                      <Text whiteSpace="pre-wrap">{article.acknowledgments}</Text>
-                    </Box>
-                  )}
-                  
-                  {article.references && article.references.length > 0 && (
-                    <Box>
-                      <Heading as="h3" size="sm" mb={2}>References</Heading>
-                      <VStack align="stretch" spacing={1}>
-                        {article.references.map((reference, index) => (
-                          <Text key={index}>{reference}</Text>
-                        ))}
-                      </VStack>
-                    </Box>
-                  )}
-                </VStack>
-              </Box>
-              
-              <Button 
-                leftIcon={<FiDownload />} 
-                colorScheme="blue"
-                mt={6}
-                onClick={() => {
-                  try {
-                    // Log that we're generating the PDF
-                    console.log('Generating PDF for article:', article.title);
-                    
-                    // Prepare full content by combining all sections
-                    const fullContent = [
-                      `${article.introduction || ''}`,
-                      article.literatureReview && `## Literature Review/Background\n${article.literatureReview}`,
-                      article.methods && `## Methods\n${article.methods}`,
-                      article.results && `## Results\n${article.results}`,
-                      article.discussion && `## Discussion\n${article.discussion}`,
-                      article.conclusion && `## Conclusion\n${article.conclusion}`,
-                      article.acknowledgments && `## Acknowledgments\n${article.acknowledgments}`,
-                      article.references && article.references.length > 0 && `## References\n${article.references.join('\n')}`
-                    ].filter(Boolean).join('\n\n');
-                    
-                    // Generate and download the PDF using the available properties in the Article interface
-                    downloadArticlePdf({
-                      title: article.title || 'Untitled Article',
-                      author: article.authorId || 'Unknown Author',
-                      abstract: article.abstract || '',
-                      content: fullContent,
-                      date: article.publishedDate || new Date().toLocaleDateString(),
-                      categories: article.categories || []
-                    });
-                    
-                    toast({
-                      title: 'PDF Downloaded',
-                      description: 'Your PDF has been successfully generated and downloaded.',
-                      status: 'success',
-                      duration: 3000,
-                      isClosable: true,
-                    });
-                  } catch (error) {
-                    console.error('Error downloading PDF:', error);
-                    toast({
-                      title: 'Download Failed',
-                      description: 'There was an error generating the PDF. Please try again.',
-                      status: 'error',
-                      duration: 3000,
-                      isClosable: true,
-                    });
-                  }
-                }}
-              >
-                Download PDF
-              </Button>
-              
-              <Flex justify="space-between" mb={4}>
-                <Button 
-                  leftIcon={<FiShare2 />} 
-                  variant="outline" 
-                  onClick={() => recordShare('twitter')}
-                >
-                  Share
-                </Button>
-                <FlagArticleButton articleId={article.id || articleId} />
-              </Flex>
-              
-              {/* Article Metrics Display */}
-              <HStack spacing={4} mt={4} mb={6}>
-                <ReadCountDisplay count={metrics.viewCount} showLabel={true} />
-                <CitationBadge count={metrics.citationCount} />
-                <SocialShareMetrics shares={metrics.shareCount} />
-              </HStack>
-            </GridItem>
-            
-            <GridItem>
-              <VStack spacing={6} align="stretch">
-                <ArticleReviewStatus 
-                  article={article}
-                  reviews={reviews}
+            <Grid 
+              templateColumns={{ base: '1fr', lg: '2fr 1fr' }} 
+              gap={8}
+            >
+              <GridItem>
+                <ArticleContent 
+                  article={article} 
+                  isLoading={isLoading} 
                 />
-                
-                {article.status !== 'accepted' && article.status !== 'rejected' && (
-                  <ArticleReviewers 
-                    articleId={article.id || articleId}
-                    limit={3}
-                    reviews={reviews}
-                  />
-                )}
-              </VStack>
-            </GridItem>
-          </Grid>
-          
-          {/* Article actions */}
-          <Flex mt={8} mb={6} justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={4}>
-            <HStack spacing={4}>
-              <Button
-                leftIcon={<Icon as={FiDownload} />}
-                colorScheme="blue"
-                onClick={() => downloadArticlePdf(article)}
-              >
-                Download PDF
-              </Button>
+              </GridItem>
               
-              <FlagArticleButton articleId={articleId} />
-            </HStack>
-            
-            {/* Full social share buttons for desktop */}
-            <Box display={{ base: 'none', md: 'block' }}>
-              <SocialShareButtons 
-                title={article.title}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                description={article.abstract}
-                showShareCount={true}
-                initialCounts={metrics?.shareCount}
-                articleId={articleId}
-                onShare={(platform: SharePlatform) => {
-                  // Track share event
-                  if (recordShare && platform !== 'copy' && platform !== 'instagram') {
-                    recordShare(platform as 'twitter' | 'linkedin' | 'facebook' | 'email');
-                  } else if (platform === 'instagram') {
-                    // For Instagram, show a special toast with instructions
-                    toast({
-                      title: "Instagram Sharing",
-                      description: "Instagram doesn't support direct web sharing. Take a screenshot and share it on your Instagram story or post.",
-                      status: "info",
-                      duration: 5000,
-                      isClosable: true,
-                    });
-                  }
-                }}
-              />
-            </Box>
-          </Flex>
-        </Box>
-      ) : (
-        <Box textAlign="center" py={10}>
-          <Heading as="h2" size="lg" mb={4}>
-            Article Not Found
-          </Heading>
-          <Text mb={6}>
-            The article you are looking for does not exist or has been removed.
-          </Text>
-          <Button 
-            colorScheme="blue" 
-            onClick={() => router.push('/articles')}
-          >
-            Back to Articles
-          </Button>
-        </Box>
-      )}
-    </Container>
+              <GridItem>
+                <ArticleSidebar 
+                  article={article} 
+                  reviews={reviews} 
+                  metrics={metrics}
+                  recordShare={recordShare}
+                  isLoading={isLoading} 
+                />
+              </GridItem>
+            </Grid>
+          </Box>
+        ) : (
+          <Box textAlign="center" py={10}>
+            <Heading as="h2" size="lg" mb={4}>
+              Article Not Found
+            </Heading>
+            <Text mb={6}>
+              The article you are looking for does not exist or has been removed.
+            </Text>
+            <Button 
+              colorScheme="blue" 
+              onClick={() => router.push('/articles')}
+            >
+              Back to Articles
+            </Button>
+          </Box>
+        )}
+      </Container>
+    </Layout>
   );
 };
 
