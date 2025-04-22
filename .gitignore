@@ -39,3 +39,10 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Security - credentials and API keys
+service-account-key.json*
+*credentials*.json
+*secret*.json
+*key*.json
+.env.production
