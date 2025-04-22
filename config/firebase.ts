@@ -1,7 +1,17 @@
 import { initializeApp, FirebaseApp, getApps } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
+import { createLogger, LogCategory } from '../utils/logger';
+
+// Create logger instance
+const logger = createLogger('firebase-config');
+
+// Configuration constants for Firebase initialization
+// Can be adjusted via .env file for different environments
+const MAX_INITIALIZATION_ATTEMPTS = Number(process.env.NEXT_PUBLIC_FIREBASE_MAX_INIT_ATTEMPTS) || 3;
+const AUTH_EMULATOR_HOST = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST || 'localhost:9099';
+const FIRESTORE_EMULATOR_HOST = process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST || 'localhost:8080';
 
 // Helper function to check if code is running on client side
 export const isClientSide = () => typeof window !== 'undefined';
@@ -29,7 +39,7 @@ class FirebaseInstance {
   private _analytics: Analytics | null = null;
   private _isInitialized = false;
   private _initializationAttempts = 0;
-  private readonly MAX_INITIALIZATION_ATTEMPTS = 3;
+  private readonly _maxInitAttempts = MAX_INITIALIZATION_ATTEMPTS;
   private _cleanupFunctions: Array<() => void> = [];
 
   private constructor() {
@@ -50,15 +60,18 @@ class FirebaseInstance {
    * Initialize Firebase services
    * @returns boolean indicating if initialization was successful
    */
-  public initialize(): boolean {
+  public async initialize(): Promise<boolean> {
     // Only run on client side
     if (!isClientSide()) {
       return false;
     }
     
     // Don't retry too many times
-    if (this._initializationAttempts >= this.MAX_INITIALIZATION_ATTEMPTS) {
-      console.error(`Firebase: Maximum initialization attempts (${this.MAX_INITIALIZATION_ATTEMPTS}) reached`);
+    if (this._initializationAttempts >= this._maxInitAttempts) {
+      logger.error(`Maximum initialization attempts (${this._maxInitAttempts}) reached`, {
+        category: LogCategory.SYSTEM,
+        context: { attempts: this._initializationAttempts }
+      });
       return false;
     }
     
@@ -82,15 +95,53 @@ class FirebaseInstance {
         this._auth = getAuth(this._app);
         this._db = getFirestore(this._app);
         
+        // Connect to emulators if configured to do so
+        if (shouldUseEmulator) {
+          try {
+            if (this._auth) {
+              logger.info('Connecting to Firebase Auth emulator', {
+                category: LogCategory.SYSTEM,
+                context: { host: AUTH_EMULATOR_HOST }
+              });
+              connectAuthEmulator(
+                this._auth, 
+                `http://${AUTH_EMULATOR_HOST}`, 
+                { disableWarnings: true }
+              );
+            }
+            
+            if (this._db) {
+              const [host, portStr] = FIRESTORE_EMULATOR_HOST.split(':');
+              const port = parseInt(portStr, 10);
+              
+              logger.info('Connecting to Firebase Firestore emulator', {
+                category: LogCategory.SYSTEM,
+                context: { host, port }
+              });
+              connectFirestoreEmulator(this._db, host, port);
+            }
+          } catch (emulatorError) {
+            logger.error('Failed to connect to Firebase emulators', {
+              category: LogCategory.ERROR,
+              context: { error: emulatorError }
+            });
+            // Don't fail initialization if emulator connection fails
+          }
+        }
+        
         // Initialize analytics only on client side and if supported
         if (isClientSide()) {
-          isSupported().then(supported => {
+          try {
+            const supported = await isSupported();
             if (supported && this._app) {
               this._analytics = getAnalytics(this._app);
             }
-          }).catch(err => {
-            console.error('Firebase: Analytics initialization error:', err);
-          });
+          } catch (analyticsError) {
+            logger.error('Analytics initialization error', {
+              category: LogCategory.ERROR,
+              context: { error: analyticsError }
+            });
+          }
         }
         
         this._isInitialized = true;
@@ -99,7 +150,10 @@ class FirebaseInstance {
       
       return false;
     } catch (error) {
-      console.error('Firebase: Initialization error:', error);
+      logger.error('Firebase: Initialization error:', {
+        category: LogCategory.ERROR,
+        context: { error }
+      });
       return false;
     }
   }
@@ -123,7 +177,10 @@ class FirebaseInstance {
       try {
         fn();
       } catch (error) {
-        console.error('Firebase: Error in cleanup function:', error);
+        logger.error('Error in cleanup function', {
+          category: LogCategory.ERROR,
+          context: { error }
+        });
       }
     });
     
@@ -176,7 +233,7 @@ const shouldUseEmulator =
  * Enhanced with better error handling and detailed logging
  * @returns boolean - True if initialization was successful
  */
-export const initializeFirebase = (): boolean => {
+export const initializeFirebase = async (): Promise<boolean> => {
   // Only run on client side
   if (!isClientSide()) {
     return false;
@@ -184,10 +241,14 @@ export const initializeFirebase = (): boolean => {
   
   try {
     // Initialize using the singleton instance
-    const result = firebaseInstance.initialize();
+    const result = await firebaseInstance.initialize();
     return result;
   } catch (error) {
-    console.error('Firebase: Critical initialization error:', error);
+    logger.error('Critical initialization error', {
+      category: LogCategory.ERROR,
+      context: { error },
+      sendToSentry: true
+    });
     return false;
   }
 };
@@ -198,15 +259,15 @@ export const initializeFirebase = (): boolean => {
  * Enhanced with better error handling and logging
  * @returns Auth | null
  */
-export const getFirebaseAuth = (): Auth | null => {
+export const getFirebaseAuth = async (): Promise<Auth | null> => {
   if (!isClientSide()) {
     return null;
   }
   
   try {
-    // Check if Firebase is initialized
+    // Check if Firebase is initialized and initialize if not
     if (!firebaseInstance.isInitialized) {
-      const initialized = initializeFirebase();
+      const initialized = await initializeFirebase();
       
       if (!initialized) {
         return null;
@@ -216,7 +277,10 @@ export const getFirebaseAuth = (): Auth | null => {
     // Get Auth instance
     return firebaseInstance.auth;
   } catch (error) {
-    console.error('Firebase: Error getting Auth instance:', error);
+    logger.error('Error getting Auth instance', {
+      category: LogCategory.ERROR,
+      context: { error }
+    });
     return null;
   }
 };
@@ -227,15 +291,15 @@ export const getFirebaseAuth = (): Auth | null => {
  * Enhanced with better error handling and logging
  * @returns Firestore | null
  */
-export const getFirebaseFirestore = (): Firestore | null => {
+export const getFirebaseFirestore = async (): Promise<Firestore | null> => {
   if (!isClientSide()) {
     return null;
   }
   
   try {
-    // Check if Firebase is initialized
+    // Check if Firebase is initialized and initialize if not
     if (!firebaseInstance.isInitialized) {
-      const initialized = initializeFirebase();
+      const initialized = await initializeFirebase();
       
       if (!initialized) {
         return null;
@@ -245,7 +309,10 @@ export const getFirebaseFirestore = (): Firestore | null => {
     // Get Firestore instance
     return firebaseInstance.db;
   } catch (error) {
-    console.error('Firebase: Error getting Firestore instance:', error);
+    logger.error('Error getting Firestore instance', {
+      category: LogCategory.ERROR,
+      context: { error }
+    });
     return null;
   }
 };
@@ -255,15 +322,24 @@ export const getFirebaseFirestore = (): Firestore | null => {
  * Initializes Firebase if not already initialized
  * @returns FirebaseApp | null
  */
-export const getFirebaseApp = (): FirebaseApp | null => {
+export const getFirebaseApp = async (): Promise<FirebaseApp | null> => {
   if (!isClientSide()) {
     return null;
   }
   
-  if (!firebaseInstance.isInitialized) {
-    firebaseInstance.initialize();
+  try {
+    // Check if Firebase is initialized and initialize if not
+    if (!firebaseInstance.isInitialized) {
+      await initializeFirebase();
+    }
+    return firebaseInstance.app;
+  } catch (error) {
+    logger.error('Error getting Firebase app instance', {
+      category: LogCategory.ERROR,
+      context: { error }
+    });
+    return null;
   }
-  return firebaseInstance.app;
 };
 
 /**
