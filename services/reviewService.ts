@@ -1,4 +1,4 @@
-import { db } from '../config/firebase';
+import { getFirebaseFirestore } from '../config/firebase';
 import { 
   collection, 
   addDoc, 
@@ -51,7 +51,9 @@ export const submitReview = async (reviewData: Omit<Review, 'id' | 'createdAt' |
       throw new Error('User not authenticated');
     }
     
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       console.error('ReviewService: Firestore not initialized');
       throw new Error('Firestore not initialized');
     }
@@ -67,7 +69,7 @@ export const submitReview = async (reviewData: Omit<Review, 'id' | 'createdAt' |
     console.log('ReviewService: Review prepared for submission:', reviewWithTimestamp);
     
     // Add to Firestore
-    const docRef = await addDoc(collection(db, reviewsCollection), reviewWithTimestamp);
+    const docRef = await addDoc(collection(firestore, reviewsCollection), reviewWithTimestamp);
     
     console.log('ReviewService: Review submitted with ID:', docRef.id);
     
@@ -91,13 +93,15 @@ export const getReviewsForArticle = async (articleId: string): Promise<Review[]>
   try {
     console.log('ReviewService: Starting getReviewsForArticle for article:', articleId);
     
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       console.error('ReviewService: Firestore not initialized');
       throw new Error('Firestore not initialized');
     }
     
     // Query reviews for the specific article
-    const reviewsRef = collection(db, reviewsCollection);
+    const reviewsRef = collection(firestore, reviewsCollection);
     
     try {
       // First try with ordering (which requires an index)
@@ -169,13 +173,15 @@ export const logUserReviews = async (): Promise<void> => {
       return;
     }
     
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       console.error('ReviewService: Firestore not initialized');
       return;
     }
     
     // Query reviews for the current user
-    const reviewsRef = collection(db, reviewsCollection);
+    const reviewsRef = collection(firestore, reviewsCollection);
     const q = query(
       reviewsRef,
       where('reviewerId', '==', currentUser.uid),
@@ -207,13 +213,15 @@ export const getUserReviews = async (userId: string): Promise<Review[]> => {
       return [];
     }
 
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       console.error('ReviewService: Firestore not initialized');
       throw new Error('Firestore not initialized');
     }
 
     // Query reviews for the specific user
-    const reviewsRef = collection(db, reviewsCollection);
+    const reviewsRef = collection(firestore, reviewsCollection);
     const reviews: Review[] = [];
     
     // Try multiple query approaches to ensure we find all reviews
@@ -328,7 +336,9 @@ export const migrateUserReviews = async (userId: string, oldReviewerIds: string[
       return 0;
     }
 
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       console.error('ReviewService: Firestore not initialized');
       throw new Error('Firestore not initialized');
     }
@@ -345,7 +355,7 @@ export const migrateUserReviews = async (userId: string, oldReviewerIds: string[
       console.log(`ReviewService: Looking for reviews with old reviewerId: ${oldId}`);
       
       // Query reviews with the old reviewer ID
-      const reviewsRef = collection(db, reviewsCollection);
+      const reviewsRef = collection(firestore, reviewsCollection);
       const q = query(reviewsRef, where('reviewerId', '==', oldId));
       
       const querySnapshot = await getDocs(q);
@@ -356,7 +366,7 @@ export const migrateUserReviews = async (userId: string, oldReviewerIds: string[
         try {
           console.log(`ReviewService: Updating review ${docSnapshot.id} to use new reviewerId: ${userId}`);
           
-          await updateDoc(doc(db, reviewsCollection, docSnapshot.id), {
+          await updateDoc(doc(firestore, reviewsCollection, docSnapshot.id), {
             reviewerId: userId
           });
           

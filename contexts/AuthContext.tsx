@@ -11,7 +11,7 @@ import {
   Auth
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
-import { getFirebaseAuth, getFirebaseFirestore } from '../config/firebase';
+import { getFirebaseAuth, getFirebaseFirestore, isClientSide } from '../config/firebase';
 import { createLogger, LogCategory } from '../utils/logger';
 import { handleError } from '../utils/errorHandling';
 
@@ -61,11 +61,34 @@ export function useAuth() {
 // Provider component that wraps app and makes auth object available
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authIsInitialized, setAuthIsInitialized] = useState(false);
+  const [authIsInitialized, setAuthIsInitialized] = useState(!isClientSide() || false);
   const [isLoading, setIsLoading] = useState(false); // Used throughout loading operations
   const [auth, setAuth] = useState<Auth | null>(null);
   const [db, setDb] = useState<Firestore | null>(null);
   const [firebaseInitError, setFirebaseInitError] = useState<Error | null>(null);
+
+  // Return a minimal context during server-side rendering
+  // This prevents Firebase initialization errors during SSR
+  if (!isClientSide()) {
+    return (
+      <AuthContext.Provider value={{
+        currentUser: null,
+        authIsInitialized: true, // Pretend it's initialized on the server
+        isLoading: false,
+        login: async () => { throw new Error('Firebase Auth only available in browser'); },
+        signup: async () => { throw new Error('Firebase Auth only available in browser'); },
+        logout: async () => { throw new Error('Firebase Auth only available in browser'); },
+        signOut: async () => { throw new Error('Firebase Auth only available in browser'); },
+        resetPassword: async () => { throw new Error('Firebase Auth only available in browser'); },
+        verifyEmail: async () => { throw new Error('Firebase Auth only available in browser'); },
+        updateUserProfile: async () => { throw new Error('Firebase Auth only available in browser'); },
+        getUserProfile: async () => { throw new Error('Firebase Auth only available in browser'); },
+        updateUserData: async () => { throw new Error('Firebase Auth only available in browser'); }
+      }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   // Function to log in a user
   const login = async (email: string, password: string): Promise<User> => {

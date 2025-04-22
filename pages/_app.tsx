@@ -8,8 +8,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Head from 'next/head';
 import ErrorBoundary from '../components/ErrorBoundary';
 import '../styles/pagination.css'; // Import pagination styles
-import useClient from '../hooks/useClient';
-import { isClientSide } from '../utils/imageOptimizer';
+import dynamic from 'next/dynamic';
+
+// Import ClientSideOnly with SSR disabled to prevent hydration errors
+const ClientSideOnly = dynamic(() => import('../components/ClientSideOnly'), {
+  ssr: false
+});
 
 // Create a client
 const queryClient = new QueryClient({
@@ -23,9 +27,6 @@ const queryClient = new QueryClient({
 });
 
 function MyApp({ Component, pageProps }: AppProps) {
-  // Use our dedicated hook to check if we're on the client
-  const isClient = useClient();
-  
   return (
     <>
       <Head>
@@ -48,29 +49,18 @@ function MyApp({ Component, pageProps }: AppProps) {
       </Head>
       <QueryClientProvider client={queryClient}>
         <ChakraProvider>
-          <AuthProvider>
-            <WalletProvider>
-              <ModalProvider>
-                <ErrorBoundary onReset={() => {
-                  // Optional: Reset any state or perform actions when error boundary resets
-                  console.log('Error boundary reset');
-                  // Force a hard refresh on error
-                  if (isClientSide()) {
-                    window.location.reload();
-                  }
-                }}>
-                  {/* Render without animations until client-side hydration is complete */}
-                  {isClient ? (
+          <ErrorBoundary>
+            {/* Use ClientSideOnly to prevent hydration mismatches */}
+            <ClientSideOnly>
+              <AuthProvider>
+                <ModalProvider>
+                  <WalletProvider>
                     <Component {...pageProps} />
-                  ) : (
-                    <div style={{ visibility: 'hidden' }}>
-                      <Component {...pageProps} />
-                    </div>
-                  )}
-                </ErrorBoundary>
-              </ModalProvider>
-            </WalletProvider>
-          </AuthProvider>
+                  </WalletProvider>
+                </ModalProvider>
+              </AuthProvider>
+            </ClientSideOnly>
+          </ErrorBoundary>
         </ChakraProvider>
       </QueryClientProvider>
     </>

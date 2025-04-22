@@ -36,7 +36,6 @@ import dynamic from 'next/dynamic';
 import { FiSearch, FiChevronDown } from 'react-icons/fi';
 import { useModal } from '../contexts/ModalContext';
 import { Article } from '../services/articleService'; 
-import FirebaseClientOnly from '../components/FirebaseClientOnly';
 
 // Using dynamic import with ssr: false for components with client-side dependencies
 const LoginModal = dynamic(() => import('../components/LoginModal'), {
@@ -562,16 +561,25 @@ const Home: React.FC = () => {
   );
 };
 
-// Wrap the Home component with FirebaseClientOnly to ensure Firebase is initialized
+// Dynamic import FirebaseClientWrapper with SSR disabled
+const FirebaseClientWrapper = dynamic(
+  () => import('../components/FirebaseClientWrapper'),
+  { ssr: false }
+);
+
+// Wrap the Home component with FirebaseClientWrapper to ensure Firebase is initialized
+// and to isolate Firebase code from server-side rendering
 const HomeWithFirebase: React.FC = () => {
   return (
-    <FirebaseClientOnly fallback={
+    <Suspense fallback={
       <Center h="100vh">
-        <Spinner size="xl" />
+        <Spinner size="xl" color="green.500" />
       </Center>
     }>
-      <Home />
-    </FirebaseClientOnly>
+      <FirebaseClientWrapper>
+        <Home />
+      </FirebaseClientWrapper>
+    </Suspense>
   );
 };
 

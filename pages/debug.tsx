@@ -22,7 +22,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
-import { db } from '../config/firebase';
+import { getFirebaseFirestore } from '../config/firebase';
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { logUserReviews } from '../services/reviewService';
 
@@ -41,12 +41,14 @@ const DebugPage: React.FC = () => {
     try {
       console.log('Debug: Fetching all articles from Firestore');
       
-      if (!db) {
+      // Get Firestore instance
+      const firestore = await getFirebaseFirestore();
+      if (!firestore) {
         throw new Error('Firestore not initialized');
       }
       
       // Get all articles without filtering
-      const articlesRef = collection(db, 'articles');
+      const articlesRef = collection(firestore, 'articles');
       const q = query(articlesRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
       
@@ -84,12 +86,14 @@ const DebugPage: React.FC = () => {
     try {
       console.log('Debug: Fetching all reviews from Firestore');
       
-      if (!db) {
+      // Get Firestore instance
+      const firestore = await getFirebaseFirestore();
+      if (!firestore) {
         throw new Error('Firestore not initialized');
       }
       
       // Get all reviews
-      const reviewsRef = collection(db, 'reviews');
+      const reviewsRef = collection(firestore, 'reviews');
       const q = query(reviewsRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
       
@@ -138,12 +142,14 @@ const DebugPage: React.FC = () => {
     try {
       console.log('Debug: Fetching user reviews from Firestore');
       
-      if (!db) {
+      // Get Firestore instance
+      const firestore = await getFirebaseFirestore();
+      if (!firestore) {
         throw new Error('Firestore not initialized');
       }
       
       // Get reviews for current user
-      const reviewsRef = collection(db, 'reviews');
+      const reviewsRef = collection(firestore, 'reviews');
       const q = query(
         reviewsRef, 
         where('reviewerId', '==', currentUser.uid),

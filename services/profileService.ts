@@ -35,7 +35,7 @@ export async function saveUserProfile(
     }
 
     // Get Firestore instance
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       throw new Error('Firestore not initialized');
     }
@@ -117,7 +117,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     }
 
     // Get Firestore instance
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       throw new Error('Firestore not initialized');
     }

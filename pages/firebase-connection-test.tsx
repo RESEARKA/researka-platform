@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Text, VStack, Heading, Code, Alert, AlertIcon, Divider, Container } from '@chakra-ui/react';
-import { app, auth, db } from '../config/firebase';
+import { Box, Button, Text, VStack, Heading, Alert, AlertIcon, Divider, Container } from '@chakra-ui/react';
+import { app, getFirebaseAuth, getFirebaseFirestore } from '../config/firebase';
 import { getDoc, doc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 
@@ -17,41 +17,46 @@ export default function FirebaseConnectionTest() {
 
   // Check Firebase initialization
   useEffect(() => {
-    addLog('Checking Firebase initialization...');
-    
-    try {
-      // Check app
-      if (!app) {
-        throw new Error('Firebase app is not initialized');
-      }
-      addLog('✅ Firebase app is initialized');
+    const checkInitialization = async () => {
+      addLog('Checking Firebase initialization...');
       
-      // Check auth
-      if (!auth) {
-        throw new Error('Firebase auth is not initialized');
-      }
-      addLog('✅ Firebase auth is initialized');
-      
-      // Check db
-      if (!db) {
-        throw new Error('Firebase firestore is not initialized');
-      }
-      addLog('✅ Firebase firestore is initialized');
-      
-      // Set up auth state listener
-      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-        addLog(`Auth state changed: User ${currentUser ? 'signed in' : 'signed out'}`);
-        setUser(currentUser);
+      try {
+        // Check app
+        if (!app) {
+          throw new Error('Firebase app is not initialized');
+        }
+        addLog('✅ Firebase app is initialized');
+        
+        // Check auth dynamically
+        const authInstance = await getFirebaseAuth();
+        if (!authInstance) {
+          throw new Error('Firebase auth is not initialized');
+        }
+        addLog('✅ Firebase auth is initialized');
+        
+        // Set up auth state listener
+        const unsubscribe = onAuthStateChanged(authInstance, (currentUser) => {
+          addLog(`Auth state changed: User ${currentUser ? 'signed in' : 'signed out'}`);
+          setUser(currentUser);
+          setIsLoading(false);
+        });
+        
+        return unsubscribe;
+      } catch (err: any) {
+        const errorMessage = `Error initializing Firebase: ${err.message}`;
+        addLog(`❌ ${errorMessage}`);
+        setError(errorMessage);
         setIsLoading(false);
-      });
-      
-      return () => unsubscribe();
-    } catch (err: any) {
-      const errorMessage = `Error initializing Firebase: ${err.message}`;
-      addLog(`❌ ${errorMessage}`);
-      setError(errorMessage);
-      setIsLoading(false);
-    }
+        return () => {}; // Return empty cleanup on error
+      }
+    };
+
+    let unsubscribe = () => {};
+    checkInitialization().then(cleanup => {
+      unsubscribe = cleanup;
+    });
+
+    return () => unsubscribe(); // Cleanup function
   }, []);
 
   // Test anonymous sign in
@@ -60,12 +65,13 @@ export default function FirebaseConnectionTest() {
     setError(null);
     
     try {
-      if (!auth) {
-        throw new Error('Firebase auth is not initialized');
+      const authInstance = await getFirebaseAuth();
+      if (!authInstance) {
+        throw new Error('Firebase auth not initialized');
       }
       
-      const result = await signInAnonymously(auth);
-      addLog(`✅ Anonymous sign in successful: ${result.user.uid}`);
+      const result = await signInAnonymously(authInstance);
+      addLog(`✅ Anonymous sign in successful: User UID: ${result.user.uid}`);
     } catch (err: any) {
       const errorMessage = `Error signing in anonymously: ${err.message}`;
       addLog(`❌ ${errorMessage}`);
@@ -75,37 +81,59 @@ export default function FirebaseConnectionTest() {
 
   // Test Firestore write
   const testFirestoreWrite = async () => {
-    if (!auth.currentUser) {
-      console.error('No user is logged in');
+    const authInstance = await getFirebaseAuth();
+    if (!authInstance?.currentUser) {
+      addLog('⚠️ Cannot write: No user signed in.');
       return;
     }
+    
+    addLog(`Attempting Firestore write as user: ${authInstance.currentUser.uid}...`);
+    setError(null);
     
     try {
       const testData = {
         timestamp: new Date().toISOString(),
         message: 'Test data',
-        userId: auth.currentUser.uid
+        userId: authInstance.currentUser.uid
       };
       
+      // Get Firestore instance
+      const firestore = await getFirebaseFirestore();
+      if (!firestore) {
+        throw new Error('Firestore not initialized');
+      }
+      
       // Use users collection now that rules allow authenticated access
-      await setDoc(doc(db, 'users', auth.currentUser.uid), testData, { merge: true });
-      addLog(`✅ Firestore write successful to users/${auth.currentUser.uid}`);
+      await setDoc(doc(firestore, 'users', authInstance.currentUser.uid), testData, { merge: true });
+      addLog(`✅ Firestore write successful to users/${authInstance.currentUser.uid}`);
     } catch (error) {
+      const errorMessage = `Firestore write failed: ${(error as Error).message}`;
+      addLog(`❌ ${errorMessage}`);
+      setError(errorMessage);
       console.error('Error writing to Firestore:', error);
-      addLog(`❌ Firestore write failed: ${(error as Error).message}`);
     }
   };
 
   // Test Firestore read
   const testFirestoreRead = async () => {
-    if (!auth.currentUser) {
-      console.error('No user is logged in');
+    const authInstance = await getFirebaseAuth();
+    if (!authInstance?.currentUser) {
+      addLog('⚠️ Cannot read: No user signed in.');
       return;
     }
     
+    addLog(`Attempting Firestore read as user: ${authInstance.currentUser.uid}...`);
+    setError(null);
+    
     try {
+      // Get Firestore instance
+      const firestore = await getFirebaseFirestore();
+      if (!firestore) {
+        throw new Error('Firestore not initialized');
+      }
+      
       // Use users collection now that rules allow authenticated access
-      const docRef = doc(db, 'users', auth.currentUser.uid);
+      const docRef = doc(firestore, 'users', authInstance.currentUser.uid);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
@@ -114,8 +142,10 @@ export default function FirebaseConnectionTest() {
         addLog('⚠️ Document does not exist. Try writing data first.');
       }
     } catch (error) {
+      const errorMessage = `Firestore read failed: ${(error as Error).message}`;
+      addLog(`❌ ${errorMessage}`);
+      setError(errorMessage);
       console.error('Error reading from Firestore:', error);
-      addLog(`❌ Firestore read failed: ${(error as Error).message}`);
     }
   };
 

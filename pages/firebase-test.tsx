@@ -12,8 +12,8 @@ import {
   Divider,
 } from '@chakra-ui/react';
 import Layout from '../components/Layout';
-import { auth, db } from '../config/firebase';
-import { collection, getDocs, query, limit, addDoc } from 'firebase/firestore';
+import { getFirebaseAuth, getFirebaseFirestore } from '../config/firebase';
+import { collection, getDocs, query, limit } from 'firebase/firestore';
 import FirebaseTest from '../components/FirebaseTest';
 
 const FirebaseTestPage: React.FC = () => {
@@ -28,13 +28,14 @@ const FirebaseTestPage: React.FC = () => {
     setError(null);
     
     try {
-      // Check if Firebase Auth is initialized
-      if (!auth) {
+      // Get Firebase Auth instance
+      const authInstance = await getFirebaseAuth();
+      if (!authInstance) {
         throw new Error('Firebase Auth is not initialized');
       }
       
       // Get current auth state
-      const currentUser = auth.currentUser;
+      const currentUser = authInstance.currentUser;
       
       setAuthStatus(`Firebase Auth is properly initialized. Current user: ${currentUser ? currentUser.email : 'No user signed in'}`);
     } catch (err: any) {
@@ -52,13 +53,14 @@ const FirebaseTestPage: React.FC = () => {
     setError(null);
     
     try {
-      // Check if Firestore is initialized
-      if (!db) {
+      // Get Firestore instance
+      const firestoreInstance = await getFirebaseFirestore();
+      if (!firestoreInstance) {
         throw new Error('Firestore is not initialized');
       }
       
       // Try to query Firestore
-      const usersRef = collection(db, 'users');
+      const usersRef = collection(firestoreInstance, 'users');
       const q = query(usersRef, limit(1));
       
       try {

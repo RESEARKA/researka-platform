@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { auth, db } from '../config/firebase';
+import { useState } from 'react';
+import { getFirebaseFirestore } from '../config/firebase';
 import { collection, getDocs, addDoc, doc, setDoc, Firestore } from 'firebase/firestore';
-import { Box, Button, Text, VStack, Code, Alert, AlertIcon, Skeleton } from '@chakra-ui/react';
+import { Box, Button, Text, VStack, Code, Alert, AlertIcon } from '@chakra-ui/react';
 import useClient from '../hooks/useClient';
 import ClientLoadingSkeleton from './ui/ClientLoadingSkeleton';
 
@@ -19,15 +19,14 @@ export default function FirebaseTest() {
     setError(null);
 
     try {
-      // Test 1: Check if Firebase is initialized
-      addLogMessage('Test 1: Checking Firebase initialization...');
-      if (!db) {
-        throw new Error('Firestore is not initialized');
+      // Test 1: Get Firestore instance
+      addLogMessage('Test 1: Getting Firestore instance...');
+      const firestoreInstance = await getFirebaseFirestore();
+      if (!firestoreInstance) {
+        throw new Error('Firestore is not initialized or failed to get instance');
       }
-      
-      // Now TypeScript knows db is defined
-      const firestore: Firestore = db;
-      addLogMessage('Firestore is initialized');
+      addLogMessage('Firestore instance obtained successfully.');
+      const firestore: Firestore = firestoreInstance; // Use the obtained instance
 
       // Test 2: Simple write test
       addLogMessage('Test 2: Simple write test...');

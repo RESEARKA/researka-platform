@@ -1,6 +1,6 @@
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { getFirebaseAuth, getFirebaseFirestore } from '../config/firebase';
 
 // Mock user data
 export const mockUsers = [
@@ -50,17 +50,20 @@ export const seedMockUsers = async () => {
   try {
     for (const user of mockUsers) {
       try {
-        // Check if Firebase is initialized
-        if (!auth || !db) {
-          console.error('Firebase not initialized');
-          return;
+        // Get Firebase instances
+        const authInstance = await getFirebaseAuth();
+        const firestoreInstance = await getFirebaseFirestore();
+
+        if (!authInstance || !firestoreInstance) {
+          console.error('Firebase auth or firestore not initialized');
+          return; // Exit if instances are not available
         }
-        
+
         // Create user in Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, user.email, user.password);
-        
+        const userCredential = await createUserWithEmailAndPassword(authInstance, user.email, user.password);
+
         // Create user document in Firestore
-        await setDoc(doc(db, 'users', userCredential.user.uid), {
+        await setDoc(doc(firestoreInstance, 'users', userCredential.user.uid), {
           name: user.name,
           email: user.email,
           role: user.role,
@@ -74,7 +77,7 @@ export const seedMockUsers = async () => {
           profileComplete: true,
           createdAt: new Date().toISOString()
         });
-        
+
         console.log(`Created mock user: ${user.email}`);
       } catch (error: any) {
         // Skip if user already exists

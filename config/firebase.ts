@@ -292,21 +292,30 @@ export const getFirebaseAuth = async (): Promise<Auth | null> => {
  * @returns Firestore | null
  */
 export const getFirebaseFirestore = async (): Promise<Firestore | null> => {
-  if (!isClientSide()) {
-    return null;
-  }
+  if (!isClientSide()) return null;
   
   try {
-    // Check if Firebase is initialized and initialize if not
-    if (!firebaseInstance.isInitialized) {
-      const initialized = await initializeFirebase();
-      
-      if (!initialized) {
-        return null;
-      }
+    // Fast path: if any app exists, just get Firestore immediately
+    if (isFirebaseAppsInitialized()) {
+      const app = getApps()[0];
+      const firestore = getFirestore(app);
+      (firebaseInstance as any)._db = firestore; // cache
+      return firestore;
     }
-    
-    // Get Firestore instance
+
+    // Otherwise initialize quickly
+    const success = await initializeFirebase();
+    if (!success) {
+      logger.error('Firebase failed to initialize', { category: LogCategory.ERROR });
+      return null;
+    }
+
+    if (!firebaseInstance.db) {
+      const app = getApps()[0];
+      const firestore = getFirestore(app);
+      (firebaseInstance as any)._db = firestore;
+    }
+
     return firebaseInstance.db;
   } catch (error) {
     logger.error('Error getting Firestore instance', {
@@ -392,9 +401,7 @@ if (isClientSide()) {
 }
 
 // Export Firebase instances
-// These are null on the server side to prevent SSR issues
 export const app = isClientSide() ? firebaseInstance.app : null;
 export const auth = isClientSide() ? firebaseInstance.auth : null;
-export const db = isClientSide() ? firebaseInstance.db : null;
 export const analytics = isClientSide() ? firebaseInstance.analytics : null;
 export const isInitialized = isClientSide() ? firebaseInstance.isInitialized : false;

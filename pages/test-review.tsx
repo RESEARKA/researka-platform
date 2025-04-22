@@ -24,7 +24,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { submitReview, logUserReviews } from '../services/reviewService';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { getFirebaseFirestore } from '../config/firebase';
 import ArticleReviewers from '../components/ArticleReviewers';
 
 const TestReviewPage: React.FC = () => {
@@ -137,12 +137,14 @@ const TestReviewPage: React.FC = () => {
       setIsLoading(true);
       console.log('TestReview: Fetching user reviews from Firestore');
       
-      if (!db) {
+      // Get Firestore instance
+      const firestore = await getFirebaseFirestore();
+      if (!firestore) {
         throw new Error('Firestore not initialized');
       }
       
       // Get reviews for current user
-      const reviewsRef = collection(db, 'reviews');
+      const reviewsRef = collection(firestore, 'reviews');
       const q = query(
         reviewsRef, 
         where('reviewerId', '==', currentUser.uid),

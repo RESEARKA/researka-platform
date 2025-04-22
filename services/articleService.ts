@@ -1,12 +1,13 @@
-import { db } from '../config/firebase';
+import { getFirebaseFirestore } from '../config/firebase';
 import { 
   collection, 
   addDoc, 
   getDocs, 
   query, 
-  where, 
   orderBy, 
-  Timestamp
+  Timestamp,
+  doc,
+  getDoc
 } from 'firebase/firestore';
 import { createLogger, LogCategory } from '../utils/logger';
 
@@ -58,6 +59,15 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
       category: LogCategory.DATA
     });
     
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
+      logger.error('Article submission failed - Firestore not initialized', {
+        category: LogCategory.DATA,
+      });
+      throw new Error('Firestore not initialized');
+    }
+    
     // Add timestamp and get current user ID from auth
     const { getAuth } = await import('firebase/auth');
     const auth = getAuth();
@@ -68,13 +78,6 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
         category: LogCategory.AUTH
       });
       throw new Error('User not authenticated');
-    }
-    
-    if (!db) {
-      logger.error('Article submission failed - Firestore not initialized', {
-        category: LogCategory.DATA
-      });
-      throw new Error('Firestore not initialized');
     }
     
     // Ensure status is set to pending_review
@@ -100,7 +103,7 @@ export const submitArticle = async (articleData: Omit<Article, 'id' | 'createdAt
     const startTime = performance.now();
     
     // Add to Firestore
-    const docRef = await addDoc(collection(db, articlesCollection), articleWithTimestamp);
+    const docRef = await addDoc(collection(firestore, articlesCollection), articleWithTimestamp);
     
     const duration = performance.now() - startTime;
     
@@ -138,9 +141,11 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       category: LogCategory.DATA
     });
     
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       logger.error('Failed to get articles - Firestore not initialized', {
-        category: LogCategory.DATA
+        category: LogCategory.DATA,
       });
       throw new Error('Firestore not initialized');
     }
@@ -153,7 +158,7 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
       
       // Create query for all articles, ordered by creation date
       const q = query(
-        collection(db, articlesCollection),
+        collection(firestore, articlesCollection),
         orderBy('createdAt', 'desc')
       );
       
@@ -187,7 +192,7 @@ export const getArticlesForReview = async (userId?: string): Promise<Article[]> 
     
     // Create query for all articles, ordered by creation date
     const q = query(
-      collection(db, articlesCollection),
+      collection(firestore, articlesCollection),
       orderBy('createdAt', 'desc')
     );
     
@@ -350,9 +355,11 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
       category: LogCategory.DATA
     });
     
-    if (!db) {
+    // Get Firestore instance
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
       logger.error('Failed to get article - Firestore not initialized', {
-        category: LogCategory.DATA
+        category: LogCategory.DATA,
       });
       throw new Error('Firestore not initialized');
     }
@@ -364,97 +371,36 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
       throw new Error('Article ID is required');
     }
     
-    // Create query for the specific article
-    const q = query(
-      collection(db, articlesCollection),
-      where('__name__', '==', articleId)
-    );
+    const articleRef = doc(firestore, articlesCollection, articleId);
+    const docSnap = await getDoc(articleRef);
     
-    logger.debug('Executing query for specific article', {
+    const duration = performance.now() - performance.now();
+    
+    logger.info(`Article fetch took ${duration.toFixed(2)}ms`, {
+      category: LogCategory.PERFORMANCE,
       context: { articleId },
-      category: LogCategory.DATA
     });
     
-    const startTime = performance.now();
-    
-    // Execute query
-    const querySnapshot = await getDocs(q);
-    
-    const duration = performance.now() - startTime;
-    
-    logger.info('Article query executed', {
-      context: { 
-        found: !querySnapshot.empty,
-        duration: `${duration.toFixed(2)}ms`
-      },
-      category: LogCategory.DATA
-    });
-    
-    if (querySnapshot.empty) {
-      logger.warn('Article not found', {
-        context: { articleId },
-        category: LogCategory.DATA
+    if (docSnap.exists()) {
+      const articleData = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...articleData,
+        date: articleData.date,
+        createdAt: articleData.createdAt,
+      } as Article;
+    } else {
+      logger.warn(`Article not found: ${articleId}`, {
+        category: LogCategory.DATA,
       });
       return null;
     }
-    
-    // Get the first (and only) document
-    const doc = querySnapshot.docs[0];
-    const data = doc.data();
-    
-    logger.debug('Found article', {
-      context: { 
-        id: doc.id, 
-        title: data.title 
-      },
-      category: LogCategory.DATA
-    });
-    
-    // Check if all required fields are present
-    if (!data.title || !data.abstract || !data.category) {
-      logger.warn('Article is missing required fields', {
-        context: { 
-          id: doc.id, 
-          missingFields: [
-            !data.title ? 'title' : null,
-            !data.abstract ? 'abstract' : null,
-            !data.category ? 'category' : null
-          ].filter(Boolean)
-        },
-        category: LogCategory.DATA
-      });
-    }
-    
-    return {
-      id: doc.id,
-      title: data.title,
-      abstract: data.abstract,
-      category: data.category,
-      keywords: data.keywords,
-      author: data.author,
-      authorId: data.authorId,
-      date: data.date,
-      compensation: data.compensation,
-      status: data.status,
-      createdAt: data.createdAt,
-      content: data.content,
-      introduction: data.introduction,
-      methods: data.methods,
-      results: data.results,
-      discussion: data.discussion,
-      references: data.references,
-      funding: data.funding,
-      ethicalApprovals: data.ethicalApprovals,
-      dataAvailability: data.dataAvailability,
-      conflicts: data.conflicts,
-      license: data.license
-    };
   } catch (error) {
-    logger.error('Error getting article by ID', {
+    logger.error(`Error getting article ${articleId}`, {
       context: { error },
-      category: LogCategory.ERROR
+      category: LogCategory.ERROR,
     });
-    throw new Error(`Failed to get article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error('Failed to get article');
   }
 };
 
@@ -463,268 +409,47 @@ export const getArticleById = async (articleId: string): Promise<Article | null>
  */
 export const getAllArticles = async (): Promise<Article[]> => {
   const startTime = performance.now();
-  let queryExecutionTime = 0;
-  let processingTime = 0;
   
   try {
-    logger.info('Fetching all articles', {
-      category: LogCategory.DATA
-    });
-    
-    // Check if we're on the server
-    if (typeof window === 'undefined') {
-      logger.error('getAllArticles called on server side', {
-        category: LogCategory.DATA
-      });
-      return [];
-    }
-    
-    // Import Firebase functions to get Firestore
-    logger.debug('Importing Firebase modules', {
-      category: LogCategory.DATA
-    });
-    const { getFirebaseFirestore, initializeFirebase } = await import('../config/firebase');
+    logger.info('Fetching all articles', { category: LogCategory.DATA });
     
     // Get Firestore instance
-    logger.debug('Getting Firestore instance', {
-      category: LogCategory.DATA
-    });
-    const db = getFirebaseFirestore();
-    if (!db) {
-      logger.error('Firestore not initialized', {
-        category: LogCategory.DATA
+    const firestore = await getFirebaseFirestore();
+    if (!firestore) {
+      logger.error('Failed to get articles - Firestore not initialized', {
+        category: LogCategory.DATA,
       });
-      
-      // Try to initialize Firebase again
-      logger.debug('Attempting to initialize Firebase', {
-        category: LogCategory.DATA
-      });
-      const initialized = await initializeFirebase();
-      
-      if (!initialized) {
-        logger.error('Failed to initialize Firebase after retry', {
-          category: LogCategory.DATA
-        });
-        throw new Error('Firestore not initialized');
-      }
-      
-      // Get Firestore instance again after initialization
-      const dbRetry = getFirebaseFirestore();
-      if (!dbRetry) {
-        logger.error('Firestore still not initialized after retry', {
-          category: LogCategory.DATA
-        });
-        throw new Error('Firestore not initialized after retry');
-      }
-      
-      // Verify authentication before querying in retry
-      const { getAuth } = await import('firebase/auth');
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      
-      if (!currentUser) {
-        logger.warn('No authenticated user found when querying articles (retry)', {
-          category: LogCategory.AUTH
-        });
-        return [];
-      }
-      
-      // Create query for all articles, ordered by creation date
-      logger.debug('Creating Firestore query after retry', {
-        category: LogCategory.DATA
-      });
-      const q = query(
-        collection(dbRetry, articlesCollection),
-        orderBy('createdAt', 'desc')
-      );
-      
-      logger.debug('Executing query after retry...', {
-        category: LogCategory.DATA
-      });
-      
-      // Execute query with timing
-      const queryStartTime = performance.now();
-      try {
-        const querySnapshot = await getDocs(q);
-        queryExecutionTime = performance.now() - queryStartTime;
-        
-        logger.info('Query executed after retry', {
-          context: { 
-            count: querySnapshot.size,
-            duration: `${queryExecutionTime.toFixed(2)}ms`
-          },
-          category: LogCategory.DATA
-        });
-        
-        // Process results with timing
-        const processingStartTime = performance.now();
-        let results = processQueryResults(querySnapshot);
-        processingTime = performance.now() - processingStartTime;
-        
-        logger.info('Results processed', {
-          context: { 
-            count: results.length,
-            duration: `${processingTime.toFixed(2)}ms`
-          },
-          category: LogCategory.DATA
-        });
-        
-        // TEMPORARILY DISABLE FILTERING FOR DIAGNOSTICS
-        // Return all articles to identify what's being filtered out
-        logger.info('DIAGNOSTICS: Temporarily disabling review count filtering', {
-          context: { articleCount: results.length },
-          category: LogCategory.DATA
-        });
-        
-        return results; // Return all articles for diagnostics
-      } catch (queryError) {
-        // Check for permission errors specifically
-        const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
-        
-        if (errorMessage.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
-          logger.error('Firestore permission error', {
-            context: { 
-              collection: articlesCollection,
-              error: errorMessage
-            },
-            category: LogCategory.DATA
-          });
-          
-          // Log the security rule issue with more details
-          logger.error(`
-            Potential Firestore Security Rule Issue:
-            --------------------------------------
-            Collection: ${articlesCollection}
-            Operation: read (getDocs)
-            Error: ${errorMessage}
-            
-            Possible solutions:
-            1. Check if your Firestore security rules allow reading the '${articlesCollection}' collection
-            2. Verify that you're properly authenticated if authentication is required
-            3. Ensure the collection exists and is spelled correctly
-          `, {
-            category: LogCategory.DATA
-          });
-        }
-        
-        throw queryError;
-      }
+      throw new Error('Firestore not initialized');
     }
     
-    // Verify authentication before querying
-    const { getAuth } = await import('firebase/auth');
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+    const q = query(collection(firestore, articlesCollection), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
     
-    if (!currentUser) {
-      logger.warn('No authenticated user found when querying articles', {
-        category: LogCategory.AUTH
-      });
-      return [];
-    }
+    const processingStartTime = performance.now();
+    const articles = processQueryResults(querySnapshot);
+    const processingDuration = performance.now() - processingStartTime;
+    const totalDuration = performance.now() - startTime;
     
-    // Create query for all articles, ordered by creation date
-    logger.debug('Creating Firestore query', {
-      category: LogCategory.DATA
-    });
-    const q = query(
-      collection(db, articlesCollection),
-      orderBy('createdAt', 'desc')
-    );
-    
-    logger.debug('Executing query...', {
-      category: LogCategory.DATA
-    });
-    
-    // Execute query with timing
-    const queryStartTime = performance.now();
-    try {
-      const querySnapshot = await getDocs(q);
-      queryExecutionTime = performance.now() - queryStartTime;
-      
-      logger.info('Query executed', {
-        context: { 
-          count: querySnapshot.size,
-          duration: `${queryExecutionTime.toFixed(2)}ms`
-        },
-        category: LogCategory.DATA
-      });
-      
-      // Process results with timing
-      const processingStartTime = performance.now();
-      let results = processQueryResults(querySnapshot);
-      processingTime = performance.now() - processingStartTime;
-      
-      logger.info('Results processed', {
-        context: { 
-          count: results.length,
-          duration: `${processingTime.toFixed(2)}ms`
-        },
-        category: LogCategory.DATA
-      });
-      
-      // TEMPORARILY DISABLE FILTERING FOR DIAGNOSTICS
-      // Return all articles to identify what's being filtered out
-      logger.info('DIAGNOSTICS: Temporarily disabling review count filtering', {
-        context: { articleCount: results.length },
-        category: LogCategory.DATA
-      });
-      
-      return results; // Return all articles for diagnostics
-    } catch (queryError) {
-      // Check for permission errors specifically
-      const errorMessage = queryError instanceof Error ? queryError.message : String(queryError);
-      
-      if (errorMessage.includes('permission-denied') || errorMessage.includes('Missing or insufficient permissions')) {
-        logger.error('Firestore permission error', {
-          context: { 
-            collection: articlesCollection,
-            error: errorMessage
-          },
-          category: LogCategory.DATA
-        });
-        
-        // Log the security rule issue with more details
-        logger.error(`
-          Potential Firestore Security Rule Issue:
-          --------------------------------------
-          Collection: ${articlesCollection}
-          Operation: read (getDocs)
-          Error: ${errorMessage}
-          
-          Possible solutions:
-          1. Check if your Firestore security rules allow reading the '${articlesCollection}' collection
-          2. Verify that you're properly authenticated if authentication is required
-          3. Ensure the collection exists and is spelled correctly
-        `, {
-          category: LogCategory.DATA
-        });
-      }
-      
-      throw queryError;
-    }
-    
-  } catch (error) {
-    const totalTime = performance.now() - startTime;
-    logger.error('Error getting all articles', {
-      context: { 
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : 'No stack trace',
-        totalTime: `${totalTime.toFixed(2)}ms`,
-        queryTime: `${queryExecutionTime.toFixed(2)}ms`,
-        processingTime: `${processingTime.toFixed(2)}ms`
+    logger.info(`Fetched ${articles.length} articles successfully`, {
+      category: LogCategory.DATA,
+      context: {
+        totalTime: `${totalDuration.toFixed(2)}ms`,
+        queryTime: `${(processingStartTime - startTime).toFixed(2)}ms`,
+        processingTime: `${processingDuration.toFixed(2)}ms`,
       },
-      category: LogCategory.ERROR
     });
     
-    // In development, throw the error instead of returning mock data
-    logger.debug('Error occurred in development mode', {
-      category: LogCategory.DATA
+    return articles;
+  } catch (error) {
+    const totalDuration = performance.now() - startTime;
+    logger.error('Error getting all articles', {
+      category: LogCategory.ERROR,
+      context: {
+        error,
+        totalTime: `${totalDuration.toFixed(2)}ms`,
+      },
     });
-    
-    throw new Error(error instanceof Error ? 
-      `Failed to get articles: ${error.message}` : 
-      'Failed to get articles');
+    throw new Error('Failed to get articles');
   }
 };
 
