@@ -3,7 +3,6 @@ import {
   Box,
   VStack,
   Heading,
-  Text,
   useColorModeValue,
 } from '@chakra-ui/react';
 import ArticleReviewStatus from '../../ArticleReviewStatus';
@@ -15,6 +14,7 @@ import { ArticleCitation } from '../ArticleCitation';
 import SocialShareButtons from '../SocialShareButtons';
 import FlagArticleButton from '../../moderation/FlagArticleButton';
 import { Article } from '../../../utils/recommendationEngine';
+import { articleToCitation } from '../../../utils/citationHelper';
 
 interface ArticleSidebarProps {
   article: Article | null;
@@ -60,6 +60,15 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
     return null;
   }
 
+  // Format share counts for SocialShareMetrics component
+  const formattedShareCounts = {
+    total: Object.values(metrics.shareCount).reduce((a, b) => a + b, 0),
+    ...metrics.shareCount
+  };
+
+  // Generate citation data for ArticleCitation component
+  const citationData = article ? articleToCitation(article) : null;
+
   return (
     <VStack spacing={6} align="stretch">
       {/* Review Status */}
@@ -76,7 +85,6 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
         </Heading>
         <ArticleReviewStatus 
           article={article} 
-          showDetailedStatus 
         />
       </Box>
 
@@ -95,7 +103,7 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
         <VStack spacing={4} align="stretch">
           <ReadCountDisplay count={metrics.readCount} />
           <CitationBadge count={metrics.citationCount} />
-          <SocialShareMetrics metrics={metrics.shareCount} />
+          <SocialShareMetrics shares={formattedShareCounts} />
         </VStack>
       </Box>
 
@@ -111,7 +119,7 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
         <Heading as="h3" size="md" mb={4}>
           Citation
         </Heading>
-        <ArticleCitation article={article} />
+        {citationData && <ArticleCitation citation={citationData} />}
       </Box>
 
       {/* Share */}
@@ -137,8 +145,6 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
       <Box mt={2}>
         <FlagArticleButton 
           articleId={article.id || ''} 
-          size="sm" 
-          width="100%"
         />
       </Box>
 
@@ -156,7 +162,10 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
           <Heading as="h3" size="md" mb={4}>
             Reviewers
           </Heading>
-          <ArticleReviewers reviews={reviews} />
+          <ArticleReviewers 
+            articleId={article.id || ''}
+            reviews={reviews} 
+          />
         </Box>
       )}
     </VStack>
