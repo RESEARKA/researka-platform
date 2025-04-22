@@ -148,7 +148,8 @@ export async function trackUserActivity(
       return { success: false, error: 'Invalid activity type' };
     }
     
-    const db = getFirebaseFirestore();
+    // Get Firestore instance asynchronously
+    const db = await getFirebaseFirestore();
     if (!db) {
       return { success: false, error: 'Firestore not initialized' };
     }

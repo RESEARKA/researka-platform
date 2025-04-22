@@ -1,6 +1,6 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { getFirebaseFirestore } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 // Types
@@ -39,6 +39,12 @@ const fetchArticles = async (
   }
 
   try {
+    // Get Firestore instance
+    const db = await getFirebaseFirestore();
+    if (!db) {
+      throw new Error('Firestore not initialized');
+    }
+
     // Create a reference to the articles collection
     const articlesRef = collection(db, 'articles');
     

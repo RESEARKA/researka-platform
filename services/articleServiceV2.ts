@@ -141,6 +141,15 @@ export async function getAllArticles(): Promise<Article[]> {
       throw new Error('Firebase not initialized');
     }
     
+    logger.info('Firestore instance diagnostics', {
+      category: LogCategory.DATA,
+      context: {
+        typeofDb: typeof db,
+        constructorName: (db as any)?.constructor?.name,
+        hasFirestoreMethod: typeof (db as any).collection === 'function'
+      }
+    });
+    
     // Create query for ALL articles without status filtering
     // (simplest possible solution to verify data is accessible)
     const q = query(
@@ -224,6 +233,15 @@ export async function getArticleById(articleId: string): Promise<Article | null>
       });
       throw new Error('Firebase not initialized');
     }
+    
+    logger.info('Firestore instance diagnostics', {
+      category: LogCategory.DATA,
+      context: {
+        typeofDb: typeof db,
+        constructorName: (db as any)?.constructor?.name,
+        hasFirestoreMethod: typeof (db as any).collection === 'function'
+      }
+    });
     
     // Log the attempt to get article
     console.log(`Attempting to get article with ID: ${articleId}`);
@@ -322,6 +340,15 @@ export async function getArticlesForReview(): Promise<Article[]> {
       });
       throw new Error('Firebase not initialized');
     }
+    
+    logger.info('Firestore instance diagnostics', {
+      category: LogCategory.DATA,
+      context: {
+        typeofDb: typeof db,
+        constructorName: (db as any)?.constructor?.name,
+        hasFirestoreMethod: typeof (db as any).collection === 'function'
+      }
+    });
     
     const userId = currentUser.uid;
     
@@ -449,6 +476,15 @@ export async function getUserArticles(): Promise<Article[]> {
       });
       throw new Error('Firebase not initialized');
     }
+    
+    logger.info('Firestore instance diagnostics', {
+      category: LogCategory.DATA,
+      context: {
+        typeofDb: typeof db,
+        constructorName: (db as any)?.constructor?.name,
+        hasFirestoreMethod: typeof (db as any).collection === 'function'
+      }
+    });
     
     const userId = currentUser.uid;
     
