@@ -70,7 +70,7 @@ export async function submitArticle(articleData: Omit<Article, 'id' | 'createdAt
       throw new Error('User not authenticated');
     }
 
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -133,7 +133,7 @@ export async function getAllArticles(): Promise<Article[]> {
       category: LogCategory.DATA
     });
     
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -217,7 +217,7 @@ export async function getArticleById(articleId: string): Promise<Article | null>
       category: LogCategory.DATA
     });
     
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -315,7 +315,7 @@ export async function getArticlesForReview(): Promise<Article[]> {
       throw new Error('User not authenticated');
     }
 
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
@@ -442,7 +442,7 @@ export async function getUserArticles(): Promise<Article[]> {
       throw new Error('User not authenticated');
     }
 
-    const db = getFirebaseFirestore();
+    const db = await getFirebaseFirestore();
     if (!db) {
       logger.error('Firebase not initialized', {
         category: LogCategory.ERROR
