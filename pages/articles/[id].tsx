@@ -19,6 +19,7 @@ import { createLogger, LogCategory } from '../../utils/logger';
 import { useArticleMetrics } from '../../hooks/useArticleMetrics';
 import { ArticleHeader, ArticleContent, ArticleSidebar } from '../../components/article/detail';
 import FirebaseClientOnly from '../../components/firebase/FirebaseClientOnly';
+import { SharePlatform } from '../../components/article/SocialShareButtons';
 
 const logger = createLogger('article-detail');
 
@@ -205,7 +206,7 @@ const ArticleDetailPage: React.FC = () => {
     fetchArticle();
   }, [articleId, toast]);
 
-  const handleShare = (platform: "twitter" | "facebook" | "linkedin" | "email") => {
+  const handleShare = (platform: SharePlatform) => {
     recordShare(platform);
   };
 
@@ -248,6 +249,7 @@ const ArticleDetailPage: React.FC = () => {
                     }}
                     recordShare={handleShare}
                     isLoading={isLoading}
+                    authors={authors}
                   />
                 </GridItem>
               </Grid>
