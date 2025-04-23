@@ -16,6 +16,9 @@ const FIRESTORE_EMULATOR_HOST = process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULA
 // Helper function to check if code is running on client side
 export const isClientSide = () => typeof window !== 'undefined';
 
+// Export getApps for use in checking initialization status
+export { getApps };
+
 // Your web app's Firebase configuration
 export const firebaseConfig = {
   apiKey: "AIzaSyBm1xnqw87ho4mXEEMVVvqNKismySpQOsU",

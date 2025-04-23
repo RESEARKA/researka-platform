@@ -5,9 +5,7 @@ import {
   Grid,
   GridItem,
   Box,
-  Button,
   Text,
-  Heading,
   useToast,
 } from '@chakra-ui/react';
 import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
@@ -20,6 +18,7 @@ import { useArticleViewTracking } from '../../hooks/useActivityTracking';
 import { createLogger, LogCategory } from '../../utils/logger';
 import { useArticleMetrics } from '../../hooks/useArticleMetrics';
 import { ArticleHeader, ArticleContent, ArticleSidebar } from '../../components/article/detail';
+import FirebaseClientOnly from '../../components/firebase/FirebaseClientOnly';
 
 const logger = createLogger('article-detail');
 
@@ -35,7 +34,6 @@ const ArticleDetailPage: React.FC = () => {
   const [article, setArticle] = useState<Article | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [allFields, setAllFields] = useState<Record<string, string>>({});
   const [authors, setAuthors] = useState<AuthorInfo[]>([]);
   const toast = useToast();
   const { metrics, recordShare } = useArticleMetrics(articleId);
@@ -73,7 +71,6 @@ const ArticleDetailPage: React.FC = () => {
           acc[field.id] = field.name;
           return acc;
         }, {});
-        setAllFields(fieldMap);
         
         // Fetch article data from Firestore
         const db = await getFirebaseFirestore();
@@ -215,41 +212,48 @@ const ArticleDetailPage: React.FC = () => {
   return (
     <Layout title={article?.title || 'Article'} activePage="articles">
       <Container maxW="container.xl" py={8}>
-        <Grid templateColumns={{ base: '1fr', md: '3fr 1fr' }} gap={8}>
-          <Box>
-            <ArticleHeader 
-              article={article} 
-              isLoading={isLoading}
-              authors={authors}
-            />
-            
-            <Grid 
-              templateColumns={{ base: '1fr', lg: '2fr 1fr' }} 
-              gap={8}
-            >
-              <GridItem>
-                <ArticleContent 
-                  article={article} 
-                  isLoading={isLoading} 
-                />
-              </GridItem>
-              
-              <GridItem colSpan={{ base: 1, md: 1 }}>
-                <ArticleSidebar 
-                  article={article} 
-                  reviews={reviews}
-                  metrics={{
-                    readCount: metrics?.readCount || 0,
-                    citationCount: metrics?.citationCount || 0,
-                    shareCount: metrics?.shareCount || {},
-                  }}
-                  recordShare={handleShare}
-                  isLoading={isLoading}
-                />
-              </GridItem>
-            </Grid>
-          </Box>
-        </Grid>
+        <FirebaseClientOnly
+          fallback={
+            <Box p={6} borderRadius="md" boxShadow="sm">
+              <Text>Loading article content...</Text>
+            </Box>
+          }
+        >
+          <Grid templateColumns={{ base: '1fr', md: '3fr 1fr' }} gap={8}>
+            <Box>
+              <ArticleHeader 
+                article={article} 
+                isLoading={isLoading}
+                authors={authors}
+              />
+              <Grid 
+                templateColumns={{ base: '1fr', md: '4fr 1fr' }} 
+                gap={6}
+                mt={8}
+              >
+                <GridItem colSpan={{ base: 1, md: 1 }}>
+                  <ArticleContent 
+                    article={article} 
+                    isLoading={isLoading} 
+                  />
+                </GridItem>
+                <GridItem colSpan={{ base: 1, md: 1 }}>
+                  <ArticleSidebar 
+                    article={article} 
+                    reviews={reviews}
+                    metrics={{
+                      readCount: metrics?.viewCount || 0,
+                      citationCount: metrics?.citationCount || 0,
+                      shareCount: metrics?.shareCount || {},
+                    }}
+                    recordShare={handleShare}
+                    isLoading={isLoading}
+                  />
+                </GridItem>
+              </Grid>
+            </Box>
+          </Grid>
+        </FirebaseClientOnly>
       </Container>
     </Layout>
   );

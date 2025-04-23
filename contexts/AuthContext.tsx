@@ -11,7 +11,7 @@ import {
   Auth
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Firestore } from 'firebase/firestore';
-import { getFirebaseAuth, getFirebaseFirestore, isClientSide } from '../config/firebase';
+import { getFirebaseAuth, getFirebaseFirestore, isClientSide, getApps } from '../config/firebase';
 import { createLogger, LogCategory } from '../utils/logger';
 import { handleError } from '../utils/errorHandling';
 
@@ -61,7 +61,7 @@ export function useAuth() {
 // Provider component that wraps app and makes auth object available
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authIsInitialized, setAuthIsInitialized] = useState(!isClientSide() || false);
+  const [authIsInitialized, setAuthIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Used throughout loading operations
   const [auth, setAuth] = useState<Auth | null>(null);
   const [db, setDb] = useState<Firestore | null>(null);
@@ -513,6 +513,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initializeFirebase = async () => {
       try {
+        // Avoid double initialization, especially important during development
+        if (isClientSide() && getApps().length) {
+          logger.info('Firebase already initialized, skipping', {
+            category: LogCategory.SYSTEM
+          });
+          
+          // Still need to set state if Firebase is already initialized
+          const authInstance = await getFirebaseAuth();
+          const dbInstance = await getFirebaseFirestore();
+          
+          setAuth(authInstance);
+          setDb(dbInstance);
+          
+          if (authInstance) {
+            // Set up auth state listener for already initialized Firebase
+            const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+              setCurrentUser(user);
+              setAuthIsInitialized(true);
+            });
+            
+            return () => unsubscribe();
+          } else {
+            setAuthIsInitialized(true);
+            return undefined;
+          }
+        }
+        
         // Initialize Firebase Auth and Firestore asynchronously
         const authInstance = await getFirebaseAuth();
         const dbInstance = await getFirebaseFirestore();
