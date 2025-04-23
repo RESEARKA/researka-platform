@@ -21,6 +21,7 @@ export interface AuthorInfo {
   orcid?: string;
   email?: string;
   affiliation?: string;
+  institution?: string;
   isCorresponding?: boolean;
   userId?: string;
 }
@@ -63,23 +64,31 @@ export function parseAuthorName(authorName: string): { given: string; family: st
  * @returns Author object
  */
 export function convertToAuthor(authorInfo: AuthorInfo): Author {
-  try {
-    const { name, orcid } = authorInfo;
-    const { given, family } = parseAuthorName(name || '');
-    
-    return {
-      given,
-      family,
-      orcid: orcid ? orcid.replace(/^https?:\/\/orcid\.org\//i, '') : undefined
-    };
-  } catch (error) {
-    logger.error('Error converting author info', {
-      context: { authorInfo, error },
-      category: LogCategory.ERROR
-    });
-    // Return a safe default
-    return { given: '', family: authorInfo.name || 'Unknown' };
+  // Check if name looks like a wallet address
+  const isWalletAddress = (str?: string) => {
+    if (!str) return false;
+    return /^[a-zA-Z0-9]{30,}$/.test(str) && !str.includes(' ');
+  };
+
+  // Prefer displayName, fall back to name, and avoid wallet addresses
+  let displayName = authorInfo.displayName || authorInfo.name;
+  if (!displayName || isWalletAddress(displayName)) {
+    displayName = 'Anonymous Author';
   }
+
+  // Split the name into given and family parts
+  const nameParts = displayName.split(' ');
+  const given = nameParts.length > 1 ? nameParts[0] : '';
+  const family = nameParts.length > 1 ? nameParts.slice(1).join(' ') : displayName;
+
+  return {
+    given,
+    family,
+    orcid: authorInfo.orcid,
+    id: authorInfo.userId || 'anonymous',
+    displayName,
+    affiliation: authorInfo.affiliation || authorInfo.institution
+  };
 }
 
 /**

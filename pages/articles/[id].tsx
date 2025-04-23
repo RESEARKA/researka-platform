@@ -96,14 +96,69 @@ const ArticleDetailPage: React.FC = () => {
           
           setArticle(fetchedArticle);
           
-          // Format author info for citation
-          if (fetchedArticle.authors) {
-            const authorInfo: AuthorInfo[] = fetchedArticle.authors.map((author) => ({
-              name: author.name || 'Unknown Author',
-              affiliations: author.affiliations || [],
-            }));
-            setAuthors(authorInfo);
+          // Fetch the main author data
+          let authorInfos: AuthorInfo[] = [];
+          
+          try {
+            // Fetch main author
+            const authorDoc = await getDoc(doc(db, 'users', fetchedArticle.authorId));
+            if (authorDoc.exists()) {
+              const authorData = authorDoc.data();
+              
+              // Add main author
+              authorInfos.push({
+                name: authorData.name,
+                displayName: authorData.displayName,
+                orcid: authorData.orcid,
+                email: authorData.email,
+                affiliation: authorData.affiliation || authorData.institution || authorData.university,
+                isCorresponding: true,
+                userId: fetchedArticle.authorId
+              });
+              
+              // Fetch co-authors if any
+              if (fetchedArticle.coAuthors && fetchedArticle.coAuthors.length > 0) {
+                for (const coAuthorId of fetchedArticle.coAuthors) {
+                  try {
+                    const coAuthorDoc = await getDoc(doc(db, 'users', coAuthorId));
+                    if (coAuthorDoc.exists()) {
+                      const coAuthorData = coAuthorDoc.data();
+                      authorInfos.push({
+                        name: coAuthorData.name,
+                        displayName: coAuthorData.displayName,
+                        orcid: coAuthorData.orcid,
+                        email: coAuthorData.email,
+                        affiliation: coAuthorData.affiliation || coAuthorData.institution || coAuthorData.university,
+                        userId: coAuthorId
+                      });
+                    }
+                  } catch (error) {
+                    logger.warn(`Failed to fetch co-author: ${coAuthorId}`, {
+                      context: { coAuthorId, error },
+                      category: LogCategory.ERROR
+                    });
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            logger.warn('Failed to fetch author information', {
+              context: { articleId, error },
+              category: LogCategory.ERROR
+            });
           }
+          
+          // If no author information was found, create a placeholder
+          if (authorInfos.length === 0) {
+            authorInfos = [{ 
+              name: 'Anonymous Author',
+              displayName: 'Anonymous Author',
+              userId: fetchedArticle.authorId
+            }];
+          }
+          
+          // Set authors state
+          setAuthors(authorInfos);
           
           // Fetch reviews for this article
           const reviewsQuery = query(
@@ -153,14 +208,19 @@ const ArticleDetailPage: React.FC = () => {
     fetchArticle();
   }, [articleId, toast]);
 
+  const handleShare = (platform: "twitter" | "facebook" | "linkedin" | "email") => {
+    recordShare(platform);
+  };
+
   return (
     <Layout title={article?.title || 'Article'} activePage="articles">
-      <Container maxW="container.xl" mt={8} px={{ base: 4, md: 8 }}>
-        {article || isLoading ? (
+      <Container maxW="container.xl" py={8}>
+        <Grid templateColumns={{ base: '1fr', md: '3fr 1fr' }} gap={8}>
           <Box>
             <ArticleHeader 
               article={article} 
-              isLoading={isLoading} 
+              isLoading={isLoading}
+              authors={authors}
             />
             
             <Grid 
@@ -174,33 +234,22 @@ const ArticleDetailPage: React.FC = () => {
                 />
               </GridItem>
               
-              <GridItem>
+              <GridItem colSpan={{ base: 1, md: 1 }}>
                 <ArticleSidebar 
                   article={article} 
-                  reviews={reviews} 
-                  metrics={metrics}
-                  recordShare={recordShare}
-                  isLoading={isLoading} 
+                  reviews={reviews}
+                  metrics={{
+                    readCount: metrics?.readCount || 0,
+                    citationCount: metrics?.citationCount || 0,
+                    shareCount: metrics?.shareCount || {},
+                  }}
+                  recordShare={handleShare}
+                  isLoading={isLoading}
                 />
               </GridItem>
             </Grid>
           </Box>
-        ) : (
-          <Box textAlign="center" py={10}>
-            <Heading as="h2" size="lg" mb={4}>
-              Article Not Found
-            </Heading>
-            <Text mb={6}>
-              The article you are looking for does not exist or has been removed.
-            </Text>
-            <Button 
-              colorScheme="blue" 
-              onClick={() => router.push('/articles')}
-            >
-              Back to Articles
-            </Button>
-          </Box>
-        )}
+        </Grid>
       </Container>
     </Layout>
   );

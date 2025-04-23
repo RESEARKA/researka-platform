@@ -16,7 +16,6 @@ import {
 } from '@chakra-ui/react';
 import { Citation } from '../editor/types/citation';
 import { CitationExport } from '../editor/CitationExport';
-import { AuthorsList } from '../editor/AuthorsList';
 
 interface ArticleCitationProps {
   citation: Citation;
@@ -51,7 +50,25 @@ export const ArticleCitation: React.FC<ArticleCitationProps> = ({ citation }) =>
         
         <Box>
           <Text fontWeight="bold" mb={2}>Authors:</Text>
-          <AuthorsList authors={citation.authors} showHeading={false} />
+          <VStack align="start" spacing={2}>
+            {citation.authors.map((author, index) => (
+              <Box key={`author-citation-${index}`}>
+                <Text>
+                  {author.given} {author.family}
+                  {author.affiliation && (
+                    <Text as="span" fontSize="sm" color="gray.600" ml={1}>
+                      ({author.affiliation})
+                    </Text>
+                  )}
+                  {author.orcid && (
+                    <Text as="span" fontSize="sm" color="blue.500" ml={1}>
+                      (ORCID: {author.orcid})
+                    </Text>
+                  )}
+                </Text>
+              </Box>
+            ))}
+          </VStack>
         </Box>
         
         <Box>

@@ -12,13 +12,15 @@ import {
 } from '@chakra-ui/react';
 import { FiArrowLeft, FiCalendar, FiDownload, FiFileText } from 'react-icons/fi';
 import { useRouter } from 'next/router';
-import { ArticleAuthors } from '../ArticleAuthors';
 import { downloadArticlePdf } from '../../../utils/pdfGenerator';
 import { Article } from '../../../utils/recommendationEngine';
+import { AuthorDisplay } from '../AuthorDisplay';
+import { AuthorInfo } from '../../../utils/citationHelper';
 
 interface ArticleHeaderProps {
   article: Article | null;
   isLoading: boolean;
+  authors?: AuthorInfo[];
 }
 
 /**
@@ -27,7 +29,8 @@ interface ArticleHeaderProps {
  */
 const ArticleHeader: React.FC<ArticleHeaderProps> = ({ 
   article,
-  isLoading 
+  isLoading,
+  authors = []
 }) => {
   const router = useRouter();
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -48,6 +51,14 @@ const ArticleHeader: React.FC<ArticleHeaderProps> = ({
     }
   };
 
+  // Get the publication date from the article
+  const getPublicationDate = () => {
+    if (article?.publishedDate) {
+      return formatPublicationDate(article.publishedDate);
+    }
+    return 'Publication date unavailable';
+  };
+
   return (
     <Box mb={6}>
       {/* Back button */}
@@ -66,11 +77,25 @@ const ArticleHeader: React.FC<ArticleHeaderProps> = ({
         {article?.title || (isLoading ? 'Loading...' : 'Article Not Found')}
       </Heading>
       
-      {article && article.authors && (
-        <Box mb={4}>
-          <ArticleAuthors authors={article.authors} />
-        </Box>
-      )}
+      <Box mb={4}>
+        {authors && authors.length > 0 ? (
+          <Flex direction="column">
+            {authors.map((author, index) => (
+              <Box key={`author-${index}`} mb={2}>
+                <AuthorDisplay
+                  authorId={author.userId || `author-${index}`}
+                  displayName={author.displayName}
+                  name={author.name}
+                  affiliation={author.affiliation}
+                  orcid={author.orcid}
+                />
+              </Box>
+            ))}
+          </Flex>
+        ) : (
+          <Text color="gray.500" mb={4}>No author information available</Text>
+        )}
+      </Box>
       
       {/* Publication date and categories */}
       <Flex 
@@ -82,32 +107,38 @@ const ArticleHeader: React.FC<ArticleHeaderProps> = ({
         borderBottom="1px solid"
         borderColor={borderColor}
       >
-        <HStack spacing={4} mb={{ base: 3, md: 0 }} wrap="wrap">
-          {article?.publicationDate && (
-            <HStack>
-              <Icon as={FiCalendar} />
-              <Text fontSize="sm">
-                {formatPublicationDate(article.publicationDate)}
-              </Text>
-            </HStack>
-          )}
+        <HStack spacing={6} wrap="wrap">
+          {/* Publication date */}
+          <HStack spacing={2} align="center">
+            <Icon as={FiCalendar} color="blue.500" />
+            <Text>{getPublicationDate()}</Text>
+          </HStack>
           
-          {article?.pdfUrl && (
+          {/* PDF Download button */}
+          {article && (
             <Button
-              size="sm"
               leftIcon={<Icon as={FiDownload} />}
+              size="sm"
               variant="outline"
+              colorScheme="blue"
               onClick={() => article && downloadArticlePdf(article)}
             >
               Download PDF
             </Button>
           )}
           
-          {article?.doi && (
-            <HStack>
-              <Icon as={FiFileText} />
-              <Text fontSize="sm">DOI: {article.doi}</Text>
-            </HStack>
+          {/* DOI link */}
+          {false && (
+            <Button
+              as="a"
+              href="#"
+              target="_blank"
+              leftIcon={<Icon as={FiFileText} />}
+              size="sm"
+              variant="outline"
+            >
+              View DOI
+            </Button>
           )}
         </HStack>
         

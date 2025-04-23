@@ -24,7 +24,7 @@ interface ArticleSidebarProps {
     citationCount: number;
     shareCount: Record<string, number>;
   };
-  recordShare: (platform: string) => void;
+  recordShare: (platform: "twitter" | "facebook" | "linkedin" | "email") => void;
   isLoading: boolean;
 }
 

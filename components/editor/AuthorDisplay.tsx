@@ -18,13 +18,21 @@ export const AuthorDisplay: React.FC<AuthorDisplayProps> = ({
 }) => {
   const authorName = `${author.given} ${author.family}`;
   
-  if (!author.orcid) {
-    return (
-      <HStack spacing={1}>
-        <Text>{authorName}</Text>
+  // Create the full display with affiliation if available
+  const displayContent = (
+    <HStack spacing={1} alignItems="center">
+      <Text>{authorName}</Text>
+      {author.affiliation && (
+        <Text fontSize="sm" color="gray.600" ml={1}>({author.affiliation})</Text>
+      )}
+      {!author.orcid && (
         <Text fontSize="sm" color="gray.500">(ORCID ID: Pending)</Text>
-      </HStack>
-    );
+      )}
+    </HStack>
+  );
+  
+  if (!author.orcid) {
+    return displayContent;
   }
   
   const authorLink = (
@@ -48,20 +56,31 @@ export const AuthorDisplay: React.FC<AuthorDisplayProps> = ({
     </Link>
   );
   
-  // If tooltip is disabled, just return the link
+  // If tooltip is disabled, just return the link with affiliation
   if (!showTooltip) {
-    return authorLink;
+    return (
+      <HStack spacing={1} alignItems="center">
+        {authorLink}
+        {author.affiliation && (
+          <Text fontSize="sm" color="gray.600" ml={1}>({author.affiliation})</Text>
+        )}
+      </HStack>
+    );
   }
   
-  // Otherwise wrap in a tooltip
+  // Otherwise show with tooltip
   return (
     <Tooltip 
-      label={`ORCID: ${author.orcid}`}
-      hasArrow
-      openDelay={300}
+      label={`View ${authorName}'s ORCID profile`}
       placement="top"
+      hasArrow
     >
-      {authorLink}
+      <HStack spacing={1} alignItems="center">
+        {authorLink}
+        {author.affiliation && (
+          <Text fontSize="sm" color="gray.600" ml={1}>({author.affiliation})</Text>
+        )}
+      </HStack>
     </Tooltip>
   );
 };

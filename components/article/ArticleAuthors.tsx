@@ -62,19 +62,39 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
         </Heading>
         
         <VStack spacing={4} align="stretch">
-          <Box pb={3} borderColor="gray.200">
-            <Flex direction="column" justify="flex-start" align="flex-start">
-              <Text fontSize="md" fontWeight="medium" mb={1}>
-                Dom Lynh
-              </Text>
-              <Text fontSize="sm" color="gray.600" mb={1}>
-                Harvard University
-              </Text>
-              <Text fontSize="sm" color="gray.500">
-                (ORCID ID: Pending)
-              </Text>
-            </Flex>
-          </Box>
+          {authors.map((author, index) => (
+            <Box key={`author-${index}`} pb={3} borderColor="gray.200" borderBottomWidth={index < authors.length - 1 ? "1px" : 0} mb={3}>
+              <Flex direction="column" justify="flex-start" align="flex-start">
+                <Text fontSize="md" fontWeight="medium" mb={1}>
+                  {author.given} {author.family}
+                </Text>
+                {author.affiliation && (
+                  <Text fontSize="sm" color="gray.600" mb={1}>
+                    {author.affiliation}
+                  </Text>
+                )}
+                {!author.orcid ? (
+                  <Text fontSize="sm" color="gray.500">
+                    (ORCID ID: Pending)
+                  </Text>
+                ) : (
+                  <HStack spacing={1}>
+                    <Link 
+                      href={`https://orcid.org/${author.orcid}`} 
+                      isExternal
+                      fontSize="sm" 
+                      color="blue.500"
+                      display="inline-flex"
+                      alignItems="center"
+                    >
+                      ORCID Profile
+                      <OrcidIcon boxSize={4} ml={1} color="#A6CE39" />
+                    </Link>
+                  </HStack>
+                )}
+              </Flex>
+            </Box>
+          ))}
         </VStack>
       </Box>
     );
@@ -102,19 +122,39 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
         </Heading>
         
         <VStack spacing={4} align="stretch">
-          <Box pb={3} borderColor="gray.200">
-            <Flex direction="column" justify="flex-start" align="flex-start">
-              <Text fontSize="md" fontWeight="medium" mb={1}>
-                Dom Lynh
-              </Text>
-              <Text fontSize="sm" color="gray.600" mb={1}>
-                Harvard University
-              </Text>
-              <Text fontSize="sm" color="gray.500">
-                (ORCID ID: Pending)
-              </Text>
-            </Flex>
-          </Box>
+          {authors.map((author, index) => (
+            <Box key={`author-${index}`} pb={3} borderColor="gray.200" borderBottomWidth={index < authors.length - 1 ? "1px" : 0} mb={3}>
+              <Flex direction="column" justify="flex-start" align="flex-start">
+                <Text fontSize="md" fontWeight="medium" mb={1}>
+                  {author.given} {author.family}
+                </Text>
+                {author.affiliation && (
+                  <Text fontSize="sm" color="gray.600" mb={1}>
+                    {author.affiliation}
+                  </Text>
+                )}
+                {!author.orcid ? (
+                  <Text fontSize="sm" color="gray.500">
+                    (ORCID ID: Pending)
+                  </Text>
+                ) : (
+                  <HStack spacing={1}>
+                    <Link 
+                      href={`https://orcid.org/${author.orcid}`} 
+                      isExternal
+                      fontSize="sm" 
+                      color="blue.500"
+                      display="inline-flex"
+                      alignItems="center"
+                    >
+                      ORCID Profile
+                      <OrcidIcon boxSize={4} ml={1} color="#A6CE39" />
+                    </Link>
+                  </HStack>
+                )}
+              </Flex>
+            </Box>
+          ))}
         </VStack>
       </Box>
     );
@@ -169,7 +209,6 @@ export const ArticleAuthors: React.FC<ArticleAuthorsProps> = ({
                 {/* ORCID */}
                 {author.orcid ? (
                   <HStack mt={1} spacing={1}>
-                    <OrcidIcon color="#A6CE39" boxSize={4} />
                     <Link 
                       href={`https://orcid.org/${author.orcid}`}
                       isExternal
