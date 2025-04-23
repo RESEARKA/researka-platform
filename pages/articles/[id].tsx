@@ -20,6 +20,7 @@ import { useArticleViewTracking } from '../../hooks/useActivityTracking';
 import { createLogger, LogCategory } from '../../utils/logger';
 import { useArticleMetrics } from '../../hooks/useArticleMetrics';
 import { ArticleHeader, ArticleContent, ArticleSidebar } from '../../components/article/detail';
+import { SharePlatform } from '../../components/article/SocialShareButtons';
 
 const logger = createLogger('article-detail');
 
@@ -153,6 +154,10 @@ const ArticleDetailPage: React.FC = () => {
     fetchArticle();
   }, [articleId, toast]);
 
+  const handleShare = (platform: SharePlatform) => {
+    recordShare(platform);
+  };
+
   return (
     <Layout title={article?.title || 'Article'} activePage="articles">
       <Container maxW="container.xl" mt={8} px={{ base: 4, md: 8 }}>
@@ -179,8 +184,9 @@ const ArticleDetailPage: React.FC = () => {
                   article={article} 
                   reviews={reviews} 
                   metrics={metrics}
-                  recordShare={recordShare}
+                  recordShare={handleShare}
                   isLoading={isLoading} 
+                  authors={authors}
                 />
               </GridItem>
             </Grid>

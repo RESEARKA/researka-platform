@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getArticleMetrics } from '../utils/articleMetrics';
 import { createLogger, LogCategory } from '../utils/logger';
+import { SharePlatform } from '../components/article/SocialShareButtons';
 
 const logger = createLogger('article-metrics-hook');
 
@@ -90,7 +91,7 @@ export const useArticleMetrics = (articleId: string) => {
    * Record a social share
    * @param platform The platform where the article was shared
    */
-  const recordShare = async (platform: 'twitter' | 'facebook' | 'linkedin' | 'email') => {
+  const recordShare = async (platform: SharePlatform) => {
     try {
       await fetch('/api/articles/share', {
         method: 'POST',

@@ -118,7 +118,7 @@ export function articleToCitation(
       year: article.publishedDate 
         ? new Date(article.publishedDate).getFullYear() 
         : new Date().getFullYear(),
-      journal: 'DecentraJournal',
+      journal: 'RESEARKA',
       doi,
       type: 'article',
       addedAt: Date.now()

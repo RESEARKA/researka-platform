@@ -15,6 +15,8 @@ import SocialShareButtons from '../SocialShareButtons';
 import FlagArticleButton from '../../moderation/FlagArticleButton';
 import { Article } from '../../../utils/recommendationEngine';
 import { articleToCitation } from '../../../utils/citationHelper';
+import { AuthorInfo } from '../../../utils/citationHelper';
+import { SharePlatform } from '../SocialShareButtons';
 
 interface ArticleSidebarProps {
   article: Article | null;
@@ -24,8 +26,9 @@ interface ArticleSidebarProps {
     citationCount: number;
     shareCount: Record<string, number>;
   };
-  recordShare: (platform: string) => void;
+  recordShare: (platform: SharePlatform) => void;
   isLoading: boolean;
+  authors?: AuthorInfo[];
 }
 
 /**
@@ -37,7 +40,8 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
   reviews,
   metrics,
   recordShare,
-  isLoading 
+  isLoading,
+  authors
 }) => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -67,7 +71,7 @@ const ArticleSidebar: React.FC<ArticleSidebarProps> = ({
   };
 
   // Generate citation data for ArticleCitation component
-  const citationData = article ? articleToCitation(article) : null;
+  const citationData = article && authors ? articleToCitation(article, authors) : null;
 
   return (
     <VStack spacing={6} align="stretch">
