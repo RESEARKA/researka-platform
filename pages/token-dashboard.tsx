@@ -1,9 +1,14 @@
 import React, { Suspense, useState, useEffect } from 'react';
-import { Box, Container, Heading, Text, VStack, Grid, GridItem, Skeleton } from '@chakra-ui/react';
+import { Box, Container, Heading, Text, VStack, Grid, GridItem, Skeleton, Button, Flex, Alert, AlertIcon } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useWallet } from '../frontend/src/contexts/WalletContext';
 import { getContractAddress, NETWORKS } from '../frontend/src/config/contracts';
+import { FiExternalLink } from 'react-icons/fi';
+
+// Feature flag for token integration
+const ENABLE_TOKEN_FEATURES = process.env.NEXT_PUBLIC_ENABLE_TOKEN_FEATURES === 'true';
+const EXTERNAL_TOKEN_WEBSITE = process.env.NEXT_PUBLIC_EXTERNAL_TOKEN_WEBSITE || 'https://researka.io/token';
 
 // Dynamically import components with code splitting for better performance
 const WalletConnect = dynamic(
@@ -11,20 +16,28 @@ const WalletConnect = dynamic(
   { ssr: false, loading: () => <Skeleton height="50px" width="200px" /> }
 );
 
-const TokenBalance = dynamic(
-  () => import('../frontend/src/components/token/TokenBalance'),
-  { ssr: false, loading: () => <Skeleton height="100px" /> }
-);
+// Only import token components when the feature flag is enabled
+// This allows proper tree-shaking to reduce bundle size
+let TokenBalance: any = null;
+let TokenTransactions: any = null;
+let StakingPositions: any = null;
 
-const TokenTransactions = dynamic(
-  () => import('../frontend/src/components/token/TokenTransactions'),
-  { ssr: false, loading: () => <Skeleton height="300px" /> }
-);
-
-const StakingPositions = dynamic(
-  () => import('../frontend/src/components/token/StakingPositions'),
-  { ssr: false, loading: () => <Skeleton height="300px" /> }
-);
+if (ENABLE_TOKEN_FEATURES) {
+  TokenBalance = dynamic(
+    () => import('../frontend/src/components/token/TokenBalance'),
+    { ssr: false, loading: () => <Skeleton height="100px" /> }
+  );
+  
+  TokenTransactions = dynamic(
+    () => import('../frontend/src/components/token/TokenTransactions'),
+    { ssr: false, loading: () => <Skeleton height="300px" /> }
+  );
+  
+  StakingPositions = dynamic(
+    () => import('../frontend/src/components/token/StakingPositions'),
+    { ssr: false, loading: () => <Skeleton height="300px" /> }
+  );
+}
 
 const TokenDashboardPage: React.FC = () => {
   const { chainId } = useWallet();
@@ -33,6 +46,8 @@ const TokenDashboardPage: React.FC = () => {
 
   // Get contract addresses based on current network
   useEffect(() => {
+    if (!ENABLE_TOKEN_FEATURES) return;
+    
     try {
       // Default to localhost if chainId is not available
       const networkId = chainId || NETWORKS.LOCALHOST;
@@ -50,43 +65,98 @@ const TokenDashboardPage: React.FC = () => {
     }
   }, [chainId]);
 
+  // If token features are disabled, show a message directing users to the external token website
+  if (!ENABLE_TOKEN_FEATURES) {
+    return (
+      <>
+        <Head>
+          <title>RESEARKA Token | External Integration</title>
+          <meta name="description" content="RESEARKA token dashboard - now available on a dedicated platform" />
+        </Head>
+        
+        <Container maxW="container.xl" py={8}>
+          <VStack spacing={8} align="stretch">
+            <Heading as="h1" size="xl" color="green.700" textAlign="center">RESEARKA Token Dashboard</Heading>
+            
+            <Box
+              borderWidth="1px"
+              borderRadius="lg"
+              p={8}
+              boxShadow="lg"
+              bg="white"
+              textAlign="center"
+            >
+              <Alert status="info" mb={6} borderRadius="md">
+                <AlertIcon />
+                RESEARKA token functionality is now available on a separate dedicated platform.
+              </Alert>
+              
+              <Text fontSize="lg" mb={6}>
+                For token features including balance checking, staking, and transfers,
+                please visit the official RESEARKA token platform.
+              </Text>
+              
+              <Flex justifyContent="center">
+                <Button 
+                  as="a" 
+                  href={EXTERNAL_TOKEN_WEBSITE} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  size="lg"
+                  colorScheme="green" 
+                  rightIcon={<FiExternalLink />}
+                >
+                  Visit RESEARKA Token Website
+                </Button>
+              </Flex>
+            </Box>
+          </VStack>
+        </Container>
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
-        <title>Token Dashboard | Researka Platform</title>
-        <meta name="description" content="Manage your Researka tokens and staking positions" />
+        <title>RESEARKA Token Dashboard</title>
+        <meta name="description" content="Manage your RESEARKA tokens, stake, and earn rewards" />
       </Head>
-
+      
       <Container maxW="container.xl" py={8}>
         <VStack spacing={8} align="stretch">
-          <Box textAlign="center" mb={4}>
-            <Heading as="h1" size="xl">Token Dashboard</Heading>
-            <Text color="gray.600">Manage your Researka tokens and staking positions</Text>
+          <Heading as="h1" size="xl" color="green.700" textAlign="center">RESEARKA Token Dashboard</Heading>
+          
+          <Box>
+            <WalletConnect />
           </Box>
-
-          <Box display="flex" justifyContent="flex-end" mb={4}>
-            <Suspense fallback={<Skeleton height="50px" width="200px" />}>
-              <WalletConnect />
+          
+          {/* Token Balance */}
+          {TokenBalance && tokenAddress && (
+            <Suspense fallback={<Skeleton height="100px" />}>
+              <TokenBalance tokenAddress={tokenAddress} />
             </Suspense>
-          </Box>
-
-          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={6}>
+          )}
+          
+          <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6}>
+            {/* Staking Positions */}
             <GridItem>
-              <Suspense fallback={<Skeleton height="100px" />}>
-                <TokenBalance tokenAddress={tokenAddress} />
-              </Suspense>
+              {StakingPositions && treasuryAddress && (
+                <Suspense fallback={<Skeleton height="300px" />}>
+                  <StakingPositions treasuryAddress={treasuryAddress} />
+                </Suspense>
+              )}
             </GridItem>
-
+            
+            {/* Recent Transactions */}
             <GridItem>
-              <Suspense fallback={<Skeleton height="100px" />}>
-                <StakingPositions treasuryAddress={treasuryAddress} />
-              </Suspense>
+              {TokenTransactions && tokenAddress && (
+                <Suspense fallback={<Skeleton height="300px" />}>
+                  <TokenTransactions tokenAddress={tokenAddress} treasuryAddress={treasuryAddress} />
+                </Suspense>
+              )}
             </GridItem>
           </Grid>
-
-          <Suspense fallback={<Skeleton height="300px" />}>
-            <TokenTransactions tokenAddress={tokenAddress} treasuryAddress={treasuryAddress} />
-          </Suspense>
         </VStack>
       </Container>
     </>

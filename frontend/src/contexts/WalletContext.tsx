@@ -12,6 +12,7 @@ interface WalletContextType {
   switchToZkSync: () => Promise<void>;
   isConnecting: boolean;
   isCorrectNetwork: boolean;
+  isConnected: boolean;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -24,6 +25,7 @@ const WalletContext = createContext<WalletContextType>({
   switchToZkSync: async () => {},
   isConnecting: false,
   isCorrectNetwork: false,
+  isConnected: false,
 });
 
 export const useWallet = () => useContext(WalletContext);
@@ -44,6 +46,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     if (!chainId) return false;
     return chainId === NETWORKS.ZKSYNC_MAINNET || chainId === NETWORKS.ZKSYNC_TESTNET;
   }, [chainId]);
+
+  // Check if wallet is connected
+  const isConnected = useMemo(() => {
+    return !!account && !!provider;
+  }, [account, provider]);
 
   // Initialize provider from window.ethereum if available
   useEffect(() => {
@@ -211,6 +218,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     switchToZkSync,
     isConnecting,
     isCorrectNetwork,
+    isConnected,
   }), [
     account,
     chainId,
@@ -221,6 +229,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     switchToZkSync,
     isConnecting,
     isCorrectNetwork,
+    isConnected,
   ]);
 
   return (

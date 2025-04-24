@@ -7,7 +7,7 @@ const path = require("path");
 require("dotenv").config();
 
 async function main() {
-  console.log("Deploying Researka Platform contracts to zkSync Testnet...");
+  console.log("Deploying RESEARKA Platform contracts to zkSync Testnet...");
 
   // Initialize the wallet.
   const provider = new Provider("https://zksync2-testnet.zksync.dev");
@@ -38,15 +38,31 @@ async function main() {
   console.log(`Using external RESEARKA token at: ${process.env.EXTERNAL_TOKEN_ADDRESS}`);
   const tokenAddress = process.env.EXTERNAL_TOKEN_ADDRESS;
   
+  // Create token contract interface - will be used later if verification is successful
+  let tokenContract = null;
+  let tokenHasRoles = false;
+  
   // For testing, we can get an instance of the external token to verify it exists
   try {
     const tokenArtifact = await hre.artifacts.readArtifact("IResearkaToken");
-    const tokenContract = new ethers.Contract(tokenAddress, tokenArtifact.abi, wallet);
+    tokenContract = new ethers.Contract(tokenAddress, tokenArtifact.abi, wallet);
     const symbol = await tokenContract.symbol();
     console.log(`Connected to external token with symbol: ${symbol}`);
+    
+    // Check if token implements AccessControl (has role functions)
+    try {
+      const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
+      await tokenContract.hasRole(MINTER_ROLE, wallet.address);
+      tokenHasRoles = true;
+      console.log("Token implements AccessControl with roles");
+    } catch (roleError) {
+      console.log("External token does not implement AccessControl with roles");
+      tokenHasRoles = false;
+    }
   } catch (error) {
     console.warn("Warning: Could not verify external token. Continuing anyway...");
     console.warn(error.message);
+    // Token verification failed, but we'll continue with deployment
   }
   
   // zkSync testnet ETH/USD price feed (using Goerli feed for now)
@@ -84,54 +100,51 @@ async function main() {
   await treasury.deployed();
   console.log(`ResearchaTreasury deployed to: ${treasury.address}`);
   
-  // Update treasury address in other contracts
-  console.log("Setting up contract permissions...");
-  
-  // Grant PLATFORM_ROLE to Review contract in Submission contract
+  // Grant PLATFORM_ROLE to the Treasury contract in Submission contract
   const PLATFORM_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("PLATFORM_ROLE"));
-  const grantPlatformRoleTx = await submission.grantRole(PLATFORM_ROLE, review.address);
+  const grantPlatformRoleTx = await submission.grantRole(PLATFORM_ROLE, treasury.address);
   await grantPlatformRoleTx.wait();
-  console.log(`Granted PLATFORM_ROLE to Review contract in Submission contract`);
+  console.log(`Granted PLATFORM_ROLE to Treasury contract in Submission contract`);
   
-  // Grant MINTER_ROLE to Treasury contract in Token contract
-  const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
-  const grantMinterRoleTx = await tokenContract.grantRole(MINTER_ROLE, treasury.address);
-  await grantMinterRoleTx.wait();
-  console.log(`Granted MINTER_ROLE to Treasury contract in Token contract`);
+  // Grant MINTER_ROLE to Treasury contract in Token contract (only if token supports roles)
+  if (tokenContract && tokenHasRoles) {
+    try {
+      const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
+      const grantMinterRoleTx = await tokenContract.grantRole(MINTER_ROLE, treasury.address);
+      await grantMinterRoleTx.wait();
+      console.log(`Granted MINTER_ROLE to Treasury contract in Token contract`);
+    } catch (error) {
+      console.warn("Could not grant MINTER_ROLE to Treasury. External token may not support this role.");
+      console.warn(error.message);
+    }
+  } else {
+    console.log("Skipping MINTER_ROLE grant - token doesn't support roles or couldn't be verified");
+  }
   
-  console.log("Deployment complete!");
-  
-  // Log all contract addresses for easy reference
+  // Record deployment info for easy reference
   const deploymentInfo = {
     network: "zkSyncTestnet",
     token: tokenAddress,
     treasury: treasury.address,
     submission: submission.address,
     review: review.address,
-    deployer: wallet.address,
-    timestamp: new Date().toISOString()
+    deployedAt: new Date().toISOString(),
+    deployer: wallet.address
   };
   
-  console.log("\nDeployment Information:");
-  console.log(JSON.stringify(deploymentInfo, null, 2));
-  
-  // Save deployment information to a file
-  const deploymentsDir = path.join(__dirname, "../deployments");
-  if (!fs.existsSync(deploymentsDir)) {
-    fs.mkdirSync(deploymentsDir, { recursive: true });
+  // Ensure deployment directory exists
+  const deployDir = path.join(__dirname, '../deployments');
+  if (!fs.existsSync(deployDir)) {
+    fs.mkdirSync(deployDir);
   }
   
-  const deploymentPath = path.join(
-    deploymentsDir, 
-    `zksync-testnet-${new Date().toISOString().replace(/:/g, "-")}.json`
-  );
-  
+  // Write deployment info to file
   fs.writeFileSync(
-    deploymentPath,
+    path.join(deployDir, 'zksync-testnet.json'),
     JSON.stringify(deploymentInfo, null, 2)
   );
   
-  console.log(`Deployment information saved to ${deploymentPath}`);
+  console.log("Deployment information saved to deployments/zksync-testnet.json");
   
   // Create .env.testnet file with the contract addresses
   const envContent = `# Contract Addresses - zkSync Testnet
@@ -140,13 +153,14 @@ NEXT_PUBLIC_TESTNET_TREASURY_ADDRESS=${treasury.address}
 NEXT_PUBLIC_TESTNET_SUBMISSION_ADDRESS=${submission.address}
 NEXT_PUBLIC_TESTNET_REVIEW_ADDRESS=${review.address}
 `;
-
+  
   fs.writeFileSync(
-    path.join(__dirname, "../.env.testnet"),
+    path.join(__dirname, '../.env.testnet'),
     envContent
   );
   
-  console.log(`Environment variables saved to .env.testnet`);
+  console.log("Environment variables saved to .env.testnet");
+  console.log("Deployment complete!");
 }
 
 main()

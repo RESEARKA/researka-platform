@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Text, 
@@ -29,7 +29,6 @@ import {
 } from '@chakra-ui/react';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTokenContract, useTokenBalance } from '../../hooks/useContract';
-import { formatTokenAmount } from '../../config/contracts';
 import { FiTrendingUp, FiSend, FiExternalLink } from 'react-icons/fi';
 import { ethers } from 'ethers';
 
@@ -41,20 +40,35 @@ interface TokenBalanceProps {
   tokenAddress: string;
 }
 
-// Cache for token balances
-const balanceCache = new Map<string, string>();
-
 const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
-  const { isConnected, account, provider, signer } = useWallet();
+  const { account, isConnected } = useWallet();
   const toast = useToast();
   const tokenContract = useTokenContract(true, tokenAddress);
-  const { balance, symbol, isLoading: isBalanceLoading, refetch: refetchBalance } = useTokenBalance(account);
+  const { balance, isLoading: isBalanceLoading, refetch: refetchBalance } = useTokenBalance(account || '');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
-  const [isAmountValid, setIsAmountValid] = useState(true);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [tokenSymbol, setTokenSymbol] = useState('TOKEN'); // Default fallback
+  
+  // Fetch token symbol from contract
+  useEffect(() => {
+    const fetchTokenSymbol = async () => {
+      if (tokenContract) {
+        try {
+          const symbol = await tokenContract.symbol();
+          setTokenSymbol(symbol);
+        } catch (error) {
+          console.error('Error fetching token symbol:', error);
+          // Fallback to RESEARKA if symbol() call fails
+          setTokenSymbol('RESEARKA');
+        }
+      }
+    };
+    
+    fetchTokenSymbol();
+  }, [tokenContract]);
 
   // If token features are disabled, show a message directing users to the external token website
   if (!ENABLE_TOKEN_FEATURES) {
@@ -88,55 +102,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
     );
   }
 
-  // Memoized fetch function to improve performance
-  const fetchTokenBalance = useCallback(async () => {
-    if (account && provider && tokenAddress && tokenContract) {
-      try {
-        // Check cache first (StaleWhileRevalidate strategy)
-        const cacheKey = `${account}-${tokenAddress}`;
-        if (balanceCache.has(cacheKey)) {
-          setBalance(balanceCache.get(cacheKey) || '0');
-          // Continue fetching in background
-        }
-        
-        // Get token balance
-        const rawBalance = await tokenContract.balanceOf(account);
-        const formattedBalance = formatTokenAmount(rawBalance);
-        
-        // Update cache
-        balanceCache.set(cacheKey, formattedBalance);
-        
-        // Update state
-        setBalance(formattedBalance);
-        
-        // Calculate USD value (assuming $0.10 per token)
-        const usdVal = (parseFloat(formattedBalance) * parseFloat('0.10')).toFixed(2);
-        setUsdValue(usdVal);
-      } catch (error) {
-        console.error('Error fetching token balance:', error);
-      }
-    }
-  }, [account, provider, tokenAddress, tokenContract]);
-
-  useEffect(() => {
-    fetchTokenBalance();
-    
-    // Set up event listener for token transfers
-    if (tokenContract && account) {
-      const receivedFilter = tokenContract.filters.Transfer(null, account);
-      const sentFilter = tokenContract.filters.Transfer(account, null);
-      
-      tokenContract.on(receivedFilter, fetchTokenBalance);
-      tokenContract.on(sentFilter, fetchTokenBalance);
-      
-      return () => {
-        tokenContract.off(receivedFilter, fetchTokenBalance);
-        tokenContract.off(sentFilter, fetchTokenBalance);
-      };
-    }
-  }, [tokenContract, account, fetchTokenBalance]);
-
-  // Handle token transfer
+  // Handle token transfer logic
   const handleTransfer = async () => {
     // Reset error
     setTransferError('');
@@ -146,47 +112,47 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
       setTransferError('Please enter a valid Ethereum address');
       return;
     }
-
+    
     if (!amount || parseFloat(amount) <= 0) {
       setTransferError('Please enter a valid amount');
       return;
     }
-
-    if (parseFloat(amount) > parseFloat(balance)) {
+    
+    if (parseFloat(amount) > parseFloat(balance || '0')) {
       setTransferError('Insufficient balance');
       return;
     }
-
-    if (!signer || !tokenContract) {
+    
+    if (!account || !tokenContract) {
       setTransferError('Wallet not connected');
       return;
     }
-
+    
     setIsTransferring(true);
 
     try {
-      // Convert amount to wei (6 decimals for RESKA)
-      const amountWei = ethers.utils.parseUnits(amount, 6);
+      // Convert amount to wei (use token decimals from contract)
+      const decimals = await tokenContract.decimals();
+      const amountWei = ethers.utils.parseUnits(amount, decimals);
 
       // Send transaction
       const tx = await tokenContract.transfer(recipientAddress, amountWei);
       
       // Show pending toast
       toast({
-        title: 'Transaction Submitted',
-        description: `Transfer of ${amount} RESKA tokens is processing...`,
+        title: 'Processing Transfer',
+        description: `Transfer of ${amount} ${tokenSymbol} tokens is processing...`,
         status: 'info',
         duration: 5000,
         isClosable: true,
       });
-
-      // Wait for transaction to be mined
+      
       await tx.wait();
-
+      
       // Show success toast
       toast({
         title: 'Transfer Successful',
-        description: `Successfully transferred ${amount} RESKA tokens to ${recipientAddress.substring(0, 6)}...${recipientAddress.substring(recipientAddress.length - 4)}`,
+        description: `Successfully transferred ${amount} ${tokenSymbol} tokens to ${recipientAddress.substring(0, 6)}...${recipientAddress.substring(recipientAddress.length - 4)}`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -198,10 +164,12 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
       onClose();
       
       // Refresh balance
-      fetchTokenBalance();
+      if (refetchBalance) {
+        refetchBalance();
+      }
     } catch (error) {
-      console.error('Transfer error:', error);
-      setTransferError('Transaction failed. Please try again.');
+      console.error('Error transferring tokens:', error);
+      setTransferError(error.message || 'Failed to transfer tokens. Please try again.');
     } finally {
       setIsTransferring(false);
     }
@@ -225,13 +193,13 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
               <Skeleton height="40px" mt={2} mb={2} />
             ) : (
               <StatNumber fontSize="3xl" fontWeight="bold" mt={1}>
-                {balance} RESKA
+                {balance} {tokenSymbol}
               </StatNumber>
             )}
             
             <StatHelpText display="flex" alignItems="center">
               <FiTrendingUp color="green.400" style={{ marginRight: '5px' }} />
-              <Text color="green.400">${(parseFloat(balance) * parseFloat('0.10')).toFixed(2)} USD</Text>
+              <Text color="green.400">${(parseFloat(balance || '0') * 0.10).toFixed(2)} USD</Text>
             </StatHelpText>
           </Stat>
           
@@ -239,21 +207,21 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
             leftIcon={<FiSend />} 
             colorScheme="blue" 
             onClick={onOpen}
-            isDisabled={isBalanceLoading || parseFloat(balance) <= 0}
+            isDisabled={isBalanceLoading || parseFloat(balance || '0') <= 0}
           >
             Send
           </Button>
         </Flex>
       </Box>
       
-      {/* Transfer Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Send RESKA Tokens</ModalHeader>
+          <ModalHeader>Transfer Tokens</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <FormControl isInvalid={!!transferError} mb={4}>
+          
+          <ModalBody pb={6}>
+            <FormControl isRequired>
               <FormLabel>Recipient Address</FormLabel>
               <Input 
                 placeholder="0x..." 
@@ -262,7 +230,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
               />
             </FormControl>
             
-            <FormControl isInvalid={!!transferError} mb={4}>
+            <FormControl mt={4} isRequired isInvalid={!!transferError}>
               <FormLabel>Amount</FormLabel>
               <InputGroup>
                 <Input 
@@ -271,28 +239,27 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
-                <InputRightAddon>RESKA</InputRightAddon>
+                <InputRightAddon>{tokenSymbol}</InputRightAddon>
               </InputGroup>
               {transferError && <FormErrorMessage>{transferError}</FormErrorMessage>}
             </FormControl>
             
-            <Text fontSize="sm" color="gray.500">
-              Available Balance: {balance} RESKA
+            <Text fontSize="sm" color="gray.500" mt={2}>
+              Available Balance: {balance} {tokenSymbol}
             </Text>
           </ModalBody>
-
+          
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Cancel
-            </Button>
             <Button 
               colorScheme="blue" 
+              mr={3} 
               onClick={handleTransfer}
               isLoading={isTransferring}
-              loadingText="Sending"
+              loadingText="Transferring"
             >
-              Send Tokens
+              Send
             </Button>
+            <Button onClick={onClose}>Cancel</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

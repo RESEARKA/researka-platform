@@ -139,7 +139,12 @@ export function useTreasuryContract(withSigner = false): TreasuryContract | null
 }
 
 // Hook to get token balance with StaleWhileRevalidate caching strategy
-export function useTokenBalance(address?: string) {
+export function useTokenBalance(address?: string): {
+  balance: string;
+  formattedBalance: string;
+  isLoading: boolean;
+  refetch: () => void;
+} {
   const [balance, setBalance] = useState<string>('0');
   const [formattedBalance, setFormattedBalance] = useState<string>('0');
   const [isLoading, setIsLoading] = useState(true);
@@ -152,13 +157,53 @@ export function useTokenBalance(address?: string) {
   // Cache duration in milliseconds (30 seconds)
   const CACHE_DURATION = 30 * 1000;
   
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!tokenContract || !targetAddress) {
-        setIsLoading(false);
-        return;
-      }
+  const fetchBalance = async () => {
+    if (!tokenContract || !targetAddress) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const rawBalance = await tokenContract.balanceOf(targetAddress);
+      setBalance(rawBalance.toString());
       
+      // Format balance with decimals
+      const formatted = formatTokenAmount(rawBalance);
+      setFormattedBalance(formatted);
+      
+      setLastUpdated(Date.now());
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching token balance:', error);
+      setIsLoading(false);
+    }
+  };
+  
+  const fetchBalanceInBackground = async () => {
+    if (!tokenContract || !targetAddress) return;
+    
+    try {
+      const rawBalance = await tokenContract.balanceOf(targetAddress);
+      setBalance(rawBalance.toString());
+      
+      // Format balance with decimals
+      const formatted = formatTokenAmount(rawBalance);
+      setFormattedBalance(formatted);
+      
+      setLastUpdated(Date.now());
+    } catch (error) {
+      console.error('Error fetching token balance in background:', error);
+    }
+  };
+  
+  // Function to force refresh the balance
+  const refetch = () => {
+    fetchBalance();
+  };
+  
+  useEffect(() => {
+    const getBalance = async () => {
       // Implement StaleWhileRevalidate strategy
       const now = Date.now();
       const shouldUseCache = now - lastUpdated < CACHE_DURATION;
@@ -169,41 +214,10 @@ export function useTokenBalance(address?: string) {
         return;
       }
       
-      try {
-        setIsLoading(true);
-        const rawBalance = await tokenContract.balanceOf(targetAddress);
-        setBalance(rawBalance.toString());
-        
-        // Format balance with 18 decimals
-        const formatted = formatTokenAmount(rawBalance);
-        setFormattedBalance(formatted);
-        
-        setLastUpdated(Date.now());
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching token balance:', error);
-        setIsLoading(false);
-      }
+      await fetchBalance();
     };
     
-    const fetchBalanceInBackground = async () => {
-      if (!tokenContract || !targetAddress) return;
-      
-      try {
-        const rawBalance = await tokenContract.balanceOf(targetAddress);
-        setBalance(rawBalance.toString());
-        
-        // Format balance with 18 decimals
-        const formatted = formatTokenAmount(rawBalance);
-        setFormattedBalance(formatted);
-        
-        setLastUpdated(Date.now());
-      } catch (error) {
-        console.error('Error fetching token balance in background:', error);
-      }
-    };
-    
-    fetchBalance();
+    getBalance();
     
     // Set up event listener for Transfer events
     if (tokenContract && targetAddress) {
@@ -220,7 +234,7 @@ export function useTokenBalance(address?: string) {
     }
   }, [tokenContract, targetAddress, balance, lastUpdated]);
   
-  return { balance, formattedBalance, isLoading };
+  return { balance, formattedBalance, isLoading, refetch };
 }
 
 // Hook to get staking positions
