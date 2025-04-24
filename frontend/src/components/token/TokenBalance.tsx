@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Box, 
   Text, 
@@ -44,31 +44,12 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
   const { account, isConnected } = useWallet();
   const toast = useToast();
   const tokenContract = useTokenContract(true, tokenAddress);
-  const { balance, isLoading: isBalanceLoading, refetch: refetchBalance } = useTokenBalance(account || '');
+  const { balance, isLoading: isBalanceLoading, refetch: refetchBalance, symbol } = useTokenBalance(account || '');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [tokenSymbol, setTokenSymbol] = useState('TOKEN'); // Default fallback
-  
-  // Fetch token symbol from contract
-  useEffect(() => {
-    const fetchTokenSymbol = async () => {
-      if (tokenContract) {
-        try {
-          const symbol = await tokenContract.symbol();
-          setTokenSymbol(symbol);
-        } catch (error) {
-          console.error('Error fetching token symbol:', error);
-          // Fallback to RESEARKA if symbol() call fails
-          setTokenSymbol('RESEARKA');
-        }
-      }
-    };
-    
-    fetchTokenSymbol();
-  }, [tokenContract]);
 
   // If token features are disabled, show a message directing users to the external token website
   if (!ENABLE_TOKEN_FEATURES) {
@@ -141,7 +122,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
       // Show pending toast
       toast({
         title: 'Processing Transfer',
-        description: `Transfer of ${amount} ${tokenSymbol} tokens is processing...`,
+        description: `Transfer of ${amount} ${symbol} tokens is processing...`,
         status: 'info',
         duration: 5000,
         isClosable: true,
@@ -152,7 +133,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
       // Show success toast
       toast({
         title: 'Transfer Successful',
-        description: `Successfully transferred ${amount} ${tokenSymbol} tokens to ${recipientAddress.substring(0, 6)}...${recipientAddress.substring(recipientAddress.length - 4)}`,
+        description: `Successfully transferred ${amount} ${symbol} tokens to ${recipientAddress.substring(0, 6)}...${recipientAddress.substring(recipientAddress.length - 4)}`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -167,7 +148,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
       if (refetchBalance) {
         refetchBalance();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error transferring tokens:', error);
       setTransferError(error.message || 'Failed to transfer tokens. Please try again.');
     } finally {
@@ -193,7 +174,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
               <Skeleton height="40px" mt={2} mb={2} />
             ) : (
               <StatNumber fontSize="3xl" fontWeight="bold" mt={1}>
-                {balance} {tokenSymbol}
+                {balance} {symbol}
               </StatNumber>
             )}
             
@@ -217,7 +198,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Transfer Tokens</ModalHeader>
+          <ModalHeader>Transfer {symbol} Tokens</ModalHeader>
           <ModalCloseButton />
           
           <ModalBody pb={6}>
@@ -239,13 +220,13 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
-                <InputRightAddon>{tokenSymbol}</InputRightAddon>
+                <InputRightAddon>{symbol}</InputRightAddon>
               </InputGroup>
               {transferError && <FormErrorMessage>{transferError}</FormErrorMessage>}
             </FormControl>
             
             <Text fontSize="sm" color="gray.500" mt={2}>
-              Available Balance: {balance} {tokenSymbol}
+              Available Balance: {balance} {symbol}
             </Text>
           </ModalBody>
           

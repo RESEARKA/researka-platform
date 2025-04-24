@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import { getContractAddress, formatTokenAmount, parseTokenAmount, ContractType } from '../config/contracts';
+import { getContractAddress, formatTokenAmount } from '../config/contracts';
 
 // ABIs
 import ResearchaTreasuryABI from '../abis/ResearchaTreasury.json';
@@ -12,28 +12,6 @@ const ENABLE_TOKEN_FEATURES = process.env.NEXT_PUBLIC_ENABLE_TOKEN_FEATURES === 
 // Types for contract instances
 type TokenContract = ethers.Contract;
 type TreasuryContract = ethers.Contract;
-
-// Type for staking position
-interface StakingPosition {
-  id: number;
-  amount: string;
-  startTime: Date;
-  endTime: Date;
-  apy: number;
-  isUnstakable: boolean;
-}
-
-// Type for platform stats
-interface PlatformStats {
-  totalSupply: string;
-  circulatingSupply: string;
-  marketCap: string;
-  totalStaked: string;
-  stakingAPY: string;
-}
-
-// Cache for contract instances to improve performance
-const contractCache: Record<string, ethers.Contract> = {};
 
 // Minimal Token ABI for external integration
 const MinimalTokenABI = [
@@ -138,17 +116,22 @@ export function useTreasuryContract(withSigner = false): TreasuryContract | null
   }, [provider, account, chainId, withSigner]);
 }
 
+// Cache for contract instances to improve performance
+const contractCache: Record<string, ethers.Contract> = {};
+
 // Hook to get token balance with StaleWhileRevalidate caching strategy
 export function useTokenBalance(address?: string): {
   balance: string;
   formattedBalance: string;
   isLoading: boolean;
   refetch: () => void;
+  symbol: string;
 } {
   const [balance, setBalance] = useState<string>('0');
   const [formattedBalance, setFormattedBalance] = useState<string>('0');
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<number>(0);
+  const [symbol, setSymbol] = useState<string>('RESEARKA');
   const { account } = useWallet();
   const tokenContract = useTokenContract();
   
@@ -157,7 +140,25 @@ export function useTokenBalance(address?: string): {
   // Cache duration in milliseconds (30 seconds)
   const CACHE_DURATION = 30 * 1000;
   
-  const fetchBalance = async () => {
+  // Get token symbol
+  useEffect(() => {
+    const getTokenSymbol = async (): Promise<void> => {
+      if (!tokenContract) return;
+      
+      try {
+        const tokenSymbol = await tokenContract.symbol();
+        setSymbol(tokenSymbol);
+      } catch (error) {
+        console.error('Error fetching token symbol:', error);
+        // Use fallback if symbol() fails
+        setSymbol('RESEARKA');
+      }
+    };
+    
+    getTokenSymbol();
+  }, [tokenContract]);
+  
+  const fetchBalance = async (): Promise<void> => {
     if (!tokenContract || !targetAddress) {
       setIsLoading(false);
       return;
@@ -180,7 +181,7 @@ export function useTokenBalance(address?: string): {
     }
   };
   
-  const fetchBalanceInBackground = async () => {
+  const fetchBalanceInBackground = async (): Promise<void> => {
     if (!tokenContract || !targetAddress) return;
     
     try {
@@ -203,7 +204,7 @@ export function useTokenBalance(address?: string): {
   };
   
   useEffect(() => {
-    const getBalance = async () => {
+    const getBalance = async (): Promise<void> => {
       // Implement StaleWhileRevalidate strategy
       const now = Date.now();
       const shouldUseCache = now - lastUpdated < CACHE_DURATION;
@@ -234,11 +235,11 @@ export function useTokenBalance(address?: string): {
     }
   }, [tokenContract, targetAddress, balance, lastUpdated]);
   
-  return { balance, formattedBalance, isLoading, refetch };
+  return { balance, formattedBalance, isLoading, refetch, symbol };
 }
 
 // Hook to get staking positions
-export function useStakingPositions() {
+export function useStakingPositions(): { positions: StakingPosition[]; isLoading: boolean } {
   const [positions, setPositions] = useState<StakingPosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { account } = useWallet();
@@ -294,7 +295,7 @@ export function useStakingPositions() {
 }
 
 // Hook to get token price in USD
-export function useTokenPrice() {
+export function useTokenPrice(): { price: string; isLoading: boolean } {
   const [price, setPrice] = useState<string>('0.10'); // Initial price
   const [isLoading, setIsLoading] = useState(true);
   
@@ -316,7 +317,7 @@ export function useTokenPrice() {
 }
 
 // Hook to get platform statistics
-export function usePlatformStats() {
+export function usePlatformStats(): { stats: PlatformStats; isLoading: boolean } {
   const [stats, setStats] = useState<PlatformStats>({
     totalSupply: '100,000,000',
     circulatingSupply: '25,000,000',
@@ -388,4 +389,23 @@ export function usePlatformStats() {
   }, [tokenContract, treasuryContract, price]);
   
   return { stats, isLoading };
+}
+
+// Type for staking position
+interface StakingPosition {
+  id: number;
+  amount: string;
+  startTime: Date;
+  endTime: Date;
+  apy: number;
+  isUnstakable: boolean;
+}
+
+// Type for platform stats
+interface PlatformStats {
+  totalSupply: string;
+  circulatingSupply: string;
+  marketCap: string;
+  totalStaked: string;
+  stakingAPY: string;
 }

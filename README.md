@@ -51,7 +51,7 @@ Manages platform economics:
 - Token transfer functionality
 - Transaction history
 
-### Staking Interface
+### Staking Interface (Optional - requires token features flag)
 - Staking position creation
 - Reward claiming
 - Position management

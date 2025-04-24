@@ -1,14 +1,19 @@
-import React, { Suspense, useState, useEffect } from 'react';
-import { Box, Container, Heading, Text, VStack, Grid, GridItem, Skeleton, Button, Flex, Alert, AlertIcon } from '@chakra-ui/react';
+import React, { useState, useEffect } from 'react';
+import { Container, Heading, VStack, Box, Grid, GridItem, Text, Skeleton, Button, Flex, Alert, AlertIcon } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useWallet } from '../frontend/src/contexts/WalletContext';
 import { getContractAddress, NETWORKS } from '../frontend/src/config/contracts';
 import { FiExternalLink } from 'react-icons/fi';
 
-// Feature flag for token integration
-const ENABLE_TOKEN_FEATURES = process.env.NEXT_PUBLIC_ENABLE_TOKEN_FEATURES === 'true';
-const EXTERNAL_TOKEN_WEBSITE = process.env.NEXT_PUBLIC_EXTERNAL_TOKEN_WEBSITE || 'https://researka.io/token';
+// Import tree-shaking friendly token components
+// This technique ensures components are only loaded when feature flag is true
+import { 
+  TokenBalance, 
+  TokenTransactions, 
+  StakingPositions,
+  TokenDashboard 
+} from '../frontend/src/utils/token-components';
 
 // Dynamically import components with code splitting for better performance
 const WalletConnect = dynamic(
@@ -16,33 +21,12 @@ const WalletConnect = dynamic(
   { ssr: false, loading: () => <Skeleton height="50px" width="200px" /> }
 );
 
-// Only import token components when the feature flag is enabled
-// This allows proper tree-shaking to reduce bundle size
-let TokenBalance: any = null;
-let TokenTransactions: any = null;
-let StakingPositions: any = null;
-
-if (ENABLE_TOKEN_FEATURES) {
-  TokenBalance = dynamic(
-    () => import('../frontend/src/components/token/TokenBalance'),
-    { ssr: false, loading: () => <Skeleton height="100px" /> }
-  );
-  
-  TokenTransactions = dynamic(
-    () => import('../frontend/src/components/token/TokenTransactions'),
-    { ssr: false, loading: () => <Skeleton height="300px" /> }
-  );
-  
-  StakingPositions = dynamic(
-    () => import('../frontend/src/components/token/StakingPositions'),
-    { ssr: false, loading: () => <Skeleton height="300px" /> }
-  );
-}
-
 const TokenDashboardPage: React.FC = () => {
   const { chainId } = useWallet();
   const [tokenAddress, setTokenAddress] = useState<string>('');
   const [treasuryAddress, setTreasuryAddress] = useState<string>('');
+  const ENABLE_TOKEN_FEATURES = process.env.NEXT_PUBLIC_ENABLE_TOKEN_FEATURES === 'true';
+  const EXTERNAL_TOKEN_WEBSITE = process.env.NEXT_PUBLIC_EXTERNAL_TOKEN_WEBSITE || 'https://researka.io/token';
 
   // Get contract addresses based on current network
   useEffect(() => {
@@ -131,32 +115,26 @@ const TokenDashboardPage: React.FC = () => {
             <WalletConnect />
           </Box>
           
-          {/* Token Balance */}
-          {TokenBalance && tokenAddress && (
-            <Suspense fallback={<Skeleton height="100px" />}>
-              <TokenBalance tokenAddress={tokenAddress} />
-            </Suspense>
+          {/* Use TokenDashboard component which adapts based on feature flag */}
+          {ENABLE_TOKEN_FEATURES ? (
+            <>
+              {/* Token components only loaded when feature flag is true */}
+              {tokenAddress && <TokenBalance tokenAddress={tokenAddress} />}
+              
+              {tokenAddress && treasuryAddress && (
+                <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6}>
+                  <GridItem>
+                    <StakingPositions treasuryAddress={treasuryAddress} />
+                  </GridItem>
+                  <GridItem>
+                    <TokenTransactions tokenAddress={tokenAddress} treasuryAddress={treasuryAddress} />
+                  </GridItem>
+                </Grid>
+              )}
+            </>
+          ) : (
+            <TokenDashboard />
           )}
-          
-          <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6}>
-            {/* Staking Positions */}
-            <GridItem>
-              {StakingPositions && treasuryAddress && (
-                <Suspense fallback={<Skeleton height="300px" />}>
-                  <StakingPositions treasuryAddress={treasuryAddress} />
-                </Suspense>
-              )}
-            </GridItem>
-            
-            {/* Recent Transactions */}
-            <GridItem>
-              {TokenTransactions && tokenAddress && (
-                <Suspense fallback={<Skeleton height="300px" />}>
-                  <TokenTransactions tokenAddress={tokenAddress} treasuryAddress={treasuryAddress} />
-                </Suspense>
-              )}
-            </GridItem>
-          </Grid>
         </VStack>
       </Container>
     </>

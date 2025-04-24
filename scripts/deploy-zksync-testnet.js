@@ -39,8 +39,9 @@ async function main() {
   const tokenAddress = process.env.EXTERNAL_TOKEN_ADDRESS;
   
   // Create token contract interface - will be used later if verification is successful
+  // Define outside try/catch so it's available throughout the function scope
   let tokenContract = null;
-  let tokenHasRoles = false;
+  let hasAccessControl = false;
   
   // For testing, we can get an instance of the external token to verify it exists
   try {
@@ -52,17 +53,18 @@ async function main() {
     // Check if token implements AccessControl (has role functions)
     try {
       const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
-      await tokenContract.hasRole(MINTER_ROLE, wallet.address);
-      tokenHasRoles = true;
+      const hasRoleMethod = await tokenContract.hasRole.call(MINTER_ROLE, wallet.address);
+      // If we get here, token has AccessControl interface
+      hasAccessControl = true;
       console.log("Token implements AccessControl with roles");
     } catch (roleError) {
       console.log("External token does not implement AccessControl with roles");
-      tokenHasRoles = false;
+      hasAccessControl = false;
     }
   } catch (error) {
     console.warn("Warning: Could not verify external token. Continuing anyway...");
     console.warn(error.message);
-    // Token verification failed, but we'll continue with deployment
+    // Keep tokenContract as null
   }
   
   // zkSync testnet ETH/USD price feed (using Goerli feed for now)
@@ -106,19 +108,20 @@ async function main() {
   await grantPlatformRoleTx.wait();
   console.log(`Granted PLATFORM_ROLE to Treasury contract in Submission contract`);
   
-  // Grant MINTER_ROLE to Treasury contract in Token contract (only if token supports roles)
-  if (tokenContract && tokenHasRoles) {
+  // Grant MINTER_ROLE to Treasury contract in Token contract ONLY if it supports AccessControl
+  if (tokenContract && hasAccessControl) {
     try {
+      console.log("Attempting to grant MINTER_ROLE to treasury on token contract...");
       const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
       const grantMinterRoleTx = await tokenContract.grantRole(MINTER_ROLE, treasury.address);
       await grantMinterRoleTx.wait();
       console.log(`Granted MINTER_ROLE to Treasury contract in Token contract`);
     } catch (error) {
-      console.warn("Could not grant MINTER_ROLE to Treasury. External token may not support this role.");
+      console.warn("Failed to grant MINTER_ROLE to Treasury. External token may use a different role mechanism:");
       console.warn(error.message);
     }
   } else {
-    console.log("Skipping MINTER_ROLE grant - token doesn't support roles or couldn't be verified");
+    console.log("Skipping MINTER_ROLE grant - token doesn't support AccessControl interface");
   }
   
   // Record deployment info for easy reference
