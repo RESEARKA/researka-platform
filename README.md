@@ -1,52 +1,41 @@
-# Researka Platform
+# RESEARKA Platform
 
 A decentralized academic publishing platform built on blockchain technology, enabling transparent peer review, fair compensation for researchers, and efficient knowledge sharing.
 
 ## Overview
 
-Researka is a platform that revolutionizes academic publishing by leveraging blockchain technology to create a transparent, efficient, and incentivized ecosystem for researchers, reviewers, and readers. The platform uses a native token (RSKA) to facilitate transactions, reward contributions, and enable governance.
+RESEARKA is a platform that revolutionizes academic publishing by leveraging blockchain technology to create a transparent, efficient, and incentivized ecosystem for researchers, reviewers, and readers. The platform integrates with an external token for transactions and rewards, keeping the core platform focused on academic publishing functionality.
 
-## Tokenomics
+## External Token Integration
 
-- **Total Supply**: 100 million RSKA tokens
-- **Initial Price**: $0.10 per token
-- **Market Cap**: $10 million (initial)
-- **Founder Allocation**: 3 million tokens (3% of total supply)
-- **Token Utility**:
-  - Submission fees
-  - Review rewards
-  - Citation royalties
-  - Staking rewards
-  - Governance voting
+RESEARKA integrates with an external token platform rather than implementing a native token. This architectural decision:
+
+- Separates concerns between academic publishing features and token mechanics
+- Allows specialized teams to focus on respective areas of expertise
+- Enables more flexible token utility patterns across multiple platforms
+
+For token-related functionality, please refer to the separate token platform documentation at [RESEARKA Token Platform](https://researka.io/token).
 
 ## Smart Contracts
 
-### ResearkaToken.sol
-ERC-20 token contract with the following features:
-- Capped supply of 100 million tokens
-- Role-based access control
-- Dynamic transaction fees
-- Pause/unpause functionality
-- Burn mechanism for price stability
-
-### ResearkaSubmission.sol
+### RESEARKASubmission.sol
 Manages article submissions with:
 - Metadata storage
-- Dynamic submission fees based on ETH/USD price
+- Flexible fee structures with external token integration
 - Submission status tracking
 - Review process management
 
-### ResearkaReview.sol
+### RESEARKAReview.sol
 Handles the peer review process:
 - Reviewer assignment
 - Review submission and tracking
-- Review rewards distribution
+- Review rewards distribution through external token
 - Citation tracking and royalty payments
 
-### ResearchaTreasury.sol
+### RESEARKATreasury.sol
 Manages platform economics:
-- Buyback mechanism for price stability
-- Staking rewards and distribution
+- Integration with external token for payments
+- Rewards distribution mechanisms
 - Dynamic fee adjustments
 - Platform treasury management
 
@@ -72,10 +61,9 @@ Manages platform economics:
 ```
 researka-platform/
 ├── contracts/               # Smart contracts
-│   ├── ResearkaToken.sol    # ERC-20 token implementation
-│   ├── ResearkaSubmission.sol # Submission management
-│   ├── ResearkaReview.sol   # Review process management
-│   ├── ResearchaTreasury.sol # Treasury and economics
+│   ├── RESEARKASubmission.sol # Submission management
+│   ├── RESEARKAReview.sol   # Review process management
+│   ├── RESEARKATreasury.sol # Treasury and economics
 │   └── mocks/               # Mock contracts for testing
 ├── frontend/                # Frontend application
 │   ├── src/

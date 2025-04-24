@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/IResearkaToken.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /**
@@ -17,8 +17,8 @@ contract ResearkaSubmission is AccessControl, ReentrancyGuard {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant PLATFORM_ROLE = keccak256("PLATFORM_ROLE");
     
-    // Token contract
-    IERC20 public researchToken;
+    // Token contract interface for external RESEARKA token
+    IResearkaToken public researchToken;
     
     // Price feed for ETH/USD for dynamic fee calculation
     AggregatorV3Interface public priceFeed;
@@ -83,7 +83,7 @@ contract ResearkaSubmission is AccessControl, ReentrancyGuard {
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(PLATFORM_ROLE, msg.sender);
         
-        researchToken = IERC20(_token);
+        researchToken = IResearkaToken(_token);
         priceFeed = AggregatorV3Interface(_priceFeed);
         treasury = _treasury;
     }

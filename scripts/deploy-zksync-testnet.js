@@ -25,15 +25,29 @@ async function main() {
     process.exit(1);
   }
 
-  // Deploy Treasury contract first (will be used by token contract)
+  // Deploy Treasury contract first
   const treasuryAddress = wallet.address; // Initially set to deployer, will be updated
   
-  // Deploy Token contract
-  console.log("Deploying ResearkaToken...");
-  const tokenArtifact = await deployer.loadArtifact("ResearkaToken");
-  const token = await deployer.deploy(tokenArtifact, [treasuryAddress]);
-  await token.deployed();
-  console.log(`ResearkaToken deployed to: ${token.address}`);
+  // Use existing external token instead of deploying
+  if (!process.env.EXTERNAL_TOKEN_ADDRESS) {
+    console.error("ERROR: EXTERNAL_TOKEN_ADDRESS environment variable is required.");
+    console.error("Please add the external RESEARKA token address to your .env file.");
+    process.exit(1);
+  }
+  
+  console.log(`Using external RESEARKA token at: ${process.env.EXTERNAL_TOKEN_ADDRESS}`);
+  const tokenAddress = process.env.EXTERNAL_TOKEN_ADDRESS;
+  
+  // For testing, we can get an instance of the external token to verify it exists
+  try {
+    const tokenArtifact = await hre.artifacts.readArtifact("IResearkaToken");
+    const tokenContract = new ethers.Contract(tokenAddress, tokenArtifact.abi, wallet);
+    const symbol = await tokenContract.symbol();
+    console.log(`Connected to external token with symbol: ${symbol}`);
+  } catch (error) {
+    console.warn("Warning: Could not verify external token. Continuing anyway...");
+    console.warn(error.message);
+  }
   
   // zkSync testnet ETH/USD price feed (using Goerli feed for now)
   const priceFeedAddress = "0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e";
@@ -42,7 +56,7 @@ async function main() {
   console.log("Deploying ResearkaSubmission...");
   const submissionArtifact = await deployer.loadArtifact("ResearkaSubmission");
   const submission = await deployer.deploy(submissionArtifact, [
-    token.address,
+    tokenAddress,
     priceFeedAddress,
     treasuryAddress
   ]);
@@ -53,7 +67,7 @@ async function main() {
   console.log("Deploying ResearkaReview...");
   const reviewArtifact = await deployer.loadArtifact("ResearkaReview");
   const review = await deployer.deploy(reviewArtifact, [
-    token.address,
+    tokenAddress,
     submission.address,
     treasuryAddress
   ]);
@@ -64,7 +78,7 @@ async function main() {
   console.log("Deploying ResearchaTreasury...");
   const treasuryArtifact = await deployer.loadArtifact("ResearchaTreasury");
   const treasury = await deployer.deploy(treasuryArtifact, [
-    token.address,
+    tokenAddress,
     priceFeedAddress
   ]);
   await treasury.deployed();
@@ -81,7 +95,7 @@ async function main() {
   
   // Grant MINTER_ROLE to Treasury contract in Token contract
   const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
-  const grantMinterRoleTx = await token.grantRole(MINTER_ROLE, treasury.address);
+  const grantMinterRoleTx = await tokenContract.grantRole(MINTER_ROLE, treasury.address);
   await grantMinterRoleTx.wait();
   console.log(`Granted MINTER_ROLE to Treasury contract in Token contract`);
   
@@ -90,7 +104,7 @@ async function main() {
   // Log all contract addresses for easy reference
   const deploymentInfo = {
     network: "zkSyncTestnet",
-    token: token.address,
+    token: tokenAddress,
     treasury: treasury.address,
     submission: submission.address,
     review: review.address,
@@ -121,7 +135,7 @@ async function main() {
   
   // Create .env.testnet file with the contract addresses
   const envContent = `# Contract Addresses - zkSync Testnet
-NEXT_PUBLIC_TESTNET_TOKEN_ADDRESS=${token.address}
+NEXT_PUBLIC_TESTNET_TOKEN_ADDRESS=${tokenAddress}
 NEXT_PUBLIC_TESTNET_TREASURY_ADDRESS=${treasury.address}
 NEXT_PUBLIC_TESTNET_SUBMISSION_ADDRESS=${submission.address}
 NEXT_PUBLIC_TESTNET_REVIEW_ADDRESS=${review.address}

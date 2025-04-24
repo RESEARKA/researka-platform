@@ -4,8 +4,10 @@ import { useWallet } from '../contexts/WalletContext';
 import { getContractAddress, formatTokenAmount, parseTokenAmount, ContractType } from '../config/contracts';
 
 // ABIs
-import ResearkaTokenABI from '../abis/ResearkaToken.json';
 import ResearchaTreasuryABI from '../abis/ResearchaTreasury.json';
+
+// Feature flag for token integration
+const ENABLE_TOKEN_FEATURES = process.env.NEXT_PUBLIC_ENABLE_TOKEN_FEATURES === 'true';
 
 // Types for contract instances
 type TokenContract = ethers.Contract;
@@ -33,12 +35,26 @@ interface PlatformStats {
 // Cache for contract instances to improve performance
 const contractCache: Record<string, ethers.Contract> = {};
 
-// Hook for ResearkaToken contract
+// Minimal Token ABI for external integration
+const MinimalTokenABI = [
+  // Read-only functions
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+  // Write functions
+  "function transfer(address to, uint amount) returns (bool)",
+  "function approve(address spender, uint amount) returns (bool)",
+  "function transferFrom(address from, address to, uint amount) returns (bool)",
+  // Events
+  "event Transfer(address indexed from, address indexed to, uint amount)"
+];
+
+// Hook for external token contract
 export function useTokenContract(withSigner = false, tokenAddress?: string): TokenContract | null {
   const { provider, account, chainId } = useWallet();
   
   return useMemo(() => {
-    if (!provider || !chainId) return null;
+    if (!provider || !chainId || !ENABLE_TOKEN_FEATURES) return null;
     
     try {
       let contractAddress: string;
@@ -46,32 +62,34 @@ export function useTokenContract(withSigner = false, tokenAddress?: string): Tok
         // Use provided token address if available, otherwise get from config
         contractAddress = tokenAddress || getContractAddress('token', chainId);
       } catch (error) {
-        console.error('Contract not deployed on this network:', error);
+        console.error('Token contract not deployed on this network:', error);
         return null;
       }
       
-      // Check cache first for better performance
+      // Create contract cache key
       const cacheKey = `token-${contractAddress}-${withSigner ? 'signer' : 'provider'}`;
+      
+      // Return cached contract if available
       if (contractCache[cacheKey]) {
         return contractCache[cacheKey];
       }
       
-      const contractABI = ResearkaTokenABI.abi;
+      // Create provider/signer
+      const signerOrProvider = withSigner && account ? provider.getSigner(account) : provider;
       
-      let contract: ethers.Contract;
-      if (withSigner && account) {
-        const signer = provider.getSigner();
-        contract = new ethers.Contract(contractAddress, contractABI, signer);
-      } else {
-        contract = new ethers.Contract(contractAddress, contractABI, provider);
-      }
+      // Create contract instance with minimal ABI
+      const contract = new ethers.Contract(
+        contractAddress,
+        MinimalTokenABI,
+        signerOrProvider
+      );
       
-      // Cache the contract instance
+      // Cache contract instance
       contractCache[cacheKey] = contract;
       
       return contract;
     } catch (error) {
-      console.error('Error creating token contract instance:', error);
+      console.error('Error creating token contract:', error);
       return null;
     }
   }, [provider, account, chainId, withSigner, tokenAddress]);
