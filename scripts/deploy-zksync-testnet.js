@@ -38,13 +38,12 @@ async function main() {
   console.log(`Using external RESEARKA token at: ${process.env.EXTERNAL_TOKEN_ADDRESS}`);
   const tokenAddress = process.env.EXTERNAL_TOKEN_ADDRESS;
   
-  // Create token contract interface - will be used later if verification is successful
-  // Define outside try/catch so it's available throughout the function scope
+  // Create token contract interface - moved outside try block so it's available throughout
   let tokenContract = null;
-  let hasAccessControl = false;
+  let hasRoles = false;
   
-  // For testing, we can get an instance of the external token to verify it exists
   try {
+    // For testing, we can get an instance of the external token to verify it exists
     const tokenArtifact = await hre.artifacts.readArtifact("IResearkaToken");
     tokenContract = new ethers.Contract(tokenAddress, tokenArtifact.abi, wallet);
     const symbol = await tokenContract.symbol();
@@ -53,18 +52,18 @@ async function main() {
     // Check if token implements AccessControl (has role functions)
     try {
       const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
-      const hasRoleMethod = await tokenContract.hasRole.call(MINTER_ROLE, wallet.address);
-      // If we get here, token has AccessControl interface
-      hasAccessControl = true;
+      // Just calling hasRole to check if the method exists
+      await tokenContract.hasRole(MINTER_ROLE, wallet.address);
+      hasRoles = true;
       console.log("Token implements AccessControl with roles");
     } catch (roleError) {
       console.log("External token does not implement AccessControl with roles");
-      hasAccessControl = false;
+      hasRoles = false;
     }
   } catch (error) {
-    console.warn("Warning: Could not verify external token. Continuing anyway...");
+    console.warn("Warning: Could not verify external token. Continuing with deployment anyway...");
     console.warn(error.message);
-    // Keep tokenContract as null
+    // tokenContract remains null in this case
   }
   
   // zkSync testnet ETH/USD price feed (using Goerli feed for now)
@@ -108,8 +107,8 @@ async function main() {
   await grantPlatformRoleTx.wait();
   console.log(`Granted PLATFORM_ROLE to Treasury contract in Submission contract`);
   
-  // Grant MINTER_ROLE to Treasury contract in Token contract ONLY if it supports AccessControl
-  if (tokenContract && hasAccessControl) {
+  // Only grant MINTER_ROLE if token has role support and grantRole method
+  if (tokenContract && hasRoles && tokenContract.grantRole) {
     try {
       console.log("Attempting to grant MINTER_ROLE to treasury on token contract...");
       const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
@@ -121,7 +120,7 @@ async function main() {
       console.warn(error.message);
     }
   } else {
-    console.log("Skipping MINTER_ROLE grant - token doesn't support AccessControl interface");
+    console.log("Skipping MINTER_ROLE grant - token doesn't support AccessControl or grantRole method");
   }
   
   // Record deployment info for easy reference
