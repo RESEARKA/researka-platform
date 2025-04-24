@@ -53,37 +53,46 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, [account, provider]);
 
   // Initialize provider from window.ethereum if available
-  useEffect(() => {
-    const initProvider = async () => {
+  useEffect((): (() => void) | undefined => {
+    const initProvider = async (): Promise<void> => {
       if (window.ethereum) {
         try {
-          // Add DNS prefetch for zkSync resources
-          const linkEl = document.createElement('link');
-          linkEl.rel = 'dns-prefetch';
-          linkEl.href = 'https://mainnet.era.zksync.io';
-          document.head.appendChild(linkEl);
-          
+          // Get the provider
           const ethProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
-          setProvider(ethProvider);
           
-          // Check if already connected
-          const accounts = await ethProvider.listAccounts();
+          // Get accounts
+          const accounts = await window.ethereum.request({
+            method: 'eth_accounts',
+          }) as string[];
+          
           if (accounts.length > 0) {
             setAccount(accounts[0]);
+            setProvider(ethProvider);
             setSigner(ethProvider.getSigner());
             
-            const network = await ethProvider.getNetwork();
-            setChainId(network.chainId);
+            // Get chain ID
+            const chainId = await window.ethereum.request({
+              method: 'eth_chainId',
+            });
+            setChainId(parseInt(chainId as string, 16));
           }
         } catch (error) {
-          console.error("Failed to initialize provider", error);
+          console.error('Error initializing provider:', error);
         }
       }
     };
-
+    
     initProvider();
     
-    return () => {
+    // Add DNS prefetch for zkSync
+    const head = document.head;
+    const link = document.createElement('link');
+    link.rel = 'dns-prefetch';
+    link.href = 'https://mainnet.era.zksync.io';
+    head.appendChild(link);
+    
+    // Clean up on unmount
+    return (): void => {
       // Clean up DNS prefetch
       const prefetchLink = document.querySelector('link[rel="dns-prefetch"][href="https://mainnet.era.zksync.io"]');
       if (prefetchLink && prefetchLink.parentNode) {
@@ -93,10 +102,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, []);
 
   // Setup event listeners for wallet changes
-  useEffect(() => {
+  useEffect((): (() => void) | undefined => {
     if (window.ethereum) {
       // Handle account changes
-      const handleAccountsChanged = (accounts: string[]) => {
+      const handleAccountsChanged = (accounts: string[]): void => {
         if (accounts.length === 0) {
           // User disconnected their wallet
           disconnect();
@@ -109,7 +118,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       };
 
       // Handle chain changes
-      const handleChainChanged = (chainIdHex: string) => {
+      const handleChainChanged = (chainIdHex: string): void => {
         const newChainId = parseInt(chainIdHex, 16);
         setChainId(newChainId);
       };
@@ -118,15 +127,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       window.ethereum.on('chainChanged', handleChainChanged);
 
       // Cleanup listeners on unmount
-      return () => {
+      return (): void => {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
         window.ethereum.removeListener('chainChanged', handleChainChanged);
       };
     }
+    return undefined;
   }, [account, provider]);
 
   // Connect wallet function
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (): Promise<void> => {
     if (!window.ethereum) {
       window.open('https://metamask.io/download.html', '_blank');
       return;
@@ -138,7 +148,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       // Request accounts
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
-      });
+      }) as string[];
       
       if (accounts.length > 0) {
         setAccount(accounts[0]);

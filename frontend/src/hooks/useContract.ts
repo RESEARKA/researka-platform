@@ -142,20 +142,19 @@ export function useTokenBalance(address?: string): {
   
   // Get token symbol
   useEffect(() => {
-    const getTokenSymbol = async (): Promise<void> => {
-      if (!tokenContract) return;
+    const getTokenSymbol = async (): Promise<string> => {
+      if (!tokenContract) return 'RESEARKA';
       
       try {
         const tokenSymbol = await tokenContract.symbol();
-        setSymbol(tokenSymbol);
+        return tokenSymbol;
       } catch (error) {
         console.error('Error fetching token symbol:', error);
-        // Use fallback if symbol() fails
-        setSymbol('RESEARKA');
+        return 'RESEARKA';
       }
     };
     
-    getTokenSymbol();
+    getTokenSymbol().then((tokenSymbol) => setSymbol(tokenSymbol));
   }, [tokenContract]);
   
   const fetchBalance = async (): Promise<void> => {
@@ -228,12 +227,13 @@ export function useTokenBalance(address?: string): {
       tokenContract.on(fromFilter, fetchBalance);
       tokenContract.on(toFilter, fetchBalance);
       
-      return () => {
+      return (): void => {
         tokenContract.off(fromFilter, fetchBalance);
         tokenContract.off(toFilter, fetchBalance);
       };
     }
-  }, [tokenContract, targetAddress, balance, lastUpdated]);
+    return undefined;
+  }, [tokenContract, targetAddress, balance, lastUpdated, fetchBalance, fetchBalanceInBackground, CACHE_DURATION]);
   
   return { balance, formattedBalance, isLoading, refetch, symbol };
 }
@@ -246,7 +246,7 @@ export function useStakingPositions(): { positions: StakingPosition[]; isLoading
   const treasuryContract = useTreasuryContract();
   
   useEffect(() => {
-    const fetchPositions = async () => {
+    const fetchPositions = async (): Promise<void> => {
       if (!treasuryContract || !account) {
         setIsLoading(false);
         return;
@@ -284,11 +284,13 @@ export function useStakingPositions(): { positions: StakingPosition[]; isLoading
       treasuryContract.on(stakedFilter, fetchPositions);
       treasuryContract.on(unstakedFilter, fetchPositions);
       
-      return () => {
+      return (): void => {
         treasuryContract.off(stakedFilter, fetchPositions);
         treasuryContract.off(unstakedFilter, fetchPositions);
       };
     }
+    
+    return undefined;
   }, [treasuryContract, account]);
   
   return { positions, isLoading };

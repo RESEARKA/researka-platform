@@ -40,11 +40,16 @@ interface TokenBalanceProps {
   tokenAddress: string;
 }
 
+interface HandleTransferProps {
+  recipientAddress: string;
+  amount: string;
+}
+
 const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
-  const { account, isConnected } = useWallet();
+  const { account, isConnected }: { account: string | null; isConnected: boolean } = useWallet();
   const toast = useToast();
   const tokenContract = useTokenContract(true, tokenAddress);
-  const { balance, isLoading: isBalanceLoading, refetch: refetchBalance, symbol } = useTokenBalance(account || '');
+  const { balance, isLoading: isBalanceLoading, refetch: refetchBalance, symbol }: { balance: string; isLoading: boolean; refetch: () => void; symbol: string } = useTokenBalance(account || '');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
@@ -84,7 +89,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
   }
 
   // Handle token transfer logic
-  const handleTransfer = async () => {
+  const handleTransfer = async ({ recipientAddress, amount }: HandleTransferProps) => {
     // Reset error
     setTransferError('');
 
@@ -207,7 +212,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
               <Input 
                 placeholder="0x..." 
                 value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRecipientAddress(e.target.value)}
               />
             </FormControl>
             
@@ -218,7 +223,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
                   type="number" 
                   placeholder="0.0" 
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
                 />
                 <InputRightAddon>{symbol}</InputRightAddon>
               </InputGroup>
@@ -234,7 +239,7 @@ const TokenBalance: React.FC<TokenBalanceProps> = ({ tokenAddress }) => {
             <Button 
               colorScheme="blue" 
               mr={3} 
-              onClick={handleTransfer}
+              onClick={() => handleTransfer({ recipientAddress, amount })}
               isLoading={isTransferring}
               loadingText="Transferring"
             >
