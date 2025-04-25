@@ -26,7 +26,8 @@
     "types": [
       "node",
       "jest",
-      "@testing-library/jest-dom"
+      "@testing-library/jest-dom",
+      "jest-extended"
     ],
     "plugins": [
       {
@@ -53,10 +54,6 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "contracts",
-    "scripts",
-    "test",
-    "hardhat.config.js"
+    "node_modules"
   ]
 }

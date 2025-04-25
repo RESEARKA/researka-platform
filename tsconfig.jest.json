@@ -7,8 +7,7 @@
       "jest",
       "node",
       "@testing-library/jest-dom",
-      "./types/jest-dom",
-      "./types/jest-extended"
+      "jest-extended"
     ]
   },
   "include": [

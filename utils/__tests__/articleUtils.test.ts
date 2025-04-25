@@ -1,9 +1,6 @@
 import { paginateArticles, getTotalPages } from '../articleUtils';
 import { Article } from '../../data/articles';
 
-// For now, let's focus on debugging the pagination issue rather than running tests
-// We'll use this file as a reference for our manual testing
-
 // Create a mock array of articles for testing
 const mockArticles: Article[] = Array.from({ length: 35 }, (_, i) => ({
   id: i + 1,
@@ -16,36 +13,37 @@ const mockArticles: Article[] = Array.from({ length: 35 }, (_, i) => ({
   imageUrl: 'https://example.com/image.jpg'
 }));
 
-// Manual test functions
-function testPaginateArticles() {
-  console.log('Testing paginateArticles function');
-  
-  // Test first page
-  const firstPage = paginateArticles(mockArticles, 1, 10);
-  console.log('First page length:', firstPage.length);
-  console.log('First page first article ID:', firstPage[0]?.id);
-  console.log('First page last article ID:', firstPage[9]?.id);
-  
-  // Test second page
-  const secondPage = paginateArticles(mockArticles, 2, 10);
-  console.log('Second page length:', secondPage.length);
-  console.log('Second page first article ID:', secondPage[0]?.id);
-  console.log('Second page last article ID:', secondPage[9]?.id);
-  
-  // Test last page
-  const lastPage = paginateArticles(mockArticles, 4, 10);
-  console.log('Last page length:', lastPage.length);
-  console.log('Last page first article ID:', lastPage[0]?.id);
-  console.log('Last page last article ID:', lastPage[4]?.id);
-}
+describe('Article Utils', () => {
+  describe('paginateArticles', () => {
+    it('should return the correct articles for the first page', () => {
+      const firstPage = paginateArticles(mockArticles, 1, 10);
+      expect(firstPage.length).toBe(10);
+      expect(firstPage[0].id).toBe(1);
+      expect(firstPage[9].id).toBe(10);
+    });
 
-function testGetTotalPages() {
-  console.log('Testing getTotalPages function');
-  console.log('Total pages for 35 items, 10 per page:', getTotalPages(35, 10));
-  console.log('Total pages for 10 items, 10 per page:', getTotalPages(10, 10));
-  console.log('Total pages for 11 items, 10 per page:', getTotalPages(11, 10));
-  console.log('Total pages for 0 items, 10 per page:', getTotalPages(0, 10));
-}
+    it('should return the correct articles for the second page', () => {
+      const secondPage = paginateArticles(mockArticles, 2, 10);
+      expect(secondPage.length).toBe(10);
+      expect(secondPage[0].id).toBe(11);
+      expect(secondPage[9].id).toBe(20);
+    });
 
-// Export the test functions so we can run them manually
-export { testPaginateArticles, testGetTotalPages };
+    it('should return the correct articles for the last page', () => {
+      const lastPage = paginateArticles(mockArticles, 4, 10);
+      expect(lastPage.length).toBe(5);
+      expect(lastPage[0].id).toBe(31);
+      expect(lastPage[4].id).toBe(35);
+    });
+  });
+
+  describe('getTotalPages', () => {
+    it('should calculate the correct number of pages', () => {
+      expect(getTotalPages(35, 10)).toBe(4);
+      expect(getTotalPages(10, 10)).toBe(1);
+      expect(getTotalPages(11, 10)).toBe(2);
+      // Update: getTotalPages returns at least 1 page even for 0 items
+      expect(getTotalPages(0, 10)).toBe(1);
+    });
+  });
+});

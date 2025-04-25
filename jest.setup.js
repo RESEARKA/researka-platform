@@ -3,7 +3,21 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
-import 'jest-extended';
+import 'jest-extended'; // Restore for objectContaining etc.
+
+// Mock Sentry
+jest.mock('@sentry/nextjs', () => ({
+  init: jest.fn(),
+  captureException: jest.fn(),
+  captureMessage: jest.fn(),
+  addBreadcrumb: jest.fn(),
+  setUser: jest.fn(),
+  setContext: jest.fn(),
+  setTag: jest.fn(),
+  withSentry: (component) => component, // Pass-through for HOCs
+  BrowserTracing: jest.fn().mockImplementation(() => ({ name: 'BrowserTracing' })),
+  // Add any other Sentry functions your code might import/use
+}));
 
 // Mock Next.js router
 jest.mock('next/router', () => ({
@@ -111,50 +125,21 @@ jest.mock('next/head', () => {
   };
 });
 
-// Add missing matchers if they don't exist
-const originalExpect = global.expect;
-global.expect = (actual) => {
-  const expectation = originalExpect(actual);
-  
-  // Add missing matchers if they don't exist
-  if (!expectation.toBeInTheDocument) {
-    expectation.toBeInTheDocument = () => expectation.toBeTruthy();
-  }
-  
-  if (!expectation.toHaveBeenCalled) {
-    expectation.toHaveBeenCalled = () => expectation.toBeTruthy();
-  }
-  
-  if (!expectation.toHaveBeenCalledWith) {
-    expectation.toHaveBeenCalledWith = (...args) => expectation.toBeTruthy();
-  }
-  
-  return expectation;
-};
-
-// Extend expect with any
-if (typeof global.expect.any !== 'function') {
-  // Create a custom matcher function that matches any value of the specified type
-  global.expect.any = function(constructor) {
-    return {
-      asymmetricMatch: function(actual) {
-        return actual !== null && 
-               actual !== undefined && 
-               (constructor === Object || 
-                constructor === String || 
-                constructor === Number || 
-                constructor === Boolean || 
-                actual instanceof constructor);
-      },
-      toString: function() {
-        return `Any<${constructor.name}>`;
-      },
-      toAsymmetricMatcher: function() {
-        return `Any<${constructor.name}>`;
-      }
-    };
-  };
-}
-
-// Ensure other expect methods are preserved
-global.expect.extend = originalExpect.extend || function() {};
+// Mock PDFJS (target the base module) - REMOVED, handled by moduleNameMapper
+/*
+jest.mock('pdfjs-dist', () => ({
+  // Assume the require('pdfjs-dist/build/pdf') directly gives access to these.
+  // If the original code structure was different (e.g., pdfjs.build.pdf), adjust nesting.
+  GlobalWorkerOptions: {
+    workerSrc: '',
+  },
+  getDocument: jest.fn().mockResolvedValue({
+    numPages: 1,
+    getPage: jest.fn().mockResolvedValue({
+      getTextContent: jest.fn().mockResolvedValue({ items: [] }),
+      getViewport: jest.fn().mockReturnValue({ width: 600, height: 800 }),
+    }),
+    destroy: jest.fn(),
+  }),
+}));
+*/

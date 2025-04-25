@@ -7,15 +7,22 @@ const createJestConfig = nextJest({
 
 // Add any custom config to be passed to Jest
 const customJestConfig = {
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  setupFilesAfterEnv: [
+    '<rootDir>/jest.setup.js'
+  ],
   testEnvironment: 'jest-environment-jsdom',
   moduleNameMapper: {
-    // Handle module aliases (if you have them in tsconfig.json)
+    '^pdfjs-dist/build/pdf$': '<rootDir>/__mocks__/pdfjs-dist-build-pdf.js',
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/pages/(.*)$': '<rootDir>/pages/$1',
     '^@/utils/(.*)$': '<rootDir>/utils/$1',
     '^@/contexts/(.*)$': '<rootDir>/contexts/$1',
     '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
+    '\.(jpg|jpeg|png|gif|webp|avif|svg)$': '<rootDir>/__mocks__/fileMock.js',
+    'pdfjs-dist/build/pdf.worker.entry.js': '<rootDir>/__mocks__/pdfWorkerMock.js',
+    'pdfjs-dist/build/pdf': '<rootDir>/__mocks__/pdfjs-dist-build-pdf.js',
+    '@react-pdf/renderer': '<rootDir>/__mocks__/reactPdfRendererMock.js',
+    '@solana/wallet-adapter-react-ui': '<rootDir>/__mocks__/solanaWalletAdapterReactUiMock.js',
   },
   collectCoverageFrom: [
     'components/**/*.{js,jsx,ts,tsx}',
@@ -32,23 +39,19 @@ const customJestConfig = {
     '<rootDir>/.next/',
     '<rootDir>/coverage/',
   ],
-  transform: {
-    // Use babel-jest to transpile tests with the next/babel preset
-    // https://jestjs.io/docs/configuration#transform-objectstring-pathtotransformer--pathtotransformer-object
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
-  },
   transformIgnorePatterns: [
     '/node_modules/',
     '^.+\\.module\\.(css|sass|scss)$',
+    '/node_modules/(?!(pdfjs-dist)/)', 
   ],
-  globals: {
-    'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.jest.json', // Use our Jest-specific TypeScript config
-    },
-  },
   testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  // Removed the testRunner setting that was causing errors
+  globals: {
+    'ts-jest': { 
+      tsconfig: '<rootDir>/tsconfig.jest.json',
+    },
+  },
+  injectGlobals: true, 
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
