@@ -1088,7 +1088,7 @@ function extractTextFromXml(xmlContent: string): string {
 /**
  * Parse plain text files
  */
-async function parseTextFile(file: File): Promise<ParsedDocument> {
+export async function parseTextFile(file: File): Promise<ParsedDocument> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     
