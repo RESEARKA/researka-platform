@@ -15,7 +15,7 @@ describe('TouchButton', () => {
    * evaluate the CSS.
    */
   it('renders without crashing', () => {
-    const { container } = render(<TouchButton>Button Text</TouchButton>);
-    expect(container).toBeTruthy();
+    render(<TouchButton>Button Text</TouchButton>);
+    // If we got here, the test passes
   });
 });
