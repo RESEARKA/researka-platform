@@ -2,6 +2,19 @@ import { createLogger, LogCategory } from './logger';
 import * as mammoth from 'mammoth';
 import * as iconv from 'iconv-lite';
 import { createDeepSeekAI } from './deepseekAI';
+import { IDocumentParserPlugin } from './plugins/IDocumentParserPlugin';
+import { TextParserPlugin } from './plugins/TextParserPlugin';
+import { PdfParserPlugin } from './plugins/PdfParserPlugin';
+import { WordParserPlugin } from './plugins/WordParserPlugin';
+import { PagesParserPlugin } from './plugins/PagesParserPlugin';
+
+// Temporary plugin registry for refactoring transition
+const parserPlugins: IDocumentParserPlugin[] = [
+  TextParserPlugin,
+  PdfParserPlugin,
+  WordParserPlugin,
+  PagesParserPlugin
+];
 
 // We need to import pdfjs in a way that works with Next.js
 let pdfjsLib: any;
@@ -49,6 +62,16 @@ const DOCUMENT_PARSING_CONFIG = {
 };
 
 /**
+ * Finds a suitable parser plugin based on file extension.
+ */
+function findParserPlugin(file: File): IDocumentParserPlugin | undefined {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  return parserPlugins.find((plugin) => 
+    plugin.supportedFormats.some((fmt) => fmt.toLowerCase() === `.${extension}`)
+  );
+}
+
+/**
  * Extracts text content from various document formats
  * Supports: Plain text, PDF, Word documents, and Apple Pages files
  */
@@ -61,29 +84,41 @@ export async function parseDocument(file: File, options: { enhanceWithAI?: boole
     // Determine the file type and call the appropriate parser
     let parsedDocument: ParsedDocument;
 
-    if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-      parsedDocument = await parseTextFile(file);
-    } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      parsedDocument = await parsePdfFile(file);
-    } else if (
-      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      file.name.endsWith('.docx')
-    ) {
-      parsedDocument = await parseWordFile(file);
-    } else if (
-      file.type === 'application/msword' ||
-      file.name.endsWith('.doc')
-    ) {
-      parsedDocument = await parseWordFile(file);
-    } else if (
-      file.type === 'application/vnd.apple.pages' ||
-      file.name.endsWith('.pages')
-    ) {
-      parsedDocument = await parsePagesFile(file);
+    const plugin = findParserPlugin(file);
+    if (plugin) {
+      try {
+        const result = await plugin.parse(file);
+        parsedDocument = result;
+      } catch (error) {
+        console.error(`Plugin ${plugin.name} failed to parse ${file.name}:`, error);
+        throw new Error(`Failed to parse document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     } else {
-      return {
-        error: `Unsupported file type: ${file.type}. Please upload a PDF, Word, Pages, or plain text file.`
-      };
+      // Fallback to existing logic if no plugin found or for backward compatibility
+      if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        parsedDocument = await parseTextFile(file);
+      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        parsedDocument = await parsePdfFile(file);
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.name.endsWith('.docx')
+      ) {
+        parsedDocument = await parseWordFile(file);
+      } else if (
+        file.type === 'application/msword' ||
+        file.name.endsWith('.doc')
+      ) {
+        parsedDocument = await parseWordFile(file);
+      } else if (
+        file.type === 'application/vnd.apple.pages' ||
+        file.name.endsWith('.pages')
+      ) {
+        parsedDocument = await parsePagesFile(file);
+      } else {
+        return {
+          error: `Unsupported file type: ${file.type}. Please upload a PDF, Word, Pages, or plain text file.`
+        };
+      }
     }
 
     // If AI enhancement is requested and the document was parsed successfully
