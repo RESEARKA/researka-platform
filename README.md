@@ -77,6 +77,25 @@ researka-platform/
 └── hardhat.config.js        # Hardhat configuration
 ```
 
+## Development Workflow
+
+### Branch Strategy
+
+We follow a structured branching model to ensure a clean, stable production environment:
+
+| Branch | Purpose | Who Merges/Deploys | Protection Rules |
+|--------|---------|----------------------|------------------|
+| **`main`** | Always-deployable, token-free production code. Tagged for every release. | Only 'release managers' after CI passes. | Require PR, Status checks, No force-push |
+| **`staging`** | Next release candidate. Completed feature PRs land here; auto-deployed to staging URL. | Any dev via PR. | Require PR, Status checks |
+| **Feature/Hot-fix** | Task-specific (e.g., `feat/document-parser-pipeline`). Short-lived, based on latest `staging`. | Author merges via PR to `staging`. | Optional protections |
+
+**Workflow:**
+- All new work targets `staging` via PRs from feature branches.
+- `staging` is merged to `main` via a 'Release PR' when ready, after CI checks pass.
+- Hot-fixes go directly to `main` and are fast-forwarded to `staging`.
+
+This isolates experiments on `staging`, keeps `main` pristine, and ensures CI gates prevent token-related code from accidentally entering production.
+
 ## Setup and Installation
 
 ### Prerequisites
