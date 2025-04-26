@@ -1,43 +1,52 @@
 // Mock implementation of Chakra UI components for testing
 const React = require('react');
 
-// Create simple mock components that render their children without Emotion dependencies
-const Box = ({ children, ...props }) => React.createElement('div', props, children);
-const Flex = ({ children, ...props }) => React.createElement('div', props, children);
-const Text = ({ children, ...props }) => React.createElement('span', props, children);
-const Image = ({ src, alt, ...props }) => React.createElement('img', { src, alt, ...props });
-const Button = ({ children, ...props }) => React.createElement('button', props, children);
-const Link = ({ children, ...props }) => React.createElement('a', props, children);
-const Heading = ({ children, ...props }) => React.createElement('h2', props, children);
-const Stack = ({ children, ...props }) => React.createElement('div', props, children);
-const HStack = ({ children, ...props }) => React.createElement('div', props, children);
-const VStack = ({ children, ...props }) => React.createElement('div', props, children);
-const Center = ({ children, ...props }) => React.createElement('div', props, children);
-const Container = ({ children, ...props }) => React.createElement('div', props, children);
-const Spinner = (props) => React.createElement('div', { ...props, 'data-testid': 'spinner' });
+// Helper function to create elements with data-testid
+const mk = (element, id) => 
+  React.forwardRef(({ children, ...rest }, ref) => 
+    React.createElement(element, { 
+      ...rest, 
+      'data-testid': id,
+      ref 
+    }, children)
+  );
 
-// Mock the ChakraProvider to simply render its children
-const ChakraProvider = ({ children }) => React.createElement(React.Fragment, null, children);
-
-// Export all the mocked components
+// Export all components and hooks
 module.exports = {
-  Box,
-  Flex,
-  Text,
-  Image,
-  Button,
-  Link,
-  Heading,
-  Stack,
-  HStack,
-  VStack,
-  Center,
-  Container,
-  Spinner,
-  ChakraProvider,
-  useDisclosure: () => ({ isOpen: false, onOpen: jest.fn(), onClose: jest.fn() }),
-  useToast: () => jest.fn(),
-  useBreakpointValue: () => null,
-  useColorMode: () => ({ colorMode: 'light', toggleColorMode: jest.fn() }),
-  useColorModeValue: (light, dark) => light,
+  __esModule: true,
+  // Components
+  Box: mk('div', 'chakra-box'),
+  Container: mk('div', 'chakra-container'),
+  Flex: mk('div', 'chakra-flex'),
+  Stack: mk('div', 'chakra-stack'),
+  HStack: mk('div', 'chakra-hstack'),
+  VStack: mk('div', 'chakra-vstack'),
+  Heading: mk('h1', 'chakra-heading'),
+  Text: mk('p', 'chakra-text'),
+  Image: mk('img', 'chakra-image'),
+  Spacer: mk('div', 'chakra-spacer'),
+  Divider: mk('hr', 'chakra-divider'),
+  Link: mk('a', 'chakra-link'),
+  Skeleton: mk('div', 'chakra-skeleton'),
+  Spinner: mk('div', 'chakra-spinner'),
+  
+  // Hooks
+  useColorMode: jest.fn(() => ({
+    colorMode: 'light',
+    toggleColorMode: jest.fn(),
+  })),
+  useColorModeValue: jest.fn((light) => light),
+  useDisclosure: jest.fn(() => ({
+    isOpen: false,
+    onOpen: jest.fn(),
+    onClose: jest.fn(),
+    onToggle: jest.fn(),
+  })),
+  useBreakpointValue: jest.fn((values) => {
+    // Return the base value or the first value
+    return values.base || Object.values(values)[0];
+  }),
+  
+  // Add any other exports that might be needed
+  ChakraProvider: ({ children }) => React.createElement(React.Fragment, null, children),
 };

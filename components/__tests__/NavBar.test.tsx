@@ -1,7 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import NavBar from '../NavBar';
 
 // Mock localStorage
 const localStorageMock = (function() {
@@ -26,25 +25,8 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 });
 
-// Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => {
-  const React = require('react');
-  return {
-    Box: ({ children, ...props }: any) => <div data-testid="chakra-box" {...props}>{children}</div>,
-    Container: ({ children, ...props }: any) => <div data-testid="chakra-container" {...props}>{children}</div>,
-    Flex: ({ children, ...props }: any) => <div data-testid="chakra-flex" {...props}>{children}</div>,
-    Heading: ({ children, ...props }: any) => <h1 data-testid="chakra-heading" {...props}>{children}</h1>,
-    Spacer: () => <div data-testid="chakra-spacer" />,
-    Link: ({ children, ...props }: any) => <a data-testid="chakra-link" {...props}>{children}</a>,
-    useDisclosure: jest.fn(() => ({
-      isOpen: false,
-      onOpen: jest.fn(),
-      onClose: jest.fn(),
-    })),
-  };
-});
-
-// Mock the logger
+// Explicitly mock the modules
+jest.mock('@chakra-ui/react');
 jest.mock('../../utils/logger', () => ({
   createLogger: jest.fn(() => ({
     info: jest.fn(),
@@ -58,7 +40,6 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
-// Mock the AuthContext
 jest.mock('../../contexts/AuthContext', () => ({
   useAuth: jest.fn(() => ({
     isAuthenticated: false,
@@ -68,7 +49,6 @@ jest.mock('../../contexts/AuthContext', () => ({
   })),
 }));
 
-// Mock the next/link component
 jest.mock('next/link', () => {
   const React = require('react');
   return React.forwardRef(({ children, href, ...rest }: any, ref: any) => (
@@ -78,10 +58,8 @@ jest.mock('next/link', () => {
   ));
 });
 
-// Mock the NavLinks component - make sure to match the exact import structure
 jest.mock('../navbar/NavLinks', () => {
   const React = require('react');
-  // Important: use default export to match how it's imported in NavBar.tsx
   return {
     __esModule: true,
     default: () => (
@@ -94,7 +72,6 @@ jest.mock('../navbar/NavLinks', () => {
   };
 });
 
-// Mock the UserMenu component
 jest.mock('../navbar/UserMenu', () => {
   const React = require('react');
   return {
@@ -103,7 +80,6 @@ jest.mock('../navbar/UserMenu', () => {
   };
 });
 
-// Mock the AuthButtons component
 jest.mock('../navbar/AuthButtons', () => {
   const React = require('react');
   return {
@@ -112,11 +88,17 @@ jest.mock('../navbar/AuthButtons', () => {
   };
 });
 
+// Import the component after setting up mocks
+import NavBar from '../NavBar';
+
 describe('NavBar Component', () => {
+  beforeEach(() => {
+    // Clear all mocks before each test
+    jest.clearAllMocks();
+  });
+  
   it('renders without crashing', () => {
-    const { container, debug } = render(<NavBar />);
-    // Debug the rendered output to see what's actually being rendered
-    debug();
+    const { container } = render(<NavBar />);
     
     // Check if the component rendered the container
     expect(container.querySelector('[data-testid="chakra-container"]')).toBeInTheDocument();
