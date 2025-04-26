@@ -5,7 +5,7 @@
 import '@testing-library/jest-dom';
 import 'jest-extended'; // Restore for objectContaining etc.
 
-// Mock Sentry
+// Mock Sentry to avoid actual error reporting during tests
 jest.mock('@sentry/nextjs', () => ({
   init: jest.fn(),
   captureException: jest.fn(),
@@ -19,7 +19,7 @@ jest.mock('@sentry/nextjs', () => ({
   // Add any other Sentry functions your code might import/use
 }));
 
-// Mock Next.js router
+// Mock next/router for tests
 jest.mock('next/router', () => ({
   useRouter: () => ({
     push: jest.fn(),
@@ -40,47 +40,12 @@ jest.mock('next/router', () => ({
   }),
 }));
 
-// Mock IntersectionObserver
-class MockIntersectionObserver {
-  constructor(callback) {
-    this.callback = callback;
-  }
+// Import and apply centralized mocks for DOM APIs
+import { mockIntersectionObserver, mockResizeObserver, mockMatchMedia } from './test-utils/jestMocks';
 
-  observe() {
-    return null;
-  }
-
-  unobserve() {
-    return null;
-  }
-
-  disconnect() {
-    return null;
-  }
-}
-
-global.IntersectionObserver = MockIntersectionObserver;
-
-// Mock ResizeObserver
-class MockResizeObserver {
-  constructor(callback) {
-    this.callback = callback;
-  }
-
-  observe() {
-    return null;
-  }
-
-  unobserve() {
-    return null;
-  }
-
-  disconnect() {
-    return null;
-  }
-}
-
-global.ResizeObserver = MockResizeObserver;
+mockIntersectionObserver();
+mockResizeObserver();
+mockMatchMedia();
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -124,22 +89,3 @@ jest.mock('next/head', () => {
     },
   };
 });
-
-// Mock PDFJS (target the base module) - REMOVED, handled by moduleNameMapper
-/*
-jest.mock('pdfjs-dist', () => ({
-  // Assume the require('pdfjs-dist/build/pdf') directly gives access to these.
-  // If the original code structure was different (e.g., pdfjs.build.pdf), adjust nesting.
-  GlobalWorkerOptions: {
-    workerSrc: '',
-  },
-  getDocument: jest.fn().mockResolvedValue({
-    numPages: 1,
-    getPage: jest.fn().mockResolvedValue({
-      getTextContent: jest.fn().mockResolvedValue({ items: [] }),
-      getViewport: jest.fn().mockReturnValue({ width: 600, height: 800 }),
-    }),
-    destroy: jest.fn(),
-  }),
-}));
-*/
