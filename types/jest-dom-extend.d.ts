@@ -1,46 +1,70 @@
-// Import the jest-dom matchers
+// This file extends the Jest types to include jest-dom matchers
 import '@testing-library/jest-dom';
 
-// Extend the Jest matchers
 declare global {
   namespace jest {
     interface Matchers<R> {
-      // DOM element matchers
+      // Jest-DOM matchers
       toBeInTheDocument(): R;
-      toHaveTextContent(text: string | RegExp): R;
       toHaveAttribute(attr: string, value?: string): R;
+      toHaveTextContent(text: string | RegExp): R;
       toBeVisible(): R;
       toBeDisabled(): R;
       toBeEnabled(): R;
       toBeChecked(): R;
       toHaveClass(className: string): R;
-      toHaveValue(value: string | string[] | number): R;
+      toHaveStyle(style: Record<string, any>): R;
       toHaveFocus(): R;
-      toHaveStyle(css: string | object): R;
+      toContainElement(element: HTMLElement | null): R;
+      toBeEmpty(): R;
+      toBeRequired(): R;
       
-      // Mock function matchers
+      // Standard Jest matchers
+      toBe(expected: any): R;
+      toBeCloseTo(expected: number, precision?: number): R;
+      toBeDefined(): R;
+      toBeFalsy(): R;
+      toBeGreaterThan(expected: number | bigint): R;
+      toBeGreaterThanOrEqual(expected: number | bigint): R;
+      toBeInstanceOf(expected: Function): R;
+      toBeLessThan(expected: number | bigint): R;
+      toBeLessThanOrEqual(expected: number | bigint): R;
+      toBeNaN(): R;
+      toBeNull(): R;
+      toBeTruthy(): R;
+      toBeUndefined(): R;
+      toContain(expected: any): R;
+      toContainEqual(expected: any): R;
+      toEqual(expected: any): R;
       toHaveBeenCalled(): R;
       toHaveBeenCalledTimes(count: number): R;
       toHaveBeenCalledWith(...args: any[]): R;
       toHaveBeenLastCalledWith(...args: any[]): R;
-      toHaveBeenNthCalledWith(nth: number, ...args: any[]): R;
-      toHaveReturned(): R;
-      toHaveReturnedTimes(count: number): R;
-      toHaveReturnedWith(value: any): R;
-      toHaveLastReturnedWith(value: any): R;
-      toHaveNthReturnedWith(nth: number, value: any): R;
+      toHaveLength(expected: number): R;
+      toHaveProperty(keyPath: string | Array<string>, value?: any): R;
+      toMatch(expected: string | RegExp): R;
+      toMatchObject(expected: object | Array<object>): R;
+      toMatchSnapshot(hint?: string): R;
+      toStrictEqual(expected: any): R;
+      toThrow(error?: string | Constructable | RegExp | Error): R;
+      
+      // Add missing matchers for our tests
+      toBeEmptyDOMElement(): R;
+      not: Matchers<R>;
     }
-  }
-
-  // Add expect.any() and other expect utilities
-  namespace jest {
+    
     interface Expect {
-      any(constructor: any): any;
-      anything(): any;
-      arrayContaining(array: Array<any>): any;
-      objectContaining(object: {}): any;
-      stringContaining(string: string): any;
-      stringMatching(regexp: RegExp | string): any;
+      objectContaining<T extends object>(obj: T): T;
+      stringContaining(str: string): string;
+      arrayContaining<T>(arr: T[]): T[];
     }
   }
 }
+
+// This defines the Constructable interface used in toThrow
+interface Constructable {
+  new (...args: any[]): any;
+}
+
+// This empty export is needed to make this a module
+export {};
