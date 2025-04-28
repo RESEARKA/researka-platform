@@ -2,11 +2,11 @@
  * Document Parsing Service
  * Main facade for document parsing functionality
  */
-import { StructuredDocument, ParserOptions, EnhancedDocument } from '../types/document';
+import { StructuredDocument, ParserOptions } from '../types/document';
 import { parseDocument } from '../parsers';
 import { extractDocumentSections } from '../extractor';
 import { enhanceDocumentWithAI } from '../enhancer';
-import { createLogger, LogCategory } from '../../logger';
+import { createLogger } from '../../logger';
 
 const logger = createLogger('DocumentParsingService');
 
@@ -101,6 +101,6 @@ export const documentParsingService = new DocumentParsingService();
  * @param options Parsing options
  * @returns Parsed document structure
  */
-export async function parseDocument(file: File, options: ParserOptions = {}): Promise<StructuredDocument> {
+export async function parseDocumentWithService(file: File, options: ParserOptions = {}): Promise<StructuredDocument> {
   return documentParsingService.parseDocument(file, options);
 }

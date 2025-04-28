@@ -1,3 +1,5 @@
+'use client';
+
 import React, { ReactNode, useState, useEffect } from 'react';
 import { Box, Spinner, Text, VStack, Center } from '@chakra-ui/react';
 import useFirebaseInitialized from '../hooks/useFirebaseInitialized';
