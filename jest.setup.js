@@ -1,11 +1,53 @@
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
-// expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
+// Make window.location writable to avoid errors in components that redirect
+beforeAll(() => {
+  // Setup portal mock for modal testing
+  require('./test-utils/portal-mock').setupPortalMock();
+  
+  // jsdom defines window.location as read-only; redefine with a stub
+  delete global.window.location;
+  // minimal subset used by NavBar.handleLogout
+  global.window.location = { href: '', assign: jest.fn() };
+});
+
+// Import essential Jest matchers before anything else
 import '@testing-library/jest-dom';
 import 'jest-extended'; // Restore for objectContaining etc.
 
-// Mock Sentry
+// Import our Chakra test utilities
+import './test-utils/chakra-test-utils';
+
+// Polyfill for Node environments without TextEncoder (needed for WordParserPlugin)
+if (typeof global.TextEncoder === 'undefined') {
+  global.TextEncoder = function TextEncoder() {
+    return {
+      encode: function(str) {
+        const bytes = [];
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          bytes.push(char & 0xff);
+        }
+        return {
+          buffer: new Uint8Array(bytes).buffer
+        };
+      }
+    };
+  };
+}
+
+// Polyfill for File and Blob arrayBuffer methods used in WordParserPlugin
+if (!File.prototype.arrayBuffer) {
+  File.prototype.arrayBuffer = function() {
+    return Promise.resolve(
+      new TextEncoder().encode('dummy content').buffer
+    );
+  };
+}
+
+if (!Blob.prototype.arrayBuffer) {
+  Blob.prototype.arrayBuffer = File.prototype.arrayBuffer;
+}
+
+// Mock Sentry to avoid actual error reporting during tests
 jest.mock('@sentry/nextjs', () => ({
   init: jest.fn(),
   captureException: jest.fn(),
@@ -19,7 +61,25 @@ jest.mock('@sentry/nextjs', () => ({
   // Add any other Sentry functions your code might import/use
 }));
 
-// Mock Next.js router
+// Mock framer-motion to avoid animation issues in tests
+jest.mock('framer-motion', () => {
+  const React = require('react');
+  return {
+    ...jest.requireActual('framer-motion'),
+    AnimatePresence: ({ children }) => <>{children}</>,
+    motion: {
+      div: React.forwardRef((props, ref) => <div ref={ref} {...props} />),
+      span: React.forwardRef((props, ref) => <span ref={ref} {...props} />),
+      button: React.forwardRef((props, ref) => <button ref={ref} {...props} />),
+      a: React.forwardRef((props, ref) => <a ref={ref} {...props} />),
+      ul: React.forwardRef((props, ref) => <ul ref={ref} {...props} />),
+      li: React.forwardRef((props, ref) => <li ref={ref} {...props} />),
+      p: React.forwardRef((props, ref) => <p ref={ref} {...props} />),
+    }
+  };
+});
+
+// Mock next/router for tests
 jest.mock('next/router', () => ({
   useRouter: () => ({
     push: jest.fn(),
@@ -41,46 +101,75 @@ jest.mock('next/router', () => ({
 }));
 
 // Mock IntersectionObserver
-class MockIntersectionObserver {
-  constructor(callback) {
+global.IntersectionObserver = class IntersectionObserver {
+  constructor(callback, options) {
     this.callback = callback;
+    this.options = options;
+    this.entries = new Map();
   }
 
-  observe() {
-    return null;
+  observe(element) {
+    const entry = {
+      isIntersecting: false,
+      intersectionRatio: 0,
+      target: element,
+    };
+    this.entries.set(element, entry);
+    this.callback([entry], this);
+    return entry;
   }
 
-  unobserve() {
-    return null;
+  unobserve(element) {
+    this.entries.delete(element);
   }
 
   disconnect() {
-    return null;
+    this.entries.clear();
   }
-}
 
-global.IntersectionObserver = MockIntersectionObserver;
+  triggerIntersection(element, isIntersecting = true, intersectionRatio = 1) {
+    const entry = this.entries.get(element);
+    if (entry) {
+      entry.isIntersecting = isIntersecting;
+      entry.intersectionRatio = intersectionRatio;
+      this.callback([entry], this);
+    }
+  }
+};
 
 // Mock ResizeObserver
-class MockResizeObserver {
+global.ResizeObserver = class ResizeObserver {
   constructor(callback) {
     this.callback = callback;
+    this.entries = new Map();
   }
 
-  observe() {
-    return null;
+  observe(element) {
+    const entry = {
+      contentRect: { width: 100, height: 100 },
+      target: element,
+    };
+    this.entries.set(element, entry);
+    this.callback([entry], this);
+    return entry;
   }
 
-  unobserve() {
-    return null;
+  unobserve(element) {
+    this.entries.delete(element);
   }
 
   disconnect() {
-    return null;
+    this.entries.clear();
   }
-}
 
-global.ResizeObserver = MockResizeObserver;
+  triggerResize(element, contentRect = { width: 200, height: 200 }) {
+    const entry = this.entries.get(element);
+    if (entry) {
+      entry.contentRect = contentRect;
+      this.callback([entry], this);
+    }
+  }
+};
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -125,21 +214,18 @@ jest.mock('next/head', () => {
   };
 });
 
-// Mock PDFJS (target the base module) - REMOVED, handled by moduleNameMapper
-/*
-jest.mock('pdfjs-dist', () => ({
-  // Assume the require('pdfjs-dist/build/pdf') directly gives access to these.
-  // If the original code structure was different (e.g., pdfjs.build.pdf), adjust nesting.
-  GlobalWorkerOptions: {
-    workerSrc: '',
-  },
-  getDocument: jest.fn().mockResolvedValue({
-    numPages: 1,
-    getPage: jest.fn().mockResolvedValue({
-      getTextContent: jest.fn().mockResolvedValue({ items: [] }),
-      getViewport: jest.fn().mockReturnValue({ width: 600, height: 800 }),
-    }),
-    destroy: jest.fn(),
-  }),
-}));
-*/
+// Add TypeScript declarations for Jest matchers
+if (typeof global.beforeAll === 'function') {
+  // Only run in Jest environment
+  const originalExpect = global.expect;
+  if (originalExpect) {
+    global.expect = Object.assign(
+      // Add missing TypeScript definitions for Jest matchers
+      (actual) => {
+        const matchers = originalExpect(actual);
+        return matchers;
+      },
+      originalExpect
+    );
+  }
+}
