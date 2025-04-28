@@ -4,7 +4,7 @@
  */
 
 // Re-export main service and parsing function for external use
-export { parseDocument } from './services/document-parsing-service';
+export { parseDocumentWithService as parseDocument } from './services/document-parsing-service';
 export { documentParsingService as DocumentParsingService } from './services/document-parsing-service';
 
 // Export types for consumers
